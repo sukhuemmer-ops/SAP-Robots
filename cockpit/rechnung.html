@@ -1298,7 +1298,7 @@ async function execCreate(debugMode) {
     var resp  = await fetch(BRIDGE_URL + '/run', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ method: 'GUI', tcode: 'SD_INVOICE_MULTI', payload: Object.assign({}, payload, debugMode ? {debug: true} : {}) }),
+      body:    JSON.stringify({ method: 'GUI', tcode: 'SD_INVOICE_MULTI', payload: Object.assign({}, payload, { background: AUTH.getGuiBg() }, debugMode ? {debug: true} : {}) }),
       signal:  ctrl.signal,
     });
     clearTimeout(timer);

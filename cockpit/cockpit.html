@@ -2234,7 +2234,7 @@ function runTask(t, batch){
       fetch(BRIDGE_URL + '/gui', {
         method:'POST',
         headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ tcode:t.tcode, params:t.params, user:creds.user, pass:creds.pass, client:creds.client })
+        body: JSON.stringify({ tcode:t.tcode, params:t.params, user:creds.user, pass:creds.pass, client:creds.client, background: AUTH.getGuiBg() })
       }).then(function(r){ return r.json(); }).then(function(d){
         if (d.status==='ok'){ if (!batch) toast(t.name + ' erfolgreich', 'ok'); log('ok', t.name); }
         else                { if (!batch) toast(t.name + ' fehlgeschlagen', 'err'); log('err', t.name+': '+d.message); }

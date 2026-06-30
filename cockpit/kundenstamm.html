@@ -237,6 +237,47 @@ textarea:focus{border-color:var(--acc)}
       <button class="tab-btn" onclick="switchTab('detail',this)" id="tabBtnDetail">
         🔍 Kunden-Detail
       </button>
+      <button class="tab-btn" onclick="switchTab('protokoll',this);loadProtokoll();" id="tabBtnProtokoll">
+        📜 Änderungsprotokoll
+      </button>
+    </div>
+
+    <!-- ── Protokoll Tab ── -->
+    <div class="tab-panel" id="tabProtokoll">
+      <div class="overview-header">
+        <div>
+          <div class="overview-title">📜 Zahlungsbedingungen – Änderungsprotokoll</div>
+          <div class="overview-sub" id="protokollSub"></div>
+        </div>
+        <div class="overview-actions">
+          <input type="text" id="protokollFilter" placeholder="Kundennummer filtern…"
+            style="background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:6px 10px;font-size:12px;width:180px"
+            oninput="filterProtokoll(this.value)">
+          <button class="btn btn-sm" onclick="loadProtokoll()">↺ Neu laden</button>
+        </div>
+      </div>
+      <div style="overflow-x:auto;margin-top:8px">
+        <table style="width:100%;border-collapse:collapse;font-size:12px" id="protokollTable">
+          <thead>
+            <tr style="background:var(--bg2);color:var(--muted);text-align:left">
+              <th style="padding:8px 10px;white-space:nowrap">Datum / Zeit</th>
+              <th style="padding:8px 10px">Kunden-Nr</th>
+              <th style="padding:8px 10px">Name</th>
+              <th style="padding:8px 10px">TCode</th>
+              <th style="padding:8px 10px">BK</th>
+              <th style="padding:8px 10px">Vertrag</th>
+              <th style="padding:8px 10px">Alt</th>
+              <th style="padding:8px 10px">→ Neu</th>
+              <th style="padding:8px 10px">System</th>
+              <th style="padding:8px 10px">Benutzer</th>
+              <th style="padding:8px 10px">Status</th>
+            </tr>
+          </thead>
+          <tbody id="protokollBody">
+            <tr><td colspan="11" style="padding:20px;text-align:center;color:var(--muted)">Bitte Tab öffnen…</td></tr>
+          </tbody>
+        </table>
+      </div>
     </div>
 
     <!-- ── Übersicht Tab ── -->
@@ -247,6 +288,7 @@ textarea:focus{border-color:var(--acc)}
           <div class="overview-sub" id="overviewSub">Lädt…</div>
         </div>
         <div class="overview-actions">
+          <!-- GUI-BG-Toggle wird global über AUTH in auth.js (Header) gesteuert -->
           <button class="btn btn-ok btn-sm" onclick="markAllDone()">✓ Alle als erledigt</button>
           <button class="btn btn-sm" onclick="resetAllStatus()">↺ Zurücksetzen</button>
         </div>
@@ -291,6 +333,8 @@ textarea:focus{border-color:var(--acc)}
 AUTH.renderHeader('headerRight');
 
 const BRIDGE_URL = 'http://localhost:8765';
+const ORCH_URL   = 'http://localhost:8000';
+// GUI-BG wird global über AUTH.getGuiBg() gesteuert (auth.js / Header-Toggle)
 const SAP_SYSTEMS = {
   SEP: { ashost:'172.28.189.8',  sysnr:'06', client:'600', lang:'DE' },
   SEQ: { ashost:'172.28.189.11', sysnr:'05', client:'600', lang:'DE' },
@@ -664,6 +708,7 @@ function renderDetail(c){
         '<div class="field-item"><div class="lbl">Transaktion</div><div class="val acc">XD02</div><div class="val-sub">Kundenstamm ändern</div></div>'+
         '<div class="field-item"><div class="lbl">Kunden-Nr.</div><div class="val acc">'+esc(c.num)+'</div><div class="val-sub">BK '+esc(c.bk)+'</div></div>'+
         '<div class="field-item"><div class="lbl">SAP-Reiter</div><div class="val" style="font-size:12px;margin-top:5px">Faktura (T\\03)</div><div class="val-sub">KNVV-ZTERM</div></div>'+
+        '<div class="field-item"><div class="lbl">BK-Daten Reiter</div><div class="val" style="font-size:12px;margin-top:5px">Payment Transactions</div><div class="val-sub">KNB1-ZTERM · BK '+esc(c.bk)+'</div></div>'+
         '<div class="field-item"><div class="lbl">VKOrg / VTWeg / Spart</div><div class="val" style="font-size:12px;margin-top:5px">0439 / 10 / 00</div></div>'+
       '</div>'
     : '<div class="ok-banner">✅ ZTERM korrekt – keine Änderung in XD02</div>'+
@@ -672,7 +717,11 @@ function renderDetail(c){
         '<div class="field-item"><div class="lbl">ZTERM aktuell</div><div class="val ok">'+esc(c.curT)+'</div><div class="val-sub">'+esc(c.curD)+'</div></div>'+
         '<div class="field-item"><div class="lbl">Buchungskreis</div><div class="val">'+esc(c.bk)+'</div></div>'+
       '</div>';
-  var xb=need?'<button class="btn btn-sm btn-acc" onclick="copyAndMark(\'xd02\',\''+esc(c.num)+'\',\''+esc(c.bk)+'\',\''+esc(c.curT)+'\',\''+esc(c.newT)+'\')">📋 XD02 Script</button>':'';
+  var xb=need
+    ? '<button class="btn btn-sm btn-acc" onclick="copyAndMark(\'xd02\',\''+esc(c.num)+'\',\''+esc(c.bk)+'\',\''+esc(c.curT)+'\',\''+esc(c.newT)+'\')">📋 XD02 Script</button>'+
+      ' <button class="btn btn-sm" style="background:rgba(120,200,80,.15);color:#7cc852;font-size:10px;padding:3px 8px" onclick="execXD02K(\''+esc(c.num)+'\',\''+esc(c.bk)+'\',\''+esc(c.newT)+'\')" title="KNB1-ZTERM direkt in SAP setzen">⚡ Ausführen</button>'+
+      ' <span id="xd02k_status_'+esc(c.num)+'" style="font-size:11px;color:var(--muted)"></span>'
+    : '';
   var vk_body=need
     ? '<div class="field-grid" style="margin-bottom:12px">'+
         '<div class="field-item"><div class="lbl">Transaktion</div><div class="val acc">VK12</div></div>'+
@@ -804,6 +853,66 @@ function setContracts(num,val){
   contractsMap[num]=val.split(/[,;\s]+/).map(function(s){return s.trim();}).filter(function(s){return s.length>0;});
   setTimeout(refreshAll,0);
 }
+async function execXD02K(num, bk, newT) {
+  if (!confirm('KNB1-ZTERM auf ' + newT + ' für Kunde ' + num + ' (BK ' + bk + ') direkt in SAP setzen?')) return;
+
+  var xd02StatusId = 'xd02k_status_' + num;
+  var el = document.getElementById(xd02StatusId);
+  if (el) el.textContent = '⏳ Führe XD02 aus…';
+
+  var resp, data;
+  try {
+    resp = await fetch(BRIDGE_URL + '/run', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        method: 'GUI',
+        tcode:  'XD02_KZTERM',
+        payload: { customers: [num], bukrs: bk, new_zterm: newT, background: AUTH.getGuiBg(), _sap_auth: _sapAuth() }
+      })
+    });
+    data = await resp.json();
+  } catch(e) {
+    if (el) el.textContent = '✗ Bridge Fehler: ' + e.message;
+    return;
+  }
+
+  if (data.status === 'ok' || data.status === 'partial') {
+    var ok  = data.ok   || 0;
+    var err = data.errors || 0;
+    if (el) el.textContent = ok + ' Kunde' + (ok!==1?'n':'') + ' geändert' + (err ? ' · ' + err + ' Fehler' : '');
+    if (err === 0) {
+      setStep(num, 'xd02', 'done');
+      if (activeCust && activeCust.num === num) renderDetail(activeCust);
+    }
+    // Protokoll-Einträge speichern
+    var cAuth = _sapAuth();
+    var cInfo = PRELOADED.find(function(p){ return p.num === num; }) || {};
+    (data.results || []).forEach(function(r) {
+      logZtermChange({
+        kunnr:      r.kunnr || num,
+        kname:      cInfo.name || '',
+        bukrs:      bk,
+        tcode:      'XD02',
+        zterm_old:  r.zterm_old || '',
+        zterm_new:  newT,
+        sap_system: (AUTH && AUTH.user && AUTH.user.sap_system) || 'SEP',
+        changed_by: (AUTH && AUTH.user && AUTH.user.sap_username) || 'unbekannt',
+        status:     r.status || 'ok',
+        note:       r.message || ''
+      });
+    });
+    var details = (data.results || []).map(function(r) {
+      return r.kunnr + ': ' + (r.status === 'ok' ? '✓' : '✗') + ' ' + r.message;
+    }).join('\n');
+    if (details) setTimeout(function(){ alert('XD02 KNB1 Ergebnis:\n' + details); }, 100);
+  } else {
+    var msg = data.message || data.error || JSON.stringify(data);
+    if (el) el.textContent = '✗ ' + msg;
+    alert('XD02 Fehler: ' + msg);
+  }
+}
+
 async function execVA42(num, newT) {
   var clist = contractsMap[num] || [];
   if (!clist.length) { alert('Bitte erst Verträge aus SAP laden!'); return; }
@@ -824,6 +933,7 @@ async function execVA42(num, newT) {
         payload: {
           contracts: clist,
           new_zterm: newT,
+          background: AUTH.getGuiBg(),
           _sap_auth: _sapAuth()
         }
       })
@@ -842,6 +952,16 @@ async function execVA42(num, newT) {
       setStep(num, 'va42', 'done');
       if (activeCust && activeCust.num === num) renderDetail(activeCust);
     }
+    var cInfoV = PRELOADED.find(function(p){ return p.num === num; }) || {};
+    (data.results || []).forEach(function(r) {
+      if (r.status === 'ok') logZtermChange({
+        kunnr: num, kname: cInfoV.name || '', bukrs: cInfoV.bk || '', tcode: 'VA42',
+        vbeln: r.vbeln || '', zterm_old: r.zterm_old || '', zterm_new: newT,
+        sap_system: (AUTH&&AUTH.user&&AUTH.user.sap_system)||'SEP',
+        changed_by: (AUTH&&AUTH.user&&AUTH.user.sap_username)||'unbekannt',
+        status: r.status, note: r.message || ''
+      });
+    });
     // Detail-Ergebnisse anzeigen
     var details = (data.results || []).map(function(r) {
       return r.vbeln + ': ' + (r.status === 'ok' ? '✓' : '✗') + ' ' + r.message;
@@ -894,6 +1014,74 @@ function copyVA42(num,bk,newT){
     if(activeCust&&activeCust.num===num)renderDetail(activeCust);
   }).catch(function(){setStep(num,'va42','done');});
 }
+
+// ── Zahlungsbedingungen-Protokoll ─────────────────────────────────────────────
+var _protokollData = [];
+
+async function logZtermChange(entry) {
+  try {
+    await fetch(ORCH_URL + '/zterm-log', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(entry)
+    });
+  } catch(e) { console.warn('Protokoll-Log fehlgeschlagen:', e); }
+}
+
+async function loadProtokoll() {
+  var sub = document.getElementById('protokollSub');
+  if (sub) sub.textContent = 'Lädt…';
+  try {
+    var resp = await fetch(ORCH_URL + '/zterm-log?limit=500');
+    _protokollData = await resp.json();
+    renderProtokoll(_protokollData);
+    if (sub) sub.textContent = _protokollData.length + ' Einträge';
+  } catch(e) {
+    var tb = document.getElementById('protokollBody');
+    if (tb) tb.innerHTML = '<tr><td colspan="11" style="padding:20px;text-align:center;color:var(--err)">Orchestrator nicht erreichbar: ' + e.message + '</td></tr>';
+    if (sub) sub.textContent = 'Fehler beim Laden';
+  }
+}
+
+function filterProtokoll(q) {
+  if (!q) { renderProtokoll(_protokollData); return; }
+  q = q.toLowerCase();
+  renderProtokoll(_protokollData.filter(function(r){
+    return (r.kunnr||'').toLowerCase().includes(q) ||
+           (r.kname||'').toLowerCase().includes(q) ||
+           (r.changed_by||'').toLowerCase().includes(q) ||
+           (r.tcode||'').toLowerCase().includes(q);
+  }));
+}
+
+function renderProtokoll(rows) {
+  var tb = document.getElementById('protokollBody');
+  if (!tb) return;
+  if (!rows || !rows.length) {
+    tb.innerHTML = '<tr><td colspan="11" style="padding:20px;text-align:center;color:var(--muted)">Keine Einträge vorhanden</td></tr>';
+    return;
+  }
+  tb.innerHTML = rows.map(function(r) {
+    var dt = r.changed_at ? new Date(r.changed_at) : null;
+    var datStr = dt ? dt.toLocaleDateString('de-DE') + ' ' + dt.toLocaleTimeString('de-DE') : '–';
+    var stColor = r.status === 'ok' ? '#7cc852' : r.status === 'warn' ? '#f0a04b' : 'var(--err)';
+    var stIcon  = r.status === 'ok' ? '✓' : r.status === 'warn' ? '⚠' : '✗';
+    return '<tr style="border-bottom:1px solid var(--border)">' +
+      '<td style="padding:7px 10px;white-space:nowrap;color:var(--muted);font-size:11px">' + datStr + '</td>' +
+      '<td style="padding:7px 10px;font-weight:600">' + (r.kunnr||'') + '</td>' +
+      '<td style="padding:7px 10px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + (r.kname||'') + '">' + (r.kname||'–') + '</td>' +
+      '<td style="padding:7px 10px;font-family:monospace;font-size:11px">' + (r.tcode||'') + '</td>' +
+      '<td style="padding:7px 10px">' + (r.bukrs||'–') + '</td>' +
+      '<td style="padding:7px 10px;font-family:monospace;font-size:11px">' + (r.vbeln||'–') + '</td>' +
+      '<td style="padding:7px 10px;color:#f0a04b;font-weight:600">' + (r.zterm_old||'–') + '</td>' +
+      '<td style="padding:7px 10px;color:#7cc852;font-weight:600">→ ' + (r.zterm_new||'') + '</td>' +
+      '<td style="padding:7px 10px;font-size:11px">' + (r.sap_system||'–') + '</td>' +
+      '<td style="padding:7px 10px">' + (r.changed_by||'–') + '</td>' +
+      '<td style="padding:7px 10px;color:' + stColor + ';font-weight:600">' + stIcon + ' ' + r.status + '</td>' +
+    '</tr>';
+  }).join('');
+}
+
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 </script>
 </body>

@@ -432,6 +432,24 @@ class StructureSuggestion(Base):
 # ============================================================================
 # Layer 6: Governance-Schicht — App-Regeln persistent in der DB
 # ============================================================================
+class ZtermChangeLog(Base):
+    """Protokoll aller Zahlungsbedingungsänderungen (XD02 / VA42)."""
+    __tablename__ = "zterm_change_log"
+    id:          Mapped[int]      = mapped_column(primary_key=True)
+    kunnr:       Mapped[str]      = mapped_column(String(10))
+    kname:       Mapped[str]      = mapped_column(String(100), default="")
+    bukrs:       Mapped[str]      = mapped_column(String(4), default="")
+    tcode:       Mapped[str]      = mapped_column(String(10))
+    vbeln:       Mapped[str]      = mapped_column(String(10), default="")
+    zterm_old:   Mapped[str]      = mapped_column(String(10), default="")
+    zterm_new:   Mapped[str]      = mapped_column(String(10))
+    sap_system:  Mapped[str]      = mapped_column(String(10), default="")
+    changed_by:  Mapped[str]      = mapped_column(String(50))
+    changed_at:  Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    status:      Mapped[str]      = mapped_column(String(10), default="ok")
+    note:        Mapped[str]      = mapped_column(Text, default="")
+
+
 class GovernanceRule(Base):
     """Governance-Schicht: App-Regeln dauerhaft in der DB (Single Source of Truth)."""
     __tablename__ = "governance_rules"
@@ -1326,6 +1344,50 @@ def delete_sap_user(user_id: int, db: Session = Depends(get_db)):
 @app.get("/health")
 def health():
     return {"status": "ok", "time": datetime.utcnow().isoformat()}
+
+
+# ----------------------------------------------------------------------------
+# Zahlungsbedingungen-Protokoll
+# ----------------------------------------------------------------------------
+class ZtermLogIn(BaseModel):
+    kunnr:      str
+    kname:      str = ""
+    bukrs:      str = ""
+    tcode:      str
+    vbeln:      str = ""
+    zterm_old:  str = ""
+    zterm_new:  str
+    sap_system: str = ""
+    changed_by: str
+    status:     str = "ok"
+    note:       str = ""
+
+class ZtermLogOut(ZtermLogIn):
+    id:         int
+    changed_at: datetime
+    class Config:
+        from_attributes = True
+
+@app.post("/zterm-log", response_model=ZtermLogOut, status_code=201, tags=["Protokoll"])
+def create_zterm_log(payload: ZtermLogIn, db: Session = Depends(get_db)):
+    entry = ZtermChangeLog(**payload.model_dump())
+    db.add(entry); db.commit(); db.refresh(entry)
+    return entry
+
+@app.get("/zterm-log", response_model=List[ZtermLogOut], tags=["Protokoll"])
+def get_zterm_log(
+    kunnr: Optional[str] = None,
+    tcode: Optional[str] = None,
+    limit: int = 200,
+    db: Session = Depends(get_db)
+):
+    from sqlalchemy import desc
+    q = db.query(ZtermChangeLog)
+    if kunnr:
+        q = q.filter(ZtermChangeLog.kunnr == kunnr)
+    if tcode:
+        q = q.filter(ZtermChangeLog.tcode == tcode)
+    return q.order_by(desc(ZtermChangeLog.changed_at)).limit(limit).all()
 
 
 # ----------------------------------------------------------------------------
