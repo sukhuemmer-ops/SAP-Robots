@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SAP Robot – Zahlungsbedingungen 0439 India</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f2f5; color: #1a1a2e; font-size: 14px; }
+
+  .header { background: linear-gradient(135deg, #0066b2 0%, #004a8a 100%); color: white; padding: 14px 24px; display: flex; align-items: center; gap: 14px; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
+  .header .logo { font-size: 22px; font-weight: 700; letter-spacing: 2px; background: rgba(255,255,255,0.15); padding: 5px 10px; border-radius: 4px; }
+  .header h1 { font-size: 17px; font-weight: 600; }
+  .header .subtitle { font-size: 11px; opacity: 0.8; margin-top: 2px; }
+  .header .robot-badge { margin-left: auto; background: rgba(255,255,255,0.2); padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+
+  .layout { display: flex; height: calc(100vh - 58px); }
+  .sidebar { width: 300px; background: white; border-right: 1px solid #dce1e8; display: flex; flex-direction: column; overflow: hidden; flex-shrink: 0; }
+  .main { flex: 1; overflow-y: auto; padding: 20px; }
+
+  .sidebar-header { padding: 14px; border-bottom: 1px solid #dce1e8; background: #f7f9fc; }
+  .sidebar-header h2 { font-size: 12px; font-weight: 700; color: #555; text-transform: uppercase; letter-spacing: 0.5px; }
+  .stats-row { display: flex; gap: 6px; margin-top: 8px; }
+  .stat-badge { flex: 1; text-align: center; padding: 7px 4px; border-radius: 6px; font-size: 10px; font-weight: 600; }
+  .stat-badge.total { background: #e8f0fe; color: #1a73e8; }
+  .stat-badge.error { background: #fce8e6; color: #d93025; }
+  .stat-badge.ok { background: #e6f4ea; color: #188038; }
+  .stat-badge .num { font-size: 18px; display: block; }
+  .progress-bar-container { background: #e8eaed; border-radius: 4px; height: 5px; margin-top: 8px; }
+  .progress-bar { background: #34a853; height: 5px; border-radius: 4px; transition: width 0.3s; }
+  .progress-label { font-size: 10px; color: #666; margin-top: 3px; text-align: right; }
+
+  .import-zone { padding: 10px 12px; border-bottom: 1px solid #dce1e8; }
+  .import-btn { width: 100%; padding: 7px; background: #0066b2; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600; }
+  .import-btn:hover { background: #004a8a; }
+  #fileInput { display: none; }
+  .import-info { font-size: 10px; color: #888; text-align: center; margin-top: 5px; }
+
+  .filter-bar { padding: 8px 10px; border-bottom: 1px solid #dce1e8; display: flex; gap: 5px; flex-wrap: wrap; }
+  .filter-btn { padding: 3px 9px; border-radius: 20px; border: 1px solid #dce1e8; background: white; cursor: pointer; font-size: 11px; transition: all 0.15s; }
+  .filter-btn.active { background: #0066b2; color: white; border-color: #0066b2; }
+  .filter-btn:hover:not(.active) { background: #f0f4ff; }
+
+  .customer-list { flex: 1; overflow-y: auto; }
+  .customer-item { padding: 10px 12px; border-bottom: 1px solid #f0f0f0; cursor: pointer; transition: background 0.1s; position: relative; }
+  .customer-item:hover { background: #f7f9fc; }
+  .customer-item.active { background: #e8f0fe; border-left: 3px solid #0066b2; }
+  .customer-item.needs-change { border-left: 3px solid #ea4335; }
+  .customer-item.needs-change.active { border-left: 3px solid #0066b2; }
+  .customer-item.done { border-left: 3px solid #34a853; }
+  .cust-name { font-weight: 600; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 230px; }
+  .cust-num { font-size: 10px; color: #888; margin-top: 1px; }
+  .cust-badge { position: absolute; right: 8px; top: 12px; font-size: 10px; padding: 2px 6px; border-radius: 10px; font-weight: 600; }
+  .badge-error { background: #fce8e6; color: #d93025; }
+  .badge-ok { background: #e6f4ea; color: #188038; }
+  .badge-done { background: #e8f0fe; color: #1a73e8; }
+
+  .welcome-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 400px; color: #888; text-align: center; }
+  .welcome-screen .icon { font-size: 56px; margin-bottom: 14px; }
+  .welcome-screen h2 { font-size: 18px; color: #555; margin-bottom: 8px; }
+
+  .customer-detail { display: none; }
+  .customer-detail.visible { display: block; }
+
+  .detail-header { background: white; border-radius: 8px; padding: 18px 22px; margin-bottom: 14px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); display: flex; justify-content: space-between; align-items: flex-start; }
+  .detail-title { font-size: 18px; font-weight: 700; }
+  .detail-meta { font-size: 12px; color: #666; margin-top: 3px; }
+  .mark-done-btn { padding: 8px 18px; background: #34a853; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600; }
+  .mark-done-btn.undone { background: #fbbc04; color: #333; }
+
+  .change-box { background: white; border-radius: 8px; padding: 18px 22px; margin-bottom: 14px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+  .change-box h3 { font-size: 13px; font-weight: 700; margin-bottom: 12px; color: #333; }
+  .change-arrow { display: flex; align-items: center; gap: 14px; }
+  .term-box { flex: 1; padding: 12px; border-radius: 8px; text-align: center; }
+  .term-box.old { background: #fce8e6; border: 1px solid #f5c6c2; }
+  .term-box.new { background: #e6f4ea; border: 1px solid #b7dfbf; }
+  .term-code { font-size: 20px; font-weight: 700; margin-bottom: 3px; }
+  .term-box.old .term-code { color: #d93025; }
+  .term-box.new .term-code { color: #188038; }
+  .term-desc { font-size: 11px; color: #555; }
+  .arrow-icon { font-size: 24px; color: #aaa; }
+  .ok-label { text-align: center; padding: 12px; background: #e6f4ea; border-radius: 8px; color: #188038; font-weight: 700; font-size: 14px; border: 1px solid #b7dfbf; }
+
+  /* Robot section */
+  .robot-section { background: white; border-radius: 8px; padding: 18px 22px; margin-bottom: 14px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+  .robot-section h3 { font-size: 13px; font-weight: 700; margin-bottom: 12px; color: #0066b2; display: flex; align-items: center; gap: 6px; }
+  .robot-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .robot-card { border: 1px solid #dce1e8; border-radius: 6px; padding: 14px; }
+  .robot-card .tcode { display: inline-block; background: #e8f0fe; color: #1a73e8; font-family: monospace; font-size: 11px; padding: 2px 7px; border-radius: 4px; font-weight: 700; margin-bottom: 6px; }
+  .robot-card .script-name { font-size: 11px; color: #888; font-family: monospace; margin-bottom: 8px; }
+  .robot-card .field-list { font-size: 11px; }
+  .robot-card .field-item { padding: 3px 0; border-bottom: 1px solid #f5f5f5; display: flex; justify-content: space-between; }
+  .robot-card .field-item:last-child { border-bottom: none; }
+  .robot-card .field-label { color: #888; }
+  .robot-card .field-value { font-weight: 600; font-family: monospace; }
+  .robot-card .field-value.old { color: #d93025; text-decoration: line-through; }
+  .robot-card .field-value.new { color: #188038; }
+
+  .run-btn { display: block; width: 100%; margin-top: 10px; padding: 8px; background: #0066b2; color: white; border: none; border-radius: 5px; font-size: 12px; font-weight: 600; cursor: pointer; text-align: center; }
+  .run-btn:hover { background: #004a8a; }
+  .run-btn.secondary { background: #5f6368; }
+  .run-btn.secondary:hover { background: #3c4043; }
+
+  .vbs-block { background: #1a1a2e; color: #a8d8a8; font-family: monospace; font-size: 11px; padding: 10px 14px; border-radius: 6px; margin-top: 10px; white-space: pre; overflow-x: auto; }
+
+  .sales-row { display: flex; gap: 12px; margin-bottom: 14px; }
+  .sales-card { background: white; border-radius: 8px; padding: 14px 18px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); flex: 1; }
+  .sales-card .label { font-size: 10px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; }
+  .sales-card .value { font-size: 17px; font-weight: 700; margin-top: 3px; }
+  .sales-card .value.currency { color: #0066b2; }
+
+  .checklist { margin-top: 8px; }
+  .check-item { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid #f5f5f5; cursor: pointer; }
+  .check-item:last-child { border-bottom: none; }
+  .check-item input[type=checkbox] { width: 15px; height: 15px; cursor: pointer; accent-color: #0066b2; }
+  .check-item label { cursor: pointer; font-size: 12px; }
+  .check-item.done label { text-decoration: line-through; color: #aaa; }
+
+  .notes-box { background: white; border-radius: 8px; padding: 16px 22px; margin-bottom: 14px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+  .notes-box h3 { font-size: 12px; font-weight: 700; margin-bottom: 8px; }
+  .notes-box textarea { width: 100%; border: 1px solid #dce1e8; border-radius: 5px; padding: 8px; font-size: 12px; resize: vertical; min-height: 70px; font-family: inherit; }
+  .notes-box textarea:focus { outline: none; border-color: #0066b2; }
+
+  .config-bar { background: #fff8e1; border: 1px solid #ffc107; border-radius: 6px; padding: 8px 12px; margin-bottom: 14px; font-size: 11px; color: #856404; }
+  .config-bar code { background: rgba(0,0,0,0.06); padding: 1px 4px; border-radius: 3px; font-family: monospace; }
+
+  @media (max-width: 900px) {
+    .robot-cards { grid-template-columns: 1fr; }
+    .sidebar { width: 250px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">SAP</div>
+  <div>
+    <h1>Zahlungsbedingungen – Korrektur Kundenstammdaten</h1>
+    <div class="subtitle">Buchungskreis 0439 · India · C:\WF\sap-robots\0439-India\</div>
+  </div>
+  <div class="robot-badge">🤖 SAP Robot</div>
+</div>
+
+<div class="layout">
+
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <div class="import-zone">
+      <input type="file" id="fileInput" accept=".xlsx,.xls" onchange="loadExcel(this)">
+      <button class="import-btn" onclick="document.getElementById('fileInput').click()">📂 Excel importieren</button>
+      <div class="import-info" id="importInfo">Vorgeladene Daten aktiv (0439 India)</div>
+    </div>
+
+    <div class="sidebar-header">
+      <h2>Kunden Übersicht</h2>
+      <div class="stats-row">
+        <div class="stat-badge total"><span class="num" id="statTotal">0</span>Gesamt</div>
+        <div class="stat-badge error"><span class="num" id="statError">0</span>Zu ändern</div>
+        <div class="stat-badge ok"><span class="num" id="statOk">0</span>Korrekt</div>
+      </div>
+      <div class="progress-bar-container">
+        <div class="progress-bar" id="progressBar" style="width:0%"></div>
+      </div>
+      <div class="progress-label" id="progressLabel">0 von 0 erledigt</div>
+    </div>
+
+    <div class="filter-bar">
+      <button class="filter-btn active" onclick="setFilter('all',this)">Alle</button>
+      <button class="filter-btn" onclick="setFilter('error',this)">Zu ändern</button>
+      <button class="filter-btn" onclick="setFilter('ok',this)">Korrekt</button>
+      <button class="filter-btn" onclick="setFilter('done',this)">Erledigt</button>
+    </div>
+
+    <div class="customer-list" id="customerList"></div>
+  </div>
+
+  <!-- MAIN -->
+  <div class="main">
+    <div class="welcome-screen" id="welcomeScreen">
+      <div class="icon">🤖</div>
+      <h2>SAP Robot – Zahlungsbedingungen</h2>
+      <p>Wählen Sie einen Kunden aus der Liste oder laden Sie eine neue Excel-Datei.</p>
+      <br>
+      <p style="font-size:12px; color:#aaa;">Scripts: <code style="background:#eee;padding:2px 5px;border-radius:3px;">C:\WF\sap-robots\0439-India\</code></p>
+    </div>
+    <div class="customer-detail" id="customerDetail"></div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// STAMMDATEN (aus Excel vorgeladen)
+// ============================================================
+const PRELOADED_DATA = [
+  { compCode:'0439', custNum:'1012688', custName:'MARUTI SUZUKI INDIA LIMITED - (GUJ)', currentTerm:'0460', currentDesc:'within 30 days Due net', checkDesc:'1 week after delivery', status:'Not Matched', newTerm:'X004', newDesc:'within 8 days Due net', qty:221565, sales:32629778.6 },
+  { compCode:'0439', custNum:'1012693', custName:'SHREE DHANLAXMI INDUSTRIES', currentTerm:'0460', currentDesc:'within 30 days Due net', checkDesc:'NA', status:'OK', newTerm:null, newDesc:null, qty:2300, sales:285022 },
+  { compCode:'0439', custNum:'1012598', custName:'Hyundai Motor India Limited', currentTerm:'7604', currentDesc:'within 64 days Due net', checkDesc:'within 30 days Due net', status:'Not Matched', newTerm:'0460', newDesc:'within 30 days Due net', qty:301258, sales:49698476.46 },
+  { compCode:'0439', custNum:'93762', custName:'Schaeffler India Limited (Hosur)', currentTerm:'0460', currentDesc:'within 30 days Due net', checkDesc:'within 30 days Due net', status:'OK', newTerm:null, newDesc:null, qty:118990, sales:13902982.8 },
+  { compCode:'0439', custNum:'69886', custName:'Hyundai Motors India Limited', currentTerm:'0460', currentDesc:'within 30 days Due net', checkDesc:'within 30 days Due net', status:'OK', newTerm:null, newDesc:null, qty:1232754, sales:283370071.52 },
+  { compCode:'0439', custNum:'103309', custName:'CATENSYS India Pvt. Ltd. (Gurugram)', currentTerm:'0201', currentDesc:'Payable immediately Due net', checkDesc:'Stock transfer', status:'OK', newTerm:null, newDesc:null, qty:null, sales:null },
+  { compCode:'0439', custNum:'103310', custName:'CATENSYS India Pvt. Ltd. (Chennai)', currentTerm:'0201', currentDesc:'Payable immediately Due net', checkDesc:'Stock transfer', status:'OK', newTerm:null, newDesc:null, qty:null, sales:null },
+  { compCode:'0439', custNum:'1012588', custName:'Maruti Suzuki India Limited', currentTerm:'Z170', currentDesc:'90 d end of month, payment on 2. of following month', checkDesc:'1 week after delivery', status:'Not Matched', newTerm:'X004', newDesc:'within 8 days Due net', qty:233896, sales:35621248.44 },
+  { compCode:'0439', custNum:'1012483', custName:'CATENSYS India Pvt. Ltd. (Gujrat)', currentTerm:'ZI02', currentDesc:'Before 15 in 3 months Due net', checkDesc:'Stock transfer', status:'OK', newTerm:null, newDesc:null, qty:null, sales:null },
+  { compCode:'0439', custNum:'1012603', custName:'Maruti Suzuki India Limited (G)', currentTerm:'Z170', currentDesc:'90 d end of month, payment on 2. of following month', checkDesc:'1 week after delivery', status:'Not Matched', newTerm:'X004', newDesc:'within 8 days Due net', qty:288023, sales:31727215.12 },
+  { compCode:'0439', custNum:'97570', custName:'Kia India Private Limited', currentTerm:'0460', currentDesc:'within 30 days Due net', checkDesc:'within 30 days Due net', status:'OK', newTerm:null, newDesc:null, qty:217246, sales:40370679.98 },
+  { compCode:'0439', custNum:'77944', custName:'Renault Nissan Automotive India Pvt', currentTerm:'0540', currentDesc:'within 60 days Due net', checkDesc:'within 60 days Due net', status:'OK', newTerm:null, newDesc:null, qty:96457, sales:29265547.88 },
+  { compCode:'0439', custNum:'76085', custName:'Honda Cars India Limited', currentTerm:'0535', currentDesc:'within 55 days Due net', checkDesc:'within 55 days Due net', status:'OK', newTerm:null, newDesc:null, qty:16800, sales:909384 },
+  { compCode:'0439', custNum:'102378', custName:'Mahindra & Mahindra Ltd. (Pune)', currentTerm:'7604', currentDesc:'within 64 days Due net', checkDesc:'within 64 days Due net', status:'OK', newTerm:null, newDesc:null, qty:48635, sales:11079505.95 },
+  { compCode:'0439', custNum:'1012484', custName:'KSPG Automotive India Pvt Limited', currentTerm:'7604', currentDesc:'within 64 days Due net', checkDesc:'within 45 days Due net', status:'Not Matched', newTerm:'0520', newDesc:'within 45 days Due net', qty:21839, sales:4652199.4 },
+  { compCode:'0439', custNum:'76066', custName:'Maruti Suzuki India Limited -(M)', currentTerm:'Z170', currentDesc:'90 d end of month, payment on 2. of following month', checkDesc:'1 week after delivery', status:'Not Matched', newTerm:'X004', newDesc:'within 8 days Due net', qty:17540, sales:2105894.6 },
+  { compCode:'0439', custNum:'56890', custName:'Schaeffler Bearings Indonesia, PT', currentTerm:'0008', currentDesc:'For Invoicing up to 15 of Month, within 14/30/45 days', checkDesc:'Before 15 in 2 months Due net', status:'Not Matched', newTerm:'Z401', newDesc:'Before 15 in 2 months Due net', qty:2880, sales:224549.59 },
+  { compCode:'0439', custNum:'1012568', custName:'ASAHI SANGYO KAISHA LTD', currentTerm:'Z910', currentDesc:'Before 15 in 2 months Due net', checkDesc:'T/T UPON RECEIVED OF GOODS', status:'Not Matched', newTerm:'Z001', newDesc:'Payable immediately Due net', qty:78742, sales:16081651.26 },
+  { compCode:'0439', custNum:'103052', custName:'CATENSYS Chain Drive (Nanjing)', currentTerm:'ZI03', currentDesc:'Before 15 in 2 months Due net', checkDesc:'As per IC rules', status:'OK', newTerm:null, newDesc:null, qty:33024, sales:21905211.41 },
+  { compCode:'0439', custNum:'89654', custName:'Nissan Motor India Private Limited', currentTerm:'0540', currentDesc:'within 60 days Due net', checkDesc:'within 60 days Due net', status:'OK', newTerm:null, newDesc:null, qty:1530, sales:224185.72 },
+  { compCode:'0439', custNum:'1012433', custName:'KG MOBILITY CORPORATION LTD', currentTerm:'6100', currentDesc:'Payable immediately Due net', checkDesc:'Advance', status:'OK', newTerm:null, newDesc:null, qty:11088, sales:9397342.5 },
+  { compCode:'0439', custNum:'90577', custName:'Mahindra & Mahindra Limited (JAI)', currentTerm:'7604', currentDesc:'within 64 days Due net', checkDesc:'within 64 days Due net', status:'OK', newTerm:null, newDesc:null, qty:7685, sales:1833588.1 },
+  { compCode:'0439', custNum:'69472', custName:'Mahindra & Mahindra Limited (Kanhe)', currentTerm:'7604', currentDesc:'within 64 days Due net', checkDesc:'within 64 days Due net', status:'OK', newTerm:null, newDesc:null, qty:13265, sales:3394529.7 },
+  { compCode:'0439', custNum:'102716', custName:'Mahindra & Mahindra Ltd. (BAN)', currentTerm:'7604', currentDesc:'within 64 days Due net', checkDesc:'within 64 days Due net', status:'OK', newTerm:null, newDesc:null, qty:3050, sales:616320 },
+  { compCode:'0439', custNum:'69670', custName:'Mahindra & Mahindra Limited (HYD)', currentTerm:'7604', currentDesc:'within 64 days Due net', checkDesc:'within 64 days Due net', status:'OK', newTerm:null, newDesc:null, qty:1255, sales:274605.55 },
+  { compCode:'0439', custNum:'103056', custName:'CATENSYS India Pvt. Ltd.', currentTerm:'0201', currentDesc:'Payable immediately Due net', checkDesc:'NA', status:'OK', newTerm:null, newDesc:null, qty:null, sales:null },
+  { compCode:'0439', custNum:'100167', custName:'Suzuki Motor Gujarat Pvt. Ltd.', currentTerm:'0460', currentDesc:'within 30 days Due net', checkDesc:'1 week after delivery', status:'Not Matched', newTerm:'X004', newDesc:'within 8 days Due net', qty:-2055, sales:-197093.59 },
+  { compCode:'0439', custNum:'103053', custName:'CATENSYS Korea LLC', currentTerm:'ZI03', currentDesc:'Before 15 in 2 months Due net', checkDesc:'As per IC rules', status:'OK', newTerm:null, newDesc:null, qty:53860, sales:9772520.95 },
+  { compCode:'0439', custNum:'69896', custName:'Mobis India Limited', currentTerm:'0460', currentDesc:'within 30 days Due net', checkDesc:'within 30 days Due net', status:'OK', newTerm:null, newDesc:null, qty:41745, sales:9608956.66 },
+  { compCode:'0439', custNum:'103054', custName:'CATENSYS FRANCE S.A.S.', currentTerm:'ZI02', currentDesc:'Before 15 in 3 months Due net', checkDesc:'As per IC rules', status:'OK', newTerm:null, newDesc:null, qty:39076, sales:6069049.43 },
+  { compCode:'0439', custNum:'90152', custName:'TVS Motor Company Limited', currentTerm:'0520', currentDesc:'within 45 days Due net', checkDesc:'within 45 days Due net', status:'OK', newTerm:null, newDesc:null, qty:4632, sales:2002077.09 },
+  { compCode:'0439', custNum:'90767', custName:'Honda Motor India', currentTerm:'0535', currentDesc:'within 55 days Due net', checkDesc:'within 55 days Due net', status:'OK', newTerm:null, newDesc:null, qty:6072, sales:1082141.04 },
+  { compCode:'0439', custNum:'1012689', custName:'Mahindra Research Valley (AD)', currentTerm:'0460', currentDesc:'within 30 days Due net', checkDesc:'within 64 days Due net', status:'Not Matched', newTerm:'7604', newDesc:'within 64 days Due net', qty:49, sales:586466.45 },
+  { compCode:'0439', custNum:'1012393', custName:'PUNE TRADERS', currentTerm:'Z005', currentDesc:'Payable immediately Due net, Baseline date on 10 of next month', checkDesc:'NA', status:'OK', newTerm:null, newDesc:null, qty:6490, sales:145880 },
+  { compCode:'0439', custNum:'77865', custName:'Maruti Suzuki India Limited (G2)', currentTerm:'Z170', currentDesc:'90 d end of month, payment on 2. of following month', checkDesc:'1 week after delivery', status:'Not Matched', newTerm:'X004', newDesc:'within 8 days Due net', qty:null, sales:null },
+];
+
+let customers = JSON.parse(JSON.stringify(PRELOADED_DATA));
+let doneSet = {}, notesMap = {}, checksMap = {};
+let activeFilter = 'all', activeCustomer = null;
+
+// ============================================================
+window.onload = () => { renderList(); updateStats(); };
+
+// ============================================================
+// EXCEL IMPORT
+// ============================================================
+function loadExcel(input) {
+  const file = input.files[0];
+  if (!file) return;
+  document.getElementById('importInfo').textContent = 'Wird geladen...';
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const wb = XLSX.read(e.target.result, {type:'array'});
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:null});
+      const imported = [];
+      for (let i = 1; i < rows.length; i++) {
+        const r = rows[i];
+        if (!r || !r[1]) continue;
+        imported.push({
+          compCode: String(r[0]||'0439'), custNum: String(r[1]), custName: String(r[2]||''),
+          currentTerm: String(r[3]||''), currentDesc: String(r[4]||''),
+          checkDesc: String(r[9]||''), status: String(r[10]||'OK'),
+          newTerm: r[11] ? String(r[11]) : null, newDesc: r[12] ? String(r[12]) : null,
+          qty: r[7]||null, sales: r[8]||null,
+        });
+      }
+      if (!imported.length) throw new Error('Keine Daten');
+      customers = imported;
+      doneSet = {}; notesMap = {}; checksMap = {};
+      activeCustomer = null;
+      document.getElementById('welcomeScreen').style.display = 'flex';
+      document.getElementById('customerDetail').classList.remove('visible');
+      renderList(); updateStats();
+      document.getElementById('importInfo').textContent = `✅ ${file.name} (${imported.length} Kunden)`;
+    } catch(ex) { document.getElementById('importInfo').textContent = '❌ ' + ex.message; }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// ============================================================
+function setFilter(f, btn) {
+  activeFilter = f;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderList();
+}
+
+function renderList() {
+  const list = document.getElementById('customerList');
+  list.innerHTML = '';
+  const filtered = customers.filter(c => {
+    if (activeFilter === 'error') return c.status === 'Not Matched' && !doneSet[c.custNum];
+    if (activeFilter === 'ok')    return c.status === 'OK';
+    if (activeFilter === 'done')  return doneSet[c.custNum];
+    return true;
+  });
+  if (!filtered.length) {
+    list.innerHTML = '<div style="padding:20px;text-align:center;color:#aaa;font-size:12px;">Keine Einträge</div>';
+    return;
+  }
+  filtered.forEach(c => {
+    const div = document.createElement('div');
+    const needsChange = c.status === 'Not Matched';
+    const done = doneSet[c.custNum];
+    div.className = 'customer-item' +
+      (needsChange && !done ? ' needs-change' : '') + (done ? ' done' : '') +
+      (activeCustomer && activeCustomer.custNum === c.custNum ? ' active' : '');
+    div.onclick = () => showCustomer(c);
+    let bc = 'badge-ok', bt = 'OK';
+    if (done) { bc = 'badge-done'; bt = '✓ Erledigt'; }
+    else if (needsChange) { bc = 'badge-error'; bt = 'Ändern'; }
+    div.innerHTML = `<div class="cust-name">${c.custName}</div>
+      <div class="cust-num">${c.custNum} · BK ${c.compCode}</div>
+      <span class="cust-badge ${bc}">${bt}</span>`;
+    list.appendChild(div);
+  });
+}
+
+function updateStats() {
+  const total = customers.length;
+  const errors = customers.filter(c => c.status === 'Not Matched').length;
+  const doneCount = Object.keys(doneSet).filter(k => customers.find(c => c.custNum===k && c.status==='Not Matched')).length;
+  document.getElementById('statTotal').textContent = total;
+  document.getElementById('statError').textContent = errors;
+  document.getElementById('statOk').textContent = total - errors;
+  const pct = errors > 0 ? Math.round(doneCount / errors * 100) : 0;
+  document.getElementById('progressBar').style.width = pct + '%';
+  document.getElementById('progressLabel').textContent = `${doneCount} von ${errors} Änderungen erledigt`;
+}
+
+function showCustomer(c) {
+  activeCustomer = c;
+  document.getElementById('welcomeScreen').style.display = 'none';
+  document.getElementById('customerDetail').classList.add('visible');
+  renderDetail(c);
+  renderList();
+}
+
+// ============================================================
+// DETAIL-ANSICHT
+// ============================================================
+function renderDetail(c) {
+  const detail = document.getElementById('customerDetail');
+  const needsChange = c.status === 'Not Matched';
+  const done = doneSet[c.custNum];
+  const checks = checksMap[c.custNum] || { xd02: false, vk12: false, vf04: false };
+
+  const fmtS = v => v != null ? new Intl.NumberFormat('de-DE',{style:'currency',currency:'INR',maximumFractionDigits:0}).format(v) : '–';
+  const fmtQ = v => v != null ? new Intl.NumberFormat('de-DE').format(v) + ' Stk.' : '–';
+
+  let changeHtml = needsChange
+    ? `<div class="change-arrow">
+        <div class="term-box old"><div class="term-code">${c.currentTerm}</div><div class="term-desc">${c.currentDesc}</div><div style="font-size:10px;color:#d93025;margin-top:3px;">AKTUELL (falsch)</div></div>
+        <div class="arrow-icon">→</div>
+        <div class="term-box new"><div class="term-code">${c.newTerm}</div><div class="term-desc">${c.newDesc}</div><div style="font-size:10px;color:#188038;margin-top:3px;">NEU (korrekt)</div></div>
+      </div>`
+    : `<div class="ok-label">✅ Zahlungsbedingung korrekt – keine Änderung</div>`;
+
+  let robotHtml = '';
+  if (needsChange) {
+    robotHtml = `
+    <div class="robot-section">
+      <h3>🤖 SAP Robot – Skripte & Transaktionen</h3>
+      <div class="config-bar">
+        📁 Skriptpfad: <code>C:\WF\sap-robots\0439-India\</code>  ·  Vor dem Start: <code>CFG_TESTMODUS = False</code> setzen!
+      </div>
+      <div class="robot-cards">
+        <div class="robot-card">
+          <div class="tcode">XD02</div><br>
+          <div class="script-name">01_XD02_Zahlungsbedingungen.vbs</div>
+          <div class="field-list">
+            <div class="field-item"><span class="field-label">Kunden-Nr.</span><span class="field-value">${c.custNum}</span></div>
+            <div class="field-item"><span class="field-label">BK</span><span class="field-value">${c.compCode}</span></div>
+            <div class="field-item"><span class="field-label">ZTERM alt</span><span class="field-value old">${c.currentTerm}</span></div>
+            <div class="field-item"><span class="field-label">ZTERM neu</span><span class="field-value new">${c.newTerm}</span></div>
+            <div class="field-item"><span class="field-label">Reiter</span><span class="field-value">Faktura (T\\03)</span></div>
+          </div>
+          <button class="run-btn" onclick="copyVbs('xd02','${c.custNum}','${c.compCode}','${c.currentTerm}','${c.newTerm}')">📋 Einzelskript kopieren</button>
+        </div>
+
+        <div class="robot-card">
+          <div class="tcode">VK12</div><br>
+          <div class="script-name">02_VK12_Konditionen.vbs</div>
+          <div class="field-list">
+            <div class="field-item"><span class="field-label">Kunden-Nr.</span><span class="field-value">${c.custNum}</span></div>
+            <div class="field-item"><span class="field-label">Konditionsart</span><span class="field-value">ZB00</span></div>
+            <div class="field-item"><span class="field-label">ZTERM alt</span><span class="field-value old">${c.currentTerm}</span></div>
+            <div class="field-item"><span class="field-label">ZTERM neu</span><span class="field-value new">${c.newTerm}</span></div>
+          </div>
+          <button class="run-btn secondary" onclick="copyVbs('vk12','${c.custNum}','${c.compCode}','${c.currentTerm}','${c.newTerm}')">📋 Einzelskript kopieren</button>
+        </div>
+      </div>
+
+      <div style="margin-top:14px;">
+        <div style="font-size:12px;font-weight:700;margin-bottom:6px;">Schnellstart – SAP GUI Scripting</div>
+        <div class="vbs-block">1. SAP GUI öffnen und anmelden (BK ${c.compCode})
+2. Scripting aktivieren: Extras → Optionen → Barrierefreiheit → Scripting ✓
+3. Robot starten: Doppelklick auf 01_XD02_Zahlungsbedingungen.vbs
+   oder: cscript.exe "C:\WF\sap-robots\0439-India\01_XD02_Zahlungsbedingungen.vbs"
+4. Erst TESTMODUS = True, dann nach Prüfung TESTMODUS = False</div>
+      </div>
+    </div>
+
+    <div class="change-box">
+      <h3>☑️ Checkliste</h3>
+      <div class="checklist">
+        <div class="check-item ${checks.xd02?'done':''}" onclick="toggleCheck('${c.custNum}','xd02',this)">
+          <input type="checkbox" ${checks.xd02?'checked':''} onclick="event.stopPropagation()">
+          <label>XD02 / Robot 01 – ZTERM auf <b>${c.newTerm}</b> gesetzt (Kundenstamm Faktura)</label>
+        </div>
+        <div class="check-item ${checks.vk12?'done':''}" onclick="toggleCheck('${c.custNum}','vk12',this)">
+          <input type="checkbox" ${checks.vk12?'checked':''} onclick="event.stopPropagation()">
+          <label>VK12 / Robot 02 – Konditionsstamm ZB00 auf <b>${c.newTerm}</b> geändert</label>
+        </div>
+        <div class="check-item ${checks.vf04?'done':''}" onclick="toggleCheck('${c.custNum}','vf04',this)">
+          <input type="checkbox" ${checks.vf04?'checked':''} onclick="event.stopPropagation()">
+          <label>VF04 / VA42 – offene Belege und Verträge geprüft</label>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  detail.innerHTML = `
+    <div class="detail-header">
+      <div>
+        <div class="detail-title">${c.custName}</div>
+        <div class="detail-meta">Kunden-Nr: <b>${c.custNum}</b> · BK: <b>${c.compCode}</b> · ${needsChange ? '⚠️ Änderung erforderlich' : '✅ Korrekt'}</div>
+      </div>
+      ${needsChange ? `<button class="mark-done-btn ${done?'undone':''}" onclick="toggleDone('${c.custNum}')">${done?'↩ Als offen markieren':'✓ Als erledigt markieren'}</button>` : ''}
+    </div>
+
+    <div class="sales-row">
+      <div class="sales-card"><div class="label">Menge (Jan–Mai 2026)</div><div class="value">${fmtQ(c.qty)}</div></div>
+      <div class="sales-card"><div class="label">Umsatz (Jan–Mai 2026)</div><div class="value currency">${fmtS(c.sales)}</div></div>
+      <div class="sales-card"><div class="label">Vereinbarte Zahlungsbedingung</div><div class="value" style="font-size:12px;margin-top:4px;">${c.checkDesc}</div></div>
+    </div>
+
+    <div class="change-box"><h3>🔄 Zahlungsbedingung</h3>${changeHtml}</div>
+
+    ${robotHtml}
+
+    <div class="notes-box">
+      <h3>📝 Notizen</h3>
+      <textarea placeholder="Notizen..." oninput="saveNote('${c.custNum}',this.value)">${notesMap[c.custNum]||''}</textarea>
+    </div>`;
+}
+
+// ============================================================
+function toggleDone(custNum) {
+  doneSet[custNum] ? delete doneSet[custNum] : (doneSet[custNum] = true);
+  renderDetail(customers.find(x => x.custNum === custNum));
+  renderList(); updateStats();
+}
+
+function toggleCheck(custNum, field, el) {
+  if (!checksMap[custNum]) checksMap[custNum] = {xd02:false, vk12:false, vf04:false};
+  checksMap[custNum][field] = !checksMap[custNum][field];
+  const cb = el.querySelector('input[type=checkbox]');
+  if (cb) cb.checked = checksMap[custNum][field];
+  el.classList.toggle('done', checksMap[custNum][field]);
+  const ch = checksMap[custNum];
+  if (ch.xd02 && ch.vk12 && ch.vf04) {
+    doneSet[custNum] = true;
+    renderList(); updateStats();
+    const btn = document.querySelector('.mark-done-btn');
+    if (btn) { btn.classList.add('undone'); btn.textContent = '↩ Als offen markieren'; }
+  }
+}
+
+function saveNote(custNum, val) { notesMap[custNum] = val; }
+
+function copyVbs(type, custNum, compCode, oldTerm, newTerm) {
+  let code = '';
+  if (type === 'xd02') {
+    code = `' Einzellauf XD02 – Kunde ${custNum}
+Dim SapGuiAuto, app, conn, session
+Set SapGuiAuto = GetObject("SAPGUI")
+Set app  = SapGuiAuto.GetScriptingEngine
+Set conn = app.Children(0)
+Set session = conn.Children(0)
+
+session.findById("wnd[0]/tbar[0]/okcd").text = "/nXD02"
+session.findById("wnd[0]").sendVKey 0
+WScript.Sleep 1500
+
+session.findById("wnd[0]/usr/ctxtRF02D-KUNNR").text = "${custNum}"
+session.findById("wnd[0]/usr/ctxtRF02D-BUKRS").text = "${compCode}"
+session.findById("wnd[0]/usr/ctxtRF02D-VKORG").text = "0439"
+session.findById("wnd[0]/usr/ctxtRF02D-VTWEG").text = "10"
+session.findById("wnd[0]/usr/ctxtRF02D-SPART").text = "00"
+session.findById("wnd[0]").sendVKey 0
+WScript.Sleep 1500
+
+session.findById("wnd[0]/usr/tabsTAXI_TABSTRIP_HEAD/tabpT\\03").select
+WScript.Sleep 800
+
+session.findById("wnd[0]/usr/tabsTAXI_TABSTRIP_HEAD/tabpT\\03/ssubSUBSCREEN_BODY:SAPMF02D:7325/ctxtKNVV-ZTERM").text = "${newTerm}"
+session.findById("wnd[0]").sendVKey 11  ' Sichern`;
+  } else {
+    code = `' Einzellauf VK12 – Kunde ${custNum}
+Dim SapGuiAuto, app, conn, session
+Set SapGuiAuto = GetObject("SAPGUI")
+Set app  = SapGuiAuto.GetScriptingEngine
+Set conn = app.Children(0)
+Set session = conn.Children(0)
+
+session.findById("wnd[0]/tbar[0]/okcd").text = "/nVK12"
+session.findById("wnd[0]").sendVKey 0
+WScript.Sleep 1500
+
+session.findById("wnd[0]/usr/ctxtKOMG-KOZGF").text = "ZB00"
+session.findById("wnd[0]").sendVKey 0
+WScript.Sleep 1000
+
+session.findById("wnd[0]/usr/ctxtKOMG-VKORG").text = "0439"
+session.findById("wnd[0]/usr/ctxtKOMG-VTWEG").text = "10"
+session.findById("wnd[0]/usr/ctxtKOMG-SPART").text = "00"
+session.findById("wnd[0]/usr/ctxtKOMG-KUNNR").text = "${custNum}"
+session.findById("wnd[0]").sendVKey 0
+WScript.Sleep 1500
+
+session.findById("wnd[0]/usr/tblSAPMV13ATCTRL_U_KO004/ctxtKOMP-ZTERM[0,0]").text = "${newTerm}"
+session.findById("wnd[0]").sendVKey 11  ' Sichern`;
+  }
+  navigator.clipboard.writeText(code).then(() => alert('Skript in Zwischenablage kopiert!\n\nIn Notepad einfügen und als .vbs speichern.'));
+}
+</script>
+</body>
+</html>

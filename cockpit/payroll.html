@@ -1,0 +1,3473 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>YCONN – PayRoll-Buchungen</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --bg:#0d1117;--bg2:#161b22;--bg3:#21262d;
+  --border:#30363d;--text:#e6edf3;--muted:#8b949e;
+  --accent:#1f6feb;--ok:#10b981;--warn:#f59e0b;--err:#ef4444;
+}
+html,body{background:var(--bg);color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  font-size:14px;line-height:1.5;min-height:100vh;}
+.wrap{max-width:1480px;margin:0 auto;padding:0 24px 48px;}
+
+/* ── Header ── */
+.page-header{display:flex;align-items:center;justify-content:space-between;gap:12px;
+  flex-wrap:wrap;padding:14px 24px;background:var(--bg2);
+  border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100;}
+.header-right{display:flex;align-items:center;gap:8px;}
+.btn-nav{padding:6px 14px;border-radius:7px;border:1px solid var(--border);
+  background:var(--bg3);color:var(--text);font-size:13px;font-weight:500;
+  cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:5px;
+  transition:background .15s,color .15s;}
+.btn-nav:hover{background:var(--accent);color:#fff;}
+.btn-primary{background:var(--accent);border-color:var(--accent);color:#fff;}
+.btn-primary:hover{background:#388bfd;}
+.btn-ok{background:rgba(16,185,129,.12);border-color:rgba(16,185,129,.4);color:var(--ok);}
+.btn-ok:hover{background:rgba(16,185,129,.25);}
+
+/* ── Upload Zone ── */
+.upload-zone{border:2px dashed var(--border);border-radius:14px;padding:36px 24px;
+  text-align:center;cursor:pointer;transition:border-color .2s,background .2s;
+  background:rgba(31,111,235,.03);margin-bottom:20px;}
+.upload-zone:hover,.upload-zone.drag{border-color:var(--accent);background:rgba(31,111,235,.07);}
+.upload-zone input{display:none;}
+.upload-icon{font-size:40px;margin-bottom:10px;}
+.upload-title{font-size:15px;font-weight:700;margin-bottom:4px;}
+.upload-sub{font-size:12px;color:var(--muted);}
+.upload-name{margin-top:10px;font-size:13px;color:var(--ok);font-weight:600;}
+
+/* ── Meta Bar ── */
+.meta-bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px;}
+.meta-chip{display:inline-flex;align-items:center;gap:6px;
+  padding:5px 12px;border-radius:8px;font-size:12px;font-weight:600;
+  background:var(--bg2);border:1px solid var(--border);}
+.meta-chip label{color:var(--muted);font-weight:400;}
+
+/* ── Tabs ── */
+.tab-bar{display:flex;gap:0;border-bottom:1px solid var(--border);margin:24px 0 0;}
+.tab-btn{padding:11px 22px;background:none;border:0;border-bottom:3px solid transparent;
+  cursor:pointer;font-size:13px;font-weight:600;color:var(--muted);
+  font-family:inherit;transition:color .15s,border-color .15s;}
+.tab-btn:hover{color:var(--text);}
+.tab-btn.active{color:var(--accent);border-bottom-color:var(--accent);}
+.tab-pane{display:none;padding:22px 0;}
+.tab-pane.active{display:block;}
+
+/* ── Table ── */
+.tbl-wrap{background:var(--bg2);border:1px solid var(--border);
+  border-radius:12px;overflow:hidden;}
+.tbl-toolbar{display:flex;align-items:center;justify-content:space-between;
+  padding:12px 16px;border-bottom:1px solid var(--border);gap:10px;flex-wrap:wrap;}
+.tbl-toolbar h3{font-size:14px;font-weight:700;}
+.tbl-count{font-size:12px;color:var(--muted);}
+.tbl-scroll{overflow-x:auto;max-height:65vh;overflow-y:auto;}
+table{width:100%;border-collapse:collapse;font-size:12px;}
+thead th{position:sticky;top:0;z-index:2;
+  text-align:left;font-size:10.5px;font-weight:700;color:var(--muted);
+  text-transform:uppercase;letter-spacing:.05em;padding:9px 12px;
+  background:var(--bg3);border-bottom:1px solid var(--border);white-space:nowrap;}
+td{padding:7px 12px;border-bottom:1px solid rgba(48,54,61,.5);
+  white-space:nowrap;font-size:12px;vertical-align:middle;}
+tr:last-child td{border-bottom:none;}
+tr:hover td{background:rgba(255,255,255,.025);}
+.num{text-align:right;font-variant-numeric:tabular-nums;font-family:monospace;}
+.sum-row td{font-weight:700;border-top:2px solid var(--border);
+  background:rgba(31,111,235,.07)!important;}
+
+/* S/H badges */
+.badge-h{color:#34d399;background:rgba(52,211,153,.1);border:1px solid rgba(52,211,153,.3);
+  padding:2px 7px;border-radius:5px;font-weight:700;font-size:11px;}
+.badge-s{color:#60a5fa;background:rgba(96,165,250,.1);border:1px solid rgba(96,165,250,.3);
+  padding:2px 7px;border-radius:5px;font-weight:700;font-size:11px;}
+.pk-50{color:#34d399;font-weight:700;}
+.pk-40{color:#60a5fa;font-weight:700;}
+
+/* ── Plausibilität ── */
+.plaus-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;margin-bottom:28px;}
+.plaus-card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;
+  padding:20px 22px;position:relative;overflow:hidden;}
+.plaus-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;
+  background:linear-gradient(90deg,var(--c1,#1f6feb),var(--c2,#8b5cf6));border-radius:12px 12px 0 0;}
+.plaus-label{font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;
+  letter-spacing:.06em;margin-bottom:6px;}
+.plaus-value{font-size:26px;font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:-.5px;}
+.plaus-sub{font-size:11px;color:var(--muted);margin-top:3px;}
+
+.status-ok{color:var(--ok);}
+.status-err{color:var(--err);}
+
+.balance-row{display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:14px 18px;border-radius:10px;margin-bottom:10px;
+  background:var(--bg2);border:1px solid var(--border);font-size:13px;}
+.balance-row.ok{border-color:rgba(16,185,129,.4);background:rgba(16,185,129,.05);}
+.balance-row.err{border-color:rgba(239,68,68,.4);background:rgba(239,68,68,.05);}
+.balance-label{font-weight:600;}
+.balance-val{font-variant-numeric:tabular-nums;font-family:monospace;font-size:14px;font-weight:700;}
+
+/* Account summary table */
+.acct-summary{background:var(--bg2);border:1px solid var(--border);border-radius:12px;overflow:hidden;}
+.acct-summary table{font-size:12px;}
+
+/* Empty state */
+.empty{text-align:center;padding:60px 20px;color:var(--muted);}
+.empty-icon{font-size:48px;margin-bottom:12px;}
+.empty h3{font-size:15px;font-weight:600;color:var(--text);margin-bottom:6px;}
+
+/* ── Inline-Edit-Zellen ── */
+.editable-cell {
+  cursor:pointer;position:relative;border-radius:5px;
+  transition:background .12s;padding:3px 6px;margin:-3px -6px;
+}
+.editable-cell:hover { background:rgba(31,111,235,.12); }
+.editable-cell::after {
+  content:'✏';font-size:9px;color:var(--muted);margin-left:5px;
+  opacity:0;transition:opacity .12s;
+}
+.editable-cell:hover::after { opacity:1; }
+.edit-input {
+  background:var(--bg);border:1.5px solid #3b82f6;border-radius:6px;
+  color:var(--text);font-family:monospace;font-size:12px;font-weight:600;
+  padding:4px 8px;outline:none;min-width:100px;max-width:180px;
+  box-shadow:0 0 0 3px rgba(59,130,246,.18);
+}
+.edit-saving { opacity:.5;pointer-events:none; }
+.edit-saved  { color:#34d399!important; }
+.edit-err    { color:#ef4444!important; }
+#editChangeBadge {
+  display:none;position:fixed;bottom:20px;right:20px;z-index:9000;
+  background:var(--bg2);border:1px solid var(--border);border-radius:10px;
+  padding:10px 16px;font-size:12px;min-width:220px;
+  box-shadow:0 8px 24px rgba(0,0,0,.4);
+}
+
+/* ── KST-Korrektur-Modal ── */
+.kst-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:9000;
+  display:flex;align-items:center;justify-content:center;padding:20px;}
+.kst-modal{background:var(--bg2);border:1px solid var(--border);border-radius:16px;
+  width:100%;max-width:760px;max-height:85vh;display:flex;flex-direction:column;
+  box-shadow:0 24px 64px rgba(0,0,0,.5);}
+.kst-modal-header{padding:18px 22px 14px;border-bottom:1px solid var(--border);flex-shrink:0;}
+.kst-modal-header h2{font-size:15px;font-weight:700;margin:0 0 4px}
+.kst-modal-header p{font-size:12px;color:var(--muted);margin:0}
+.kst-modal-body{overflow-y:auto;flex:1;padding:16px 22px;}
+.kst-row-card{background:var(--bg3);border:1px solid var(--border);border-radius:10px;
+  padding:12px 14px;margin-bottom:10px;display:grid;
+  grid-template-columns:36px 90px 1fr auto 180px;gap:10px;align-items:center;}
+.kst-row-card .kst-nr{font-size:11px;color:var(--muted);font-family:monospace;text-align:right}
+.kst-row-card .kst-acct{font-family:monospace;color:#ef4444;font-weight:700;font-size:13px}
+.kst-row-card .kst-txt{font-size:12px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.kst-row-card .kst-amt{font-family:monospace;font-size:12px;color:var(--muted);text-align:right;white-space:nowrap}
+.kst-input{background:var(--bg);border:1px solid var(--border);border-radius:7px;
+  color:var(--text);font-family:monospace;font-size:13px;font-weight:600;
+  padding:7px 10px;width:100%;outline:none;transition:border-color .15s}
+.kst-input:focus{border-color:#f97316;box-shadow:0 0 0 2px rgba(249,115,22,.2)}
+.kst-input.is-default{color:#f97316}
+.kst-input.is-custom{color:#60a5fa}
+.kst-modal-footer{padding:14px 22px;border-top:1px solid var(--border);
+  display:flex;align-items:center;gap:10px;flex-shrink:0;flex-wrap:wrap}
+
+/* ── SAP Übergabe ── */
+.sap-section{margin-bottom:24px;}
+.sap-section-title{font-size:11px;font-weight:700;color:var(--muted);
+  text-transform:uppercase;letter-spacing:.08em;padding:10px 16px;
+  background:var(--bg3);border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:8px;}
+.sap-section-title span{font-size:10px;color:var(--muted);font-weight:400;text-transform:none;}
+.field-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px;padding:16px;}
+.field-row{background:var(--bg3);border:1px solid var(--border);border-radius:8px;
+  padding:10px 14px;display:flex;flex-direction:column;gap:3px;}
+.field-name{font-size:10px;color:var(--muted);font-family:monospace;font-weight:600;
+  text-transform:uppercase;letter-spacing:.04em;}
+.field-val{font-size:13px;font-family:monospace;color:#79b8ff;font-weight:600;word-break:break-all;}
+.field-desc{font-size:10px;color:var(--muted);}
+.field-ok{border-color:rgba(16,185,129,.35);}
+.field-warn{border-color:rgba(245,158,11,.35);}
+.field-err{border-color:rgba(239,68,68,.4);}
+
+/* SAP items table (compact) */
+.sap-items-table thead th{font-size:9.5px;padding:7px 10px;}
+.sap-items-table td{padding:5px 10px;font-size:11px;}
+.mono{font-family:monospace;}
+.amt-pos{color:#60a5fa;font-weight:600;}  /* Soll positiv */
+.amt-neg{color:#34d399;font-weight:600;}  /* Haben negativ */
+
+/* JSON Preview */
+.json-preview{background:var(--bg3);border:1px solid var(--border);border-radius:10px;
+  padding:16px;overflow-x:auto;max-height:400px;overflow-y:auto;
+  font-family:monospace;font-size:11px;line-height:1.6;color:#e6edf3;}
+.json-key{color:#79b8ff;}
+.json-str{color:#a5d6ff;}
+.json-num{color:#fbbf24;}
+.json-bool{color:#f472b6;}
+
+/* Posting config bar */
+.config-bar{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;
+  padding:16px;background:var(--bg2);border:1px solid var(--border);
+  border-radius:12px;margin-bottom:18px;}
+.cfg-field{display:flex;flex-direction:column;gap:4px;}
+.cfg-field label{font-size:11px;color:var(--muted);font-weight:600;}
+.cfg-field input,.cfg-field select{background:var(--bg3);border:1px solid var(--border);
+  color:var(--text);border-radius:6px;padding:6px 10px;font-size:12px;
+  font-family:monospace;min-width:120px;}
+.status-banner{padding:12px 16px;border-radius:8px;font-size:13px;font-weight:600;
+  display:flex;align-items:center;gap:10px;margin-bottom:16px;}
+.status-banner.ok{background:rgba(16,185,129,.1);border:1px solid rgba(16,185,129,.3);color:var(--ok);}
+.status-banner.err{background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.3);color:var(--err);}
+.status-banner.warn{background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.3);color:var(--warn);}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+<body>
+
+<header class="page-header">
+  <div style="display:flex;align-items:center;gap:12px;">
+    <a href="startseite.html" title="Startseite" style="display:block;line-height:0">
+      <img src="YCONN-logo_Web.png" width="48" height="48" alt="YCONN Logo" style="display:block;border-radius:8px;"/>
+    </a>
+    <div>
+      <div style="font-size:16px;font-weight:800">PayRoll-Buchungen</div>
+      <div style="font-size:11px;color:var(--muted)">FIBU LOGA – Lohn &amp; Gehalt SAP-Buchung</div>
+    </div>
+  </div>
+  <div class="header-right" id="headerRight">
+    <a class="btn-nav" href="regeln.html">📋 App-Regeln</a>
+    <a class="btn-nav" href="startseite.html">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+      Startseite
+    </a>
+    <button class="btn-nav" id="btnVerify" onclick="switchTabById('sap',this)" style="display:none">
+      🔍 SAP-Übergabe prüfen
+    </button>
+    <button class="btn-nav btn-primary" id="btnPost" onclick="postToSap()" style="display:none">
+      ▶ In SEQ buchen
+    </button>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <!-- Upload Zone -->
+  <div style="margin-top:24px;">
+    <div class="upload-zone" id="uploadZone"
+         ondragover="event.preventDefault();this.classList.add('drag')"
+         ondragleave="this.classList.remove('drag')"
+         ondrop="handleDrop(event)"
+         onclick="document.getElementById('fileInput').click()">
+      <input type="file" id="fileInput" accept=".csv" onchange="handleFile(this.files[0])">
+      <div class="upload-icon">📂</div>
+      <div class="upload-title">FIBU LOGA CSV-Datei hochladen</div>
+      <div class="upload-sub">Datei hierher ziehen oder klicken — Kodierung: CP1252 · Format: Fixed-Width</div>
+      <div class="upload-name" id="uploadName"></div>
+    </div>
+    <!-- resyFileInput außerhalb der upload-zone — sonst blubbert .click() hoch und öffnet fileInput -->
+    <input type="file" id="resyFileInput" accept=".pdf" style="display:none"
+           onchange="if(this.files[0])handleResyFile(_resyTargetNr,this.files[0])">
+  </div>
+
+  <!-- Meta Bar -->
+  <div class="meta-bar" id="metaBar" style="display:none">
+    <div class="meta-chip"><label>Datei:</label> <span id="mFile">–</span></div>
+    <div class="meta-chip"><label>Dok-ID:</label> <span id="mDocId">–</span></div>
+    <div class="meta-chip"><label>Laufdatum:</label> <span id="mRunDate">–</span></div>
+    <div class="meta-chip"><label>Buchungskreis:</label> <span id="mCocode">–</span></div>
+    <div class="meta-chip"><label>Währung:</label> <span id="mCurrency">–</span></div>
+    <div class="meta-chip"><label>Zeilen:</label> <span id="mRows">–</span></div>
+    <div class="meta-chip" id="dbSaveBadge"
+         style="display:none;border-color:var(--ok);color:var(--ok);font-size:11px"></div>
+  </div>
+
+  <!-- Tabs — immer sichtbar; Historien-Tab ist ohne CSV nutzbar -->
+  <div class="tab-bar" id="tabBar">
+    <button class="tab-btn"        id="tabBtn-input"   onclick="switchTab('input',this)">📋 Input</button>
+    <button class="tab-btn"        id="tabBtn-buchung" onclick="switchTab('buchung',this)">📒 Buchungsliste</button>
+    <button class="tab-btn"        id="tabBtn-plaus"   onclick="switchTab('plaus',this)">✅ Plausibilität</button>
+    <button class="tab-btn"        id="tabBtn-sap"     onclick="switchTab('sap',this)">🔌 SAP-Übergabe</button>
+    <button class="tab-btn active" id="tabBtn-history" onclick="switchTab('history',this);loadImportHistory()">📂 Importhistorie</button>
+  </div>
+
+  <!-- ══════════════════════════════════
+       TAB 1 – INPUT
+  ══════════════════════════════════ -->
+  <div class="tab-pane" id="pane-input">
+    <div class="empty" id="emptyInput">
+      <div class="empty-icon">📂</div>
+      <h3>Noch keine Datei geladen</h3>
+      <p>Bitte lade eine FIBU LOGA CSV-Datei hoch.</p>
+    </div>
+
+    <!-- KST-Fehler-Banner (erscheint automatisch wenn 6*/7* ohne KST) -->
+    <div id="kstWarnBanner" style="display:none;margin-bottom:14px;padding:14px 16px;
+         background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.4);
+         border-radius:10px;border-left:4px solid #ef4444;">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:700;color:#ef4444;margin-bottom:3px">
+            ⚠ Kostenstellen-Pflicht verletzt
+          </div>
+          <div id="kstWarnText" style="font-size:12px;color:var(--muted)"></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;flex-wrap:wrap">
+          <!-- Schnell-Aktion: alle mit Standard übernehmen -->
+          <button onclick="acceptAllKstDefault()"
+                  style="display:flex;align-items:center;gap:6px;padding:7px 14px;
+                         background:rgba(249,115,22,.15);border:1px solid rgba(249,115,22,.45);
+                         border-radius:8px;color:#f97316;font-size:12px;font-weight:700;cursor:pointer">
+            ⚡ Alle mit <code style="font-size:11px;margin:0 2px">0435-5013</code> übernehmen
+          </button>
+          <!-- Manuelle Korrektur -->
+          <button onclick="openKstModal()"
+                  style="display:flex;align-items:center;gap:6px;padding:7px 14px;
+                         background:rgba(96,165,250,.12);border:1px solid rgba(96,165,250,.4);
+                         border-radius:8px;color:#60a5fa;font-size:12px;font-weight:700;cursor:pointer">
+            ✏ Kostenstellen anpassen
+          </button>
+        </div>
+      </div>
+      <!-- Status nach Bestätigung -->
+      <div id="kstBannerOk" style="display:none;margin-top:10px;padding:8px 12px;
+           background:rgba(52,211,153,.08);border:1px solid rgba(52,211,153,.3);
+           border-radius:8px;font-size:12px;color:#34d399;font-weight:600">
+        ✓ Kostenstellen wurden übernommen – Buchungsliste aktualisiert
+      </div>
+    </div>
+
+    <!-- ══════ KST-KORREKTUR-MODAL ══════ -->
+    <div class="kst-modal-overlay" id="kstModal" style="display:none" onclick="if(event.target===this)closeKstModal()">
+      <div class="kst-modal">
+        <div class="kst-modal-header">
+          <h2>✏ Kostenstellen korrigieren</h2>
+          <p>Alle Buchungszeilen mit Konto 6*/7* ohne Kostenstelle. Bitte Kostenstelle eintragen oder Standard übernehmen.</p>
+        </div>
+        <div class="kst-modal-body" id="kstModalBody">
+          <!-- wird per JS befüllt -->
+        </div>
+        <div class="kst-modal-footer">
+          <button onclick="modalSetAll(KST_DEFAULT)"
+                  style="padding:8px 16px;background:rgba(249,115,22,.15);
+                         border:1px solid rgba(249,115,22,.4);border-radius:8px;
+                         color:#f97316;font-size:12px;font-weight:700;cursor:pointer">
+            ⚡ Alle auf 0435-5013
+          </button>
+          <div style="flex:1"></div>
+          <button onclick="closeKstModal()"
+                  style="padding:8px 18px;background:var(--bg3);border:1px solid var(--border);
+                         border-radius:8px;color:var(--muted);font-size:13px;cursor:pointer">
+            Abbrechen
+          </button>
+          <button onclick="applyKstModal()"
+                  style="padding:8px 22px;background:#2563eb;border:1px solid #3b82f6;
+                         border-radius:8px;color:#fff;font-size:13px;font-weight:700;cursor:pointer">
+            ✓ Übernehmen
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════ MONATS-DUPLIKAT-MODAL ══════ -->
+    <div class="kst-modal-overlay" id="monthDupModal" style="display:none" onclick="if(event.target===this)closeMonthDupModal()">
+      <div class="kst-modal" style="max-width:620px">
+        <div class="kst-modal-header" style="border-left:4px solid #f59e0b;padding-left:18px">
+          <h2 style="color:#f59e0b">⚠ Monats-Import bereits vorhanden</h2>
+          <p>Regel P-8: Pro Buchungskreis darf nur <strong>einmal pro Monat</strong> eine LOGA-Datei importiert werden.</p>
+        </div>
+        <div class="kst-modal-body">
+          <div style="margin-bottom:14px">
+            <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Bestehender Import dieses Monats</div>
+            <div id="mdExistingInfo" style="background:var(--bg3);border:1px solid rgba(245,158,11,.35);border-radius:8px;padding:10px 14px;font-size:12px;line-height:1.9"></div>
+          </div>
+          <div>
+            <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Neue Datei (wird hochgeladen)</div>
+            <div id="mdNewInfo" style="background:var(--bg3);border:1px solid rgba(59,130,246,.35);border-radius:8px;padding:10px 14px;font-size:12px;line-height:1.9"></div>
+          </div>
+          <div style="margin-top:14px;padding:10px 14px;background:rgba(239,68,68,.06);border:1px solid rgba(239,68,68,.3);border-radius:8px;font-size:12px;color:var(--muted)">
+            ⚠ Das Überschreiben erstellt einen <strong>neuen</strong> DB-Eintrag. Der bestehende Import wird nicht gelöscht. Bei bereits gebuchten Importen bitte Rücksprache mit der Buchhaltung halten.
+          </div>
+        </div>
+        <div class="kst-modal-footer">
+          <button id="mdBtnCancel"
+                  style="padding:8px 18px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--muted);font-size:13px;cursor:pointer">
+            Abbrechen (nicht speichern)
+          </button>
+          <div style="flex:1"></div>
+          <button id="mdBtnOverwrite"
+                  style="padding:8px 22px;background:rgba(245,158,11,.2);border:1px solid rgba(245,158,11,.5);border-radius:8px;color:#f59e0b;font-size:13px;font-weight:700;cursor:pointer">
+            ⚠ Trotzdem importieren
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tbl-wrap" id="inputTable" style="display:none">
+      <div class="tbl-toolbar">
+        <h3>Eingabedaten (LOGA)</h3>
+        <span class="tbl-count" id="inputCount"></span>
+      </div>
+      <div class="tbl-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Buchungskreis</th>
+              <th>Währung</th>
+              <th>Betrag</th>
+              <th>S/H</th>
+              <th>Sachkonto</th>
+              <th>Gegenkonto</th>
+              <th>Text</th>
+              <th>Kostenstelle</th>
+              <th>Periode</th>
+              <th>Zuordnung</th>
+            </tr>
+          </thead>
+          <tbody id="inputBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════
+       TAB 2 – BUCHUNGSLISTE
+  ══════════════════════════════════ -->
+  <div class="tab-pane" id="pane-buchung">
+    <div class="empty" id="emptyBuchung">
+      <div class="empty-icon">📒</div>
+      <h3>Buchungsliste wird nach dem Laden generiert</h3>
+    </div>
+    <div class="tbl-wrap" id="buchungTable" style="display:none">
+      <div class="tbl-toolbar">
+        <h3>Buchungsliste – SAP Output</h3>
+        <div style="display:flex;gap:8px;align-items:center">
+          <span class="tbl-count" id="buchungCount"></span>
+          <button class="btn-nav btn-ok" onclick="exportCSV()">⬇ CSV Export</button>
+        </div>
+      </div>
+      <div class="tbl-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Company</th>
+              <th>Referenz</th>
+              <th>Belegkopftext</th>
+              <th>Buchungsdatum</th>
+              <th>Belegdatum</th>
+              <th>Währung</th>
+              <th>Buchungsschlüssel</th>
+              <th>Sachkonto</th>
+              <th style="text-align:right">Betrag</th>
+              <th>Zuordnung</th>
+              <th>Text</th>
+              <th>Kostenstelle</th>
+            </tr>
+          </thead>
+          <tbody id="buchungBody"></tbody>
+          <tfoot id="buchungFoot"></tfoot>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════
+       TAB 3 – PLAUSIBILITÄT
+  ══════════════════════════════════ -->
+  <div class="tab-pane" id="pane-plaus">
+    <div class="empty" id="emptyPlaus">
+      <div class="empty-icon">✅</div>
+      <h3>Plausibilitätsprüfung nach dem Laden</h3>
+    </div>
+    <div id="plausContent" style="display:none">
+
+      <!-- KPI Cards -->
+      <div class="plaus-grid">
+        <div class="plaus-card" style="--c1:#60a5fa;--c2:#3b82f6">
+          <div class="plaus-label">Soll (Debit) Σ</div>
+          <div class="plaus-value" id="pvSoll">–</div>
+          <div class="plaus-sub" id="pvSollRows">– Zeilen PK 40</div>
+        </div>
+        <div class="plaus-card" style="--c1:#34d399;--c2:#10b981">
+          <div class="plaus-label">Haben (Credit) Σ</div>
+          <div class="plaus-value" id="pvHaben">–</div>
+          <div class="plaus-sub" id="pvHabenRows">– Zeilen PK 50</div>
+        </div>
+        <div class="plaus-card" id="pvDiffCard" style="--c1:#f59e0b;--c2:#d97706">
+          <div class="plaus-label">Differenz</div>
+          <div class="plaus-value" id="pvDiff">–</div>
+          <div class="plaus-sub" id="pvDiffSub">Soll – Haben</div>
+        </div>
+        <div class="plaus-card" id="pvStatusCard" style="--c1:#10b981;--c2:#059669">
+          <div class="plaus-label">Status</div>
+          <div class="plaus-value" id="pvStatus">–</div>
+          <div class="plaus-sub" id="pvStatusSub">Ausgeglichen?</div>
+        </div>
+        <div class="plaus-card" id="pvKstCard" style="--c1:#f97316;--c2:#ea580c">
+          <div class="plaus-label">Kostenstellen 6*/7*</div>
+          <div class="plaus-value" id="pvKstCount">–</div>
+          <div class="plaus-sub" id="pvKstSub">Zeilen mit KST-Pflicht</div>
+        </div>
+        <div class="plaus-card" id="pvKstAutoCard" style="--c1:#f97316;--c2:#ea580c">
+          <div class="plaus-label">Auto-ergänzt</div>
+          <div class="plaus-value" id="pvKstAuto">–</div>
+          <div class="plaus-sub">KST = <code style="font-size:11px">0435-5013</code></div>
+        </div>
+      </div>
+
+      <!-- Balance detail -->
+      <div id="balanceDetail" style="margin-bottom:24px;"></div>
+
+      <!-- Kostenstellen-Prüfung -->
+      <div id="kstPlausSection" style="margin-bottom:24px"></div>
+
+      <!-- Account summary -->
+      <div class="acct-summary">
+        <div class="tbl-toolbar" style="border-bottom:1px solid var(--border)">
+          <h3>Kontensalden Übersicht</h3>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Sachkonto</th>
+              <th>Bezeichnung</th>
+              <th>Buchungsschlüssel</th>
+              <th style="text-align:right">Summe</th>
+              <th style="text-align:right">Zeilen</th>
+            </tr>
+          </thead>
+          <tbody id="acctSummaryBody"></tbody>
+          <tfoot id="acctSummaryFoot"></tfoot>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════
+       TAB 4 – SAP ÜBERGABE
+  ══════════════════════════════════ -->
+  <div class="tab-pane" id="pane-sap">
+    <div class="empty" id="emptySap">
+      <div class="empty-icon">🔌</div>
+      <h3>SAP-Übergabe nach dem Laden verfügbar</h3>
+      <p>Bitte zuerst eine FIBU LOGA CSV-Datei hochladen.</p>
+    </div>
+    <div id="sapContent" style="display:none">
+
+      <!-- Buchungsparameter -->
+      <div class="config-bar">
+        <div class="cfg-field">
+          <label>SAP System</label>
+          <select id="cfgSystem" onchange="updateSapPayload()">
+            <option value="SEP">SEP – Produktivsystem ⚡ (172.28.189.8)</option>
+            <option value="SEQ">SEQ – Qualitätssystem 🔬 (172.28.189.11)</option>
+          </select>
+        </div>
+        <div class="cfg-field">
+          <label>Buchungsdatum</label>
+          <input type="text" id="cfgPostDate" placeholder="TT.MM.JJJJ" oninput="updateSapPayload()">
+        </div>
+        <div class="cfg-field">
+          <label>Belegdatum</label>
+          <input type="text" id="cfgDocDate" placeholder="TT.MM.JJJJ" oninput="updateSapPayload()">
+        </div>
+        <div class="cfg-field">
+          <label>Geschäftsjahr</label>
+          <input type="text" id="cfgFiscYear" placeholder="2026" style="width:80px" oninput="updateSapPayload()">
+        </div>
+        <div class="cfg-field">
+          <label>Periode</label>
+          <input type="text" id="cfgPeriod" placeholder="5" style="width:60px" oninput="updateSapPayload()">
+        </div>
+        <div class="cfg-field">
+          <label>Belegtyp</label>
+          <input type="text" id="cfgDocType" value="SA" style="width:60px"
+                 readonly title="App-Regel: PayRoll-Buchungen immer Belegtyp SA (gesperrt)">
+        </div>
+        <div class="cfg-field" style="justify-content:flex-end">
+          <button class="btn-nav btn-ok" onclick="updateSapPayload()">🔄 Aktualisieren</button>
+        </div>
+      </div>
+
+      <!-- Status Banner -->
+      <div id="sapStatusBanner" class="status-banner warn">
+        <span>⚠</span> <span id="sapStatusText">Bitte Buchungsparameter prüfen und aktualisieren.</span>
+      </div>
+
+      <!-- ── 0. Pflicht-Validierungsregeln ── -->
+      <div class="tbl-wrap sap-section" style="margin-bottom:18px">
+        <div class="sap-section-title">
+          🛡 Pflicht-Validierungsregeln
+          <span>— müssen vor Buchung bestanden sein</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:10px;padding:16px"
+             id="validRulesGrid">
+          <div style="text-align:center;padding:20px;color:var(--muted);font-size:12px">
+            Bitte CSV laden und Aktualisieren klicken…
+          </div>
+        </div>
+      </div>
+
+      <!-- ── 1. DOCUMENTHEADER ── -->
+      <div class="tbl-wrap sap-section">
+        <div class="sap-section-title">
+          📄 DOCUMENTHEADER
+          <span>— Belegkopf für BAPI_ACC_DOCUMENT_POST</span>
+        </div>
+        <div class="field-grid" id="docHeaderGrid"></div>
+      </div>
+
+      <!-- ── 2. SAP Connection ── -->
+      <div class="tbl-wrap sap-section">
+        <div class="sap-section-title">
+          🔗 SAP-Verbindung (_sap_auth)
+          <span>— Systemparameter für Bridge</span>
+        </div>
+        <div class="field-grid" id="sapAuthGrid"></div>
+      </div>
+
+      <!-- ── 3. ACCOUNTGL ── -->
+      <div class="tbl-wrap sap-section">
+        <div class="sap-section-title">
+          📒 ACCOUNTGL
+          <span id="acctGlCount">— Sachkontenpositionen</span>
+        </div>
+        <div class="tbl-scroll">
+          <table class="sap-items-table">
+            <thead>
+              <tr>
+                <th>ITEMNO_ACC</th>
+                <th>GL_ACCOUNT</th>
+                <th>COMP_CODE</th>
+                <th>ITEM_TEXT</th>
+                <th>ALLOC_NMBR</th>
+                <th>COSTCENTER</th>
+                <th title="Steuerkennzeichen (V1/V4) → SAP ermittelt Vorsteuer-Kto. automatisch">Steuerkennzeichen</th>
+                <th>Buchungsrichtung</th>
+                <th>Prüfung</th>
+              </tr>
+            </thead>
+            <tbody id="acctGlBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ── 3b. ACCOUNTTAX (RESY P-10: Vorsteuer V1/V4) ── -->
+      <div class="tbl-wrap sap-section" id="acctTaxSection" style="display:none">
+        <div class="sap-section-title">
+          🧾 ACCOUNTTAX
+          <span id="acctTaxCount">— Steuerpositionen (Vorsteuer V1/V4)</span>
+        </div>
+        <div class="tbl-scroll">
+          <table class="sap-items-table">
+            <thead>
+              <tr>
+                <th>ITEMNO_ACC</th>
+                <th>Steuerkennzeichen</th>
+                <th style="text-align:right">TAX_BASE_AMOUNT (Netto)</th>
+                <th style="text-align:right">TAX_AMOUNT (Steuer)</th>
+                <th>Erläuterung</th>
+              </tr>
+            </thead>
+            <tbody id="acctTaxBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ── 4. CURRENCYAMOUNT ── -->
+      <div class="tbl-wrap sap-section">
+        <div class="sap-section-title">
+          💶 CURRENCYAMOUNT
+          <span id="currAmtCount">— Beträge je Position</span>
+        </div>
+        <div class="tbl-scroll">
+          <table class="sap-items-table">
+            <thead>
+              <tr>
+                <th>ITEMNO_ACC</th>
+                <th>CURRENCY</th>
+                <th style="text-align:right">AMT_DOCCUR</th>
+                <th>Vorzeichen</th>
+                <th>Buchungsschlüssel (PK)</th>
+                <th>Text (Referenz)</th>
+                <th>Prüfung</th>
+              </tr>
+            </thead>
+            <tbody id="currAmtBody"></tbody>
+            <tfoot id="currAmtFoot"></tfoot>
+          </table>
+        </div>
+      </div>
+
+      <!-- ── 5. JSON Payload Preview ── -->
+      <div class="tbl-wrap sap-section">
+        <div class="sap-section-title" style="justify-content:space-between">
+          <span>{ } JSON Payload – vollständige Übergabe an Bridge</span>
+          <div style="display:flex;gap:8px">
+            <button class="btn-nav btn-ok" onclick="copyPayload()">📋 JSON kopieren</button>
+            <button class="btn-nav" onclick="downloadPayload()">⬇ JSON Download</button>
+          </div>
+        </div>
+        <div class="json-preview" id="jsonPreview"></div>
+      </div>
+
+      <!-- ── 6. Buchungs-Button ── -->
+      <div style="display:flex;justify-content:center;gap:16px;padding:20px 0;">
+        <button class="btn-nav" onclick="switchTabById('plaus', document.getElementById('tabBtn-plaus'))">
+          ← Zurück zur Plausibilität
+        </button>
+        <button class="btn-nav btn-primary" id="btnPostSap" style="padding:12px 32px;font-size:14px;font-weight:700"
+                onclick="postToSap()">
+          ▶ Jetzt in SEQ buchen
+        </button>
+      </div>
+
+    </div><!-- #sapContent -->
+  </div><!-- pane-sap -->
+
+  <!-- ══════════════════════════════════
+       TAB 5 – IMPORTHISTORIE
+  ══════════════════════════════════ -->
+  <div class="tab-pane active" id="pane-history">
+
+    <!-- Toolbar -->
+    <div class="tbl-toolbar" style="margin-bottom:16px">
+      <h3>📂 Importhistorie</h3>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <input id="histSearch" type="text" placeholder="Suche Datei, Monat, Status…"
+               oninput="filterHistory()"
+               style="padding:6px 12px;background:var(--bg3);border:1px solid var(--border);
+                      border-radius:8px;color:var(--text);font-size:12px;width:220px;outline:none">
+        <select id="histStatusFilter" onchange="filterHistory()"
+                style="padding:6px 10px;background:var(--bg3);border:1px solid var(--border);
+                       border-radius:8px;color:var(--text);font-size:12px;outline:none">
+          <option value="">Alle Status</option>
+          <option value="imported">Importiert</option>
+          <option value="booked">Gebucht</option>
+          <option value="reversed">Storniert</option>
+          <option value="error">Fehler</option>
+        </select>
+        <button onclick="loadImportHistory()"
+                style="display:flex;align-items:center;gap:5px;padding:6px 14px;
+                       background:var(--bg3);border:1px solid var(--border);
+                       border-radius:8px;color:var(--text);font-size:12px;cursor:pointer">
+          🔄 Aktualisieren
+        </button>
+        <button id="btnExportXlsx" onclick="exportPayrollXlsx()"
+                style="display:flex;align-items:center;gap:5px;padding:6px 14px;
+                       background:rgba(16,185,129,.12);border:1px solid rgba(16,185,129,.4);
+                       border-radius:8px;color:#34d399;font-size:12px;cursor:pointer;font-weight:600">
+          📥 Excel Export
+        </button>
+        <span class="tbl-count" id="histCount" style="margin-left:4px"></span>
+      </div>
+    </div>
+
+    <!-- Ladeindikator -->
+    <div id="histLoading" style="text-align:center;padding:32px;color:var(--muted);font-size:13px;display:none">
+      ⏳ Lade Importhistorie…
+    </div>
+    <!-- Leer-Zustand -->
+    <div id="histEmpty" style="text-align:center;padding:48px 20px;color:var(--muted)">
+      <div style="font-size:40px;margin-bottom:10px">📭</div>
+      <div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:4px">Noch keine Importe vorhanden</div>
+      <div style="font-size:12px">Lade eine FIBU-LOGA-Datei hoch, um hier die Importhistorie zu sehen.</div>
+    </div>
+
+    <!-- Import-Karten-Liste -->
+    <div id="histList"></div>
+
+  </div><!-- pane-history -->
+
+</div><!-- .wrap -->
+
+<!-- Inline-Edit Change Badge (fixiert unten rechts) -->
+<div id="editChangeBadge">
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+    <span style="color:#f97316;font-size:14px">✏</span>
+    <strong style="font-size:12px" id="editChangeBadgeTitle">Änderungen ausstehend</strong>
+  </div>
+  <div id="editChangeList" style="font-size:11px;color:var(--muted);max-height:80px;overflow-y:auto"></div>
+  <div style="margin-top:8px;display:flex;gap:6px">
+    <span id="editBadgeSaveStatus" style="font-size:11px;color:#34d399"></span>
+  </div>
+</div>
+
+<!-- Buchungs-Modal -->
+<div id="postModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);
+     z-index:500;align-items:center;justify-content:center;padding:20px;">
+  <div style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;
+       width:100%;max-width:600px;max-height:85vh;overflow-y:auto;">
+    <div style="padding:18px 22px;border-bottom:1px solid var(--border);
+         display:flex;align-items:center;justify-content:space-between;">
+      <h2 style="font-size:15px;font-weight:700">SAP-Buchung – BAPI_ACC_DOCUMENT_POST</h2>
+      <button onclick="document.getElementById('postModal').style.display='none'"
+              style="background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer">✕</button>
+    </div>
+    <div style="padding:20px 22px">
+      <div id="postProgress"></div>
+      <div id="postResult" style="margin-top:12px"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ Storno-Vorschau Modal ══ -->
+<div id="stornoModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.78);
+     z-index:500;align-items:center;justify-content:center;padding:20px;">
+  <div style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;
+       width:100%;max-width:680px;max-height:88vh;overflow-y:auto;">
+
+    <!-- Header -->
+    <div style="padding:16px 22px;border-bottom:1px solid var(--border);
+         display:flex;align-items:center;justify-content:space-between;gap:12px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-size:20px">↩</span>
+        <div>
+          <div style="font-size:14px;font-weight:700">SAP-Übergabe prüfen – Storno</div>
+          <div style="font-size:11px;color:var(--muted)">BAPI_ACC_DOCUMENT_POST (Soll/Haben invertiert)</div>
+        </div>
+      </div>
+      <button onclick="closeStornoModal()"
+              style="background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;line-height:1">✕</button>
+    </div>
+
+    <div style="padding:20px 22px;display:flex;flex-direction:column;gap:16px">
+
+      <!-- Warnung -->
+      <div class="status-banner warn" style="margin:0">
+        <span>⚠</span>
+        <span>Storno via Gegen-Buchung (BAPI_ACC_DOCUMENT_POST). Soll/Haben werden vertauscht und Beträge negiert. Bitte alle Parameter prüfen — diese Aktion ist nicht automatisch rückgängig zu machen.</span>
+      </div>
+
+      <!-- ── 1. Original-Beleg Referenz ── -->
+      <div class="tbl-wrap sap-section" style="margin:0">
+        <div class="sap-section-title">📋 Original-Beleg — Storno-Referenz</div>
+        <div class="field-grid" id="stornoReversalGrid" style="padding:14px 16px;gap:10px 24px"></div>
+      </div>
+
+      <!-- ── 2. DOCUMENTHEADER ── -->
+      <div class="tbl-wrap sap-section" style="margin:0">
+        <div class="sap-section-title">📄 DOCUMENTHEADER — Storno-Gegenbuchung</div>
+        <div class="field-grid" id="stornoDocHeaderGrid" style="padding:14px 16px;gap:10px 24px"></div>
+      </div>
+
+      <!-- ── 2b. ACCOUNTGL reversed ── -->
+      <div class="tbl-wrap sap-section" style="margin:0">
+        <div class="sap-section-title">📒 ACCOUNTGL — Umgekehrte Buchungszeilen <span>(Soll↔Haben vertauscht)</span></div>
+        <div id="stornoAccountGlSection" style="overflow-x:auto;max-height:240px;overflow-y:auto"></div>
+      </div>
+
+      <!-- ── 3. SAP-Verbindung ── -->
+      <div class="tbl-wrap sap-section" style="margin:0">
+        <div class="sap-section-title">🔗 SAP-Verbindung (_sap_auth)</div>
+        <div class="field-grid" id="stornoAuthGrid" style="padding:14px 16px;gap:10px 24px"></div>
+      </div>
+
+      <!-- ── 4. JSON Payload ── -->
+      <div class="tbl-wrap sap-section" style="margin:0">
+        <div class="sap-section-title" style="justify-content:space-between">
+          <span>{ } JSON Payload</span>
+          <button class="btn-nav btn-ok" onclick="copyStornoPayload()"
+                  style="font-size:11px;padding:4px 10px">📋 Kopieren</button>
+        </div>
+        <div class="json-preview" id="stornoJsonPreview" style="max-height:220px;overflow-y:auto;font-size:11px"></div>
+      </div>
+
+      <!-- ── Aktionsbuttons ── -->
+      <div id="stornoProgress" style="display:none"></div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;padding-top:4px">
+        <button onclick="closeStornoModal()"
+                id="stornoCancelBtn"
+                style="padding:9px 22px;background:var(--bg3);border:1px solid var(--border);
+                       border-radius:8px;color:var(--muted);font-size:13px;font-weight:600;cursor:pointer">
+          Abbrechen
+        </button>
+        <button onclick="executeStorno()"
+                id="stornoExecBtn"
+                style="padding:9px 22px;background:rgba(251,191,36,.15);
+                       border:1px solid rgba(251,191,36,.5);border-radius:8px;
+                       color:#fbbf24;font-size:13px;font-weight:700;cursor:pointer">
+          ↩ Jetzt in SAP stornieren
+        </button>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script src="auth.js"></script>
+<script>
+AUTH.renderHeader('headerRight');
+
+// Importhistorie beim Laden der Seite sofort anzeigen
+window.addEventListener('DOMContentLoaded', function() {
+  loadImportHistory();
+  updateBookBtnLabels();
+});
+
+// ─── State ────────────────────────────────────────────────
+var state = { meta: null, rows: [], output: [] };
+
+// ─── Inline-Edit Engine ───────────────────────────────────
+var _editChanges = {};   // { nr_field: { nr, field, oldVal, newVal, saved } }
+var _editBadgeTimer = null;
+
+// Editierbare Felder und ihre Anzeigenamen
+var EDIT_FIELDS = { costcenter: 'Kostenstelle', item_text: 'Text', assignment: 'Zuordnung' };
+
+// Startet das Inline-Editieren einer Zelle
+function startEdit(el, nr, field) {
+  if (el.querySelector('input')) return;   // schon im Edit-Modus
+  var r = state.output.find(function(x){ return x.nr === nr; });
+  if (!r) return;
+
+  var currentVal = field === 'item_text' ? (r.text || '')
+                 : field === 'costcenter' ? (r.costcenter || '')
+                 : (r.assignment || '');
+
+  el.innerHTML = '';
+  var inp = document.createElement('input');
+  inp.className = 'edit-input';
+  inp.value     = currentVal;
+  inp.setAttribute('data-original', currentVal);
+  el.appendChild(inp);
+  inp.focus(); inp.select();
+
+  function commit() {
+    var newVal = inp.value.trim();
+    if (newVal === currentVal) { renderCellAfterEdit(el, nr, field, currentVal); return; }
+    applyFieldChange(el, nr, field, currentVal, newVal);
+  }
+  inp.addEventListener('blur',    commit);
+  inp.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter')  { e.preventDefault(); inp.blur(); }
+    if (e.key === 'Escape') { inp.value = currentVal; inp.blur(); }
+  });
+}
+
+// Wendet eine Feldänderung an: State → DB → SAP-Payload
+async function applyFieldChange(el, nr, field, oldVal, newVal) {
+  // 1. State aktualisieren
+  var r = state.output.find(function(x){ return x.nr === nr; });
+  if (!r) return;
+  if (field === 'costcenter') {
+    r.costcenter   = newVal;
+    r._kstManual   = true;
+    r._kstAutofill = false;
+  } else if (field === 'item_text') {
+    r.text      = newVal;
+    r.item_text = newVal;
+  } else if (field === 'assignment') {
+    r.assignment = newVal;
+  }
+
+  // 2. Zelle visuell aktualisieren (zeigt neuen Wert)
+  renderCellAfterEdit(el, nr, field, newVal);
+
+  // 3. Änderungsprotokoll
+  var key = nr + '_' + field;
+  _editChanges[key] = { nr: nr, field: field, oldVal: oldVal, newVal: newVal, saved: false };
+  showEditBadge();
+
+  // 4. SAP-Payload sofort aktualisieren
+  if (typeof updateSapPayload === 'function') updateSapPayload();
+
+  // 4b. Buchungsliste-Zelle synchronisieren wenn Änderung aus anderem Tab kam
+  // (suche das korrespondierende Element in der Buchungsliste)
+  (function() {
+    var buchungRows = document.querySelectorAll('#buchungBody tr');
+    buchungRows.forEach(function(tr) {
+      var nrCell = tr.querySelector('td:first-child');
+      if (!nrCell || parseInt(nrCell.textContent) !== nr) return;
+      var tds = tr.querySelectorAll('td');
+      // Spaltenindex: 0=nr 1=cocode 2=ref 3=header 4=postDate 5=docDate 6=curr 7=pk 8=acct 9=amt 10=assign 11=text 12=kst
+      if (field === 'assignment' && tds[10]) {
+        var sp10 = tds[10].querySelector('.editable-cell');
+        if (sp10 && !sp10.querySelector('input')) sp10.textContent = newVal || '–';
+      } else if (field === 'item_text' && tds[11]) {
+        var sp11 = tds[11].querySelector('.editable-cell');
+        if (sp11 && !sp11.querySelector('input')) sp11.textContent = newVal || '';
+      } else if (field === 'costcenter' && tds[12]) {
+        var r2 = state.output.find(function(x){ return x.nr === nr; });
+        if (r2) {
+          var sp12 = tds[12].querySelector('.editable-cell');
+          if (sp12 && !sp12.querySelector('input')) {
+            var col = r2._kstManual ? '#60a5fa' : r2._kstAutofill ? '#f97316' : '#fbbf24';
+            var pre = r2._kstManual ? '✏ ' : r2._kstAutofill ? '⚡ ' : '';
+            sp12.style.color = col;
+            sp12.textContent = pre + (newVal || '–');
+          }
+        }
+      }
+    });
+  })();
+
+  // 5. In DB persistieren (falls Import-ID bekannt)
+  if (state.dbImportId) {
+    el.classList.add('edit-saving');
+    var body = {};
+    body[field] = newVal;
+    try {
+      var resp = await fetch('http://localhost:8000/payroll/imports/' + state.dbImportId +
+                             '/lines/' + nr, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      _editChanges[key].saved = true;
+      el.classList.remove('edit-saving');
+      showEditBadge();
+      // Kurze grüne Bestätigung
+      var orig = el.style.outline;
+      el.style.outline = '2px solid #34d399';
+      setTimeout(function(){ el.style.outline = orig; }, 1200);
+    } catch(e) {
+      _editChanges[key].saved = false;
+      _editChanges[key].error = e.message;
+      el.classList.remove('edit-saving');
+      el.style.outline = '2px solid #ef4444';
+      setTimeout(function(){ el.style.outline = ''; }, 2000);
+      showEditBadge();
+    }
+  }
+}
+
+// Rendert die Zelle nach dem Edit (ohne Tabelle komplett neu zu laden)
+function renderCellAfterEdit(el, nr, field, val) {
+  var r = state.output.find(function(x){ return x.nr === nr; });
+  if (!r) return;
+  if (field === 'costcenter') {
+    // KST-Zelle: kstCell(r) liefert HTML für <td>, wir brauchen nur den Inhalt
+    var tmp = document.createElement('table');
+    tmp.innerHTML = '<tr>' + kstCell(r) + '</tr>';
+    var td = tmp.querySelector('td');
+    el.innerHTML  = td ? td.innerHTML : esc(val);
+    el.style.color = r._kstManual ? '#60a5fa' : r._kstAutofill ? '#f97316' : '#fbbf24';
+  } else {
+    el.textContent = val || '–';
+  }
+}
+
+// Badge unten rechts mit Änderungsprotokoll
+function showEditBadge() {
+  var badge = document.getElementById('editChangeBadge');
+  var list  = document.getElementById('editChangeList');
+  var title = document.getElementById('editChangeBadgeTitle');
+  var statusEl = document.getElementById('editBadgeSaveStatus');
+
+  var keys    = Object.keys(_editChanges);
+  var saved   = keys.filter(function(k){ return _editChanges[k].saved; }).length;
+  var unsaved = keys.filter(function(k){ return !_editChanges[k].saved && !_editChanges[k].error; }).length;
+  var errors  = keys.filter(function(k){ return _editChanges[k].error; }).length;
+
+  if (!keys.length) { badge.style.display = 'none'; return; }
+  badge.style.display = '';
+
+  title.textContent = keys.length + ' Feld' + (keys.length===1?'':'er') + ' geändert';
+  statusEl.textContent = saved   ? '✓ ' + saved + ' in DB gespeichert'   : '';
+  if (errors) statusEl.textContent += (statusEl.textContent?' · ':'') + '✗ ' + errors + ' Fehler';
+
+  list.innerHTML = keys.slice(-5).map(function(k) {
+    var c = _editChanges[k];
+    var icon = c.error ? '✗' : c.saved ? '✓' : '⏳';
+    var col  = c.error ? '#ef4444' : c.saved ? '#34d399' : '#f59e0b';
+    return '<div style="display:flex;gap:6px;align-items:baseline;margin-bottom:2px">' +
+      '<span style="color:' + col + ';font-size:10px">' + icon + '</span>' +
+      '<span>Zeile ' + c.nr + ' · ' + (EDIT_FIELDS[c.field]||c.field) + ':</span>' +
+      '<code style="color:#79b8ff;font-size:10px">' + esc(String(c.newVal).substring(0,20)) + '</code>' +
+    '</div>';
+  }).join('');
+
+  // Badge nach 8s ausblenden wenn alles gespeichert
+  clearTimeout(_editBadgeTimer);
+  if (saved === keys.length) {
+    _editBadgeTimer = setTimeout(function(){
+      badge.style.display = 'none';
+      _editChanges = {};
+    }, 5000);
+  }
+}
+
+// ─── SAP System Config ────────────────────────────────────
+var SAP_SYSTEMS = {
+  SEQ: { ashost:'172.28.189.11', sysnr:'05', client:'600', lang:'DE', user:'RFC_COFACE' },
+  SEP: { ashost:'172.28.189.8',  sysnr:'06', client:'600', lang:'DE', user:'RFC_COFACE' }
+};
+var BRIDGE_URL = 'http://localhost:8765';
+
+// ─── Tab switching ─────────────────────────────────────────
+function switchTab(name, btn) {
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('pane-' + name).classList.add('active');
+  btn.classList.add('active');
+}
+function switchTabById(name, btn) {
+  switchTab(name, btn || document.getElementById('tabBtn-' + name));
+}
+
+// ─── Drag & Drop ───────────────────────────────────────────
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById('uploadZone').classList.remove('drag');
+  var f = e.dataTransfer.files[0];
+  if (f) handleFile(f);
+}
+
+// ─── File Handler ──────────────────────────────────────────
+function handleFile(file) {
+  if (!file) return;
+  // RESY-Dateien (PDF/TXT) gehören NICHT in den CSV-Import — Guard
+  var lname = file.name.toLowerCase();
+  if (lname.endsWith('.pdf') || lname.endsWith('.txt')) {
+    alert(
+      '⚠ ' + (lname.endsWith('.pdf') ? 'PDF' : 'TXT') + '-Datei erkannt: „' + file.name + '"\n\n' +
+      'RESY-Reisekostenabrechnungen werden nicht als PayRoll-Import verwendet.\n' +
+      'Bitte die CSV-Datei hochladen.\n\n' +
+      'Für die Steueraufteilung: in der Buchungsliste auf\n' +
+      '[📂 RESY aufteilen] bei der Zeile „RESY Gesamt" klicken.'
+    );
+    return;
+  }
+  document.getElementById('uploadName').textContent = '✓ ' + file.name;
+
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    // Decode as CP1252 (Windows-1252)
+    var bytes = new Uint8Array(e.target.result);
+    var decoder = new TextDecoder('windows-1252');
+    var text = decoder.decode(bytes);
+    processCSV(text, file.name);
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// ─── CSV Parser (Fixed-Width) ──────────────────────────────
+function processCSV(text, fileName) {
+  var lines = text.split('\n');
+  if (lines.length < 2) { alert('Datei zu kurz oder falsches Format.'); return; }
+
+  // Header line: LOGA + period(8) + rundate(8) + time(8...)
+  var hdr = lines[0].trimEnd();
+  var docId   = hdr.substring(0, 12).trim();          // e.g. LOGA01052026
+  var dateRaw = hdr.substring(12, 20).trim();         // DDMMYYYY
+  var runDate = dateRaw.length === 8
+    ? dateRaw.substring(0,2)+'.'+dateRaw.substring(2,4)+'.'+dateRaw.substring(4,8)
+    : dateRaw;
+
+  // Parse data lines
+  var rows = [];
+  for (var i = 1; i < lines.length; i++) {
+    var l = lines[i];
+    if (!l || l.trim() === '') continue;
+    var r = parseLine(l);
+    if (r) rows.push(r);
+  }
+
+  if (rows.length === 0) { alert('Keine Buchungszeilen gefunden.'); return; }
+
+  var meta = {
+    fileName: fileName,
+    docId:    docId,
+    runDate:  runDate,
+    cocode:   rows[0].cocode,
+    currency: rows[0].currency,
+    rowCount: rows.length,
+    reference: rows[0].cocode.replace(/^0+/, '') + docId, // e.g. 435LOGA01052026
+    postDate: runDate  // can be adjusted
+  };
+
+  // Build output
+  var output = rows.map(function(r, idx) {
+    var isHaben = r.sh === 'H';
+    return {
+      nr:         idx + 1,
+      cocode:     r.cocode,
+      reference:  meta.reference,
+      headerText: meta.docId,
+      postDate:   meta.postDate,
+      docDate:    meta.postDate,
+      currency:   r.currency,
+      pk:         isHaben ? 50 : 40,          // 50=Haben, 40=Soll
+      account:    isHaben ? r.gegkto : r.sacckto,
+      amount:     r.amount,
+      assignment: r.assignment,
+      text:       r.text,
+      costcenter: r.costcenter,
+      sh:         r.sh,
+      // raw
+      sacckto:    r.sacckto,
+      gegkto:     r.gegkto,
+      period:     r.period,
+    };
+  });
+
+  // ► KST-Pflicht: Konten 6*/7* ohne Kostenstelle → Standard 0435-5013
+  var kstResult = ensureCostCenters(output);
+  state = { meta: meta, rows: rows, output: output, kstResult: kstResult };
+  renderAll();
+}
+
+// ─── Kostenstellen-Pflicht (Plausibilitätsregel) ──────────
+// Konten 6*/7* müssen eine Kostenstelle haben.
+// Fehlende werden mit DEFAULT_KST aufgefüllt.
+var KST_DEFAULT = '0435-5013';
+
+function ensureCostCenters(output) {
+  var needed   = [];   // Zeilen die eine KST benötigen
+  var autofill = [];   // Zeilen die automatisch ergänzt wurden
+  var ok       = [];   // Zeilen die bereits eine KST hatten
+  output.forEach(function(r) {
+    var a = String(r.account || '');
+    if (a.charAt(0) === '6' || a.charAt(0) === '7') {
+      needed.push(r.nr);
+      if (!r.costcenter || r.costcenter.trim() === '') {
+        r.costcenter = KST_DEFAULT;
+        r._kstAutofill = true;
+        autofill.push(r.nr);
+      } else {
+        ok.push(r.nr);
+      }
+    }
+  });
+  return { needed: needed, autofill: autofill, ok: ok };
+}
+
+// ─── Fixed-Width Line Parser ───────────────────────────────
+function parseLine(l) {
+  if (l.length < 200) return null;
+
+  // Company code
+  var cocode = l.substring(11, 15).trim();
+  if (!cocode || !/^\d{4}$/.test(cocode)) return null;
+
+  var currency = l.substring(21, 24).trim();
+
+  // Amount: pos 40-58, decimal comma
+  var amtRaw = l.substring(40, 58).trim().replace(/\./g, '').replace(',', '.');
+  var amount = parseFloat(amtRaw);
+  if (isNaN(amount)) return null;
+
+  // Cost center: pos 74-83
+  var costcenter = l.substring(74, 83).trim();
+
+  // Sachkonto / Gegenkonto: two 6-digit numbers in range 97-113
+  var sacckto = l.substring(97, 103).trim();
+  var gegkto  = l.substring(107, 113).trim();
+
+  // Text: pos 117-145
+  var text = l.substring(117, 145).trim();
+
+  // Period: pos 163-171
+  var period = l.substring(163, 171).trim();
+
+  // S/H indicator: pos 186
+  var sh = l.substring(186, 187).trim();
+
+  // Assignment: pos 242-258
+  var assignment = l.substring(242, 258).trim();
+
+  return { cocode, currency, amount, costcenter, sacckto, gegkto, text, period, sh, assignment };
+}
+
+// ─── Render All ───────────────────────────────────────────
+function renderAll() {
+  var meta = state.meta;
+  var rows = state.rows;
+  var out  = state.output;
+
+  // Meta bar
+  document.getElementById('mFile').textContent     = meta.fileName;
+  document.getElementById('mDocId').textContent    = meta.docId;
+  document.getElementById('mRunDate').textContent  = meta.runDate;
+  document.getElementById('mCocode').textContent   = meta.cocode;
+  document.getElementById('mCurrency').textContent = meta.currency;
+  document.getElementById('mRows').textContent     = meta.rowCount;
+  document.getElementById('metaBar').style.display = 'flex';
+  document.getElementById('btnPost').style.display = 'inline-flex';
+
+  renderInput(rows);
+  renderBuchung(out);
+  renderPlaus(out);
+  initSapTab(meta);
+  checkMonthDuplicateAndSave(meta, out);  // Regel P-8: 1× pro Monat + sofort in DB
+
+  // Nach CSV-Upload: automatisch zum Input-Tab wechseln
+  switchTabById('input', document.getElementById('tabBtn-input'));
+}
+
+// ─── Init SAP Tab with defaults ────────────────────────────
+function initSapTab(meta) {
+  document.getElementById('btnVerify').style.display = 'inline-flex';
+
+  // ► Regel 2: System aus Login-Session – Dropdown zeigt es an, aber ist gesperrt
+  var userSys = getUserSapSystemId();
+  var cfgSys  = document.getElementById('cfgSystem');
+  cfgSys.value    = userSys;
+  cfgSys.disabled = true;   // nicht änderbar
+  cfgSys.title    = 'System wird durch den angemeldeten Benutzer bestimmt (' + (AUTH.user.sap_system || userSys) + ')';
+
+  // Datum aus LOGA-Header
+  var d = meta.runDate || '';
+  document.getElementById('cfgPostDate').value = d;
+  document.getElementById('cfgDocDate').value  = d;
+  var parts = d.split('.');
+  if (parts.length === 3) {
+    document.getElementById('cfgFiscYear').value = parts[2];
+    document.getElementById('cfgPeriod').value   = String(parseInt(parts[1], 10));
+  }
+  updateSapPayload();
+}
+
+// ─── Input Table ──────────────────────────────────────────
+function renderInput(rows) {
+  document.getElementById('emptyInput').style.display  = 'none';
+  document.getElementById('inputTable').style.display  = '';
+
+  // Zähle KST-Fehler für den Toolbar-Hinweis
+  var kstErrors = rows.filter(function(r) {
+    var acct = r.sh === 'H' ? r.gegkto : r.sacckto;
+    return (acct.charAt(0) === '6' || acct.charAt(0) === '7') && !r.costcenter;
+  });
+  var countEl = document.getElementById('inputCount');
+  countEl.textContent = rows.length + ' Zeilen';
+  if (kstErrors.length > 0) {
+    countEl.innerHTML = rows.length + ' Zeilen &nbsp;·&nbsp; ' +
+      '<span style="color:#ef4444;font-weight:700">⚠ ' + kstErrors.length +
+      ' KST fehlt (6*/7*)</span>';
+  }
+
+  var body = document.getElementById('inputBody');
+  body.innerHTML = rows.map(function(r, i) {
+    var shBadge = r.sh === 'H'
+      ? '<span class="badge-h">H</span>'
+      : '<span class="badge-s">S</span>';
+
+    // Wirksames Buchungskonto (S=sacckto, H=gegkto)
+    var effectiveAcct = r.sh === 'H' ? r.gegkto : r.sacckto;
+    var needKst = effectiveAcct.charAt(0) === '6' || effectiveAcct.charAt(0) === '7';
+    var kstVal  = r.costcenter || '–';
+    var kstStyle = !r.costcenter && needKst
+      ? 'color:#ef4444;font-weight:700'   // FEHLER: 6*/7* ohne KST
+      : needKst
+        ? 'color:#f97316;font-weight:600' // KST vorhanden (auto/manuell)
+        : 'color:var(--muted)';           // nicht relevant
+    var kstBadge = (!r.costcenter && needKst)
+      ? ' <span style="font-size:9px;color:#ef4444;vertical-align:super">⚠ fehlt</span>'
+      : '';
+
+    return '<tr>' +
+      '<td style="color:var(--muted)">' + (i+1) + '</td>' +
+      '<td>' + esc(r.cocode) + '</td>' +
+      '<td>' + esc(r.currency) + '</td>' +
+      '<td class="num">' + fmtAmt(r.amount) + '</td>' +
+      '<td>' + shBadge + '</td>' +
+      '<td style="font-family:monospace;color:#60a5fa">' + esc(r.sacckto) + '</td>' +
+      '<td style="font-family:monospace;color:#34d399">' + esc(r.gegkto) + '</td>' +
+      '<td>' + esc(r.text) + '</td>' +
+      '<td style="font-family:monospace;' + kstStyle + '">' + esc(kstVal) + kstBadge + '</td>' +
+      '<td style="font-family:monospace;color:var(--muted)">' + esc(r.period) + '</td>' +
+      '<td style="font-family:monospace">' + esc(r.assignment || '') + '</td>' +
+      '</tr>';
+  }).join('');
+
+  // KST-Banner anzeigen/verbergen
+  var kstErrors = rows.filter(function(r) {
+    var acct = r.sh === 'H' ? r.gegkto : r.sacckto;
+    return (acct.charAt(0) === '6' || acct.charAt(0) === '7') && !r.costcenter;
+  });
+  var banner   = document.getElementById('kstWarnBanner');
+  var warnTxt  = document.getElementById('kstWarnText');
+  if (kstErrors.length > 0) {
+    banner.style.display = '';
+    // Betroffene Konten und Zeilen auflisten
+    var errDetails = kstErrors.map(function(r) {
+      var acct = r.sh === 'H' ? r.gegkto : r.sacckto;
+      return 'Zeile ' + (rows.indexOf(r)+1) + ': Konto ' + acct + ' (' + (r.text || '?') + ')';
+    }).join(' | ');
+    warnTxt.textContent = kstErrors.length + ' Zeile(n) mit Konto 6*/7* ohne Kostenstelle — werden mit ' +
+      KST_DEFAULT + ' ergänzt. ' + errDetails;
+    // Tab-Button rot markieren
+    var tabBtn = document.getElementById('tabBtn-input');
+    if (tabBtn) tabBtn.innerHTML = '📋 Input <span style="color:#ef4444;font-size:10px;margin-left:3px">⚠' + kstErrors.length + '</span>';
+  } else {
+    banner.style.display = 'none';
+    var tabBtn = document.getElementById('tabBtn-input');
+    if (tabBtn) tabBtn.textContent = '📋 Input';
+  }
+}
+
+// ─── KST-Korrektur-Modal ──────────────────────────────────
+function getKstPendingRows() {
+  if (!state.output) return [];
+  return state.output.filter(function(r) {
+    var a = String(r.account || '');
+    return a.charAt(0) === '6' || a.charAt(0) === '7';
+  });
+}
+
+function openKstModal() {
+  var rows = getKstPendingRows();
+  var body = document.getElementById('kstModalBody');
+  body.innerHTML = rows.map(function(r) {
+    var isAuto = r._kstAutofill;
+    var isManual = r._kstManual;
+    var colorClass = isManual ? 'is-custom' : 'is-default';
+    return '<div class="kst-row-card">' +
+      '<div class="kst-nr">' + r.nr + '</div>' +
+      '<div class="kst-acct">' + esc(r.account) + '</div>' +
+      '<div class="kst-txt">' + esc(r.text || '') + '</div>' +
+      '<div class="kst-amt">' + fmtAmt(r.amount) + '</div>' +
+      '<input class="kst-input ' + colorClass + '" data-nr="' + r.nr + '" ' +
+        'value="' + esc(r.costcenter || KST_DEFAULT) + '" ' +
+        'oninput="this.className=\'kst-input \'+(this.value===\'' + KST_DEFAULT + '\'?\'is-default\':\'is-custom\')">' +
+      '</div>';
+  }).join('');
+  document.getElementById('kstModal').style.display = 'flex';
+}
+
+function closeKstModal() {
+  document.getElementById('kstModal').style.display = 'none';
+}
+
+function modalSetAll(kst) {
+  document.querySelectorAll('.kst-input').forEach(function(inp) {
+    inp.value = kst;
+    inp.className = 'kst-input is-default';
+  });
+}
+
+function applyKstModal() {
+  document.querySelectorAll('.kst-input').forEach(function(inp) {
+    var nr  = parseInt(inp.getAttribute('data-nr'));
+    var val = inp.value.trim();
+    var r   = state.output.find(function(x){ return x.nr === nr; });
+    if (r) {
+      r.costcenter   = val;
+      r._kstManual   = (val !== KST_DEFAULT);
+      r._kstAutofill = (val === KST_DEFAULT);
+    }
+  });
+  closeKstModal();
+  _afterKstApply();
+}
+
+function acceptAllKstDefault() {
+  state.output.forEach(function(r) {
+    var a = String(r.account || '');
+    if ((a.charAt(0) === '6' || a.charAt(0) === '7') && (!r.costcenter || r.costcenter.trim() === '')) {
+      r.costcenter   = KST_DEFAULT;
+      r._kstAutofill = true;
+      r._kstManual   = false;
+    }
+  });
+  _afterKstApply();
+}
+
+// Nach Korrektur: Tabs neu rendern + Banner auf "OK" setzen
+function _afterKstApply() {
+  if (!state.output) return;
+  state.kstResult = ensureCostCenters(state.output);
+  renderInput(state.rows);
+  renderBuchung(state.output);
+  renderPlaus(state.output);
+  updateSapPayload();
+  document.getElementById('kstBannerOk').style.display = '';
+  var stillMissing = state.output.filter(function(r) {
+    var a = String(r.account || '');
+    return (a.charAt(0)==='6'||a.charAt(0)==='7') && (!r.costcenter||r.costcenter.trim()==='');
+  });
+  if (!stillMissing.length) {
+    document.getElementById('kstWarnBanner').style.borderLeftColor = '#34d399';
+    document.getElementById('kstWarnBanner').style.borderColor     = 'rgba(52,211,153,.4)';
+    document.getElementById('kstWarnBanner').style.background      = 'rgba(52,211,153,.06)';
+    var tabBtn = document.getElementById('tabBtn-input');
+    if (tabBtn) tabBtn.textContent = '📋 Input ✓';
+  }
+}
+
+// ─── Buchungsliste Table ───────────────────────────────────
+function renderBuchung(out) {
+  document.getElementById('emptyBuchung').style.display  = 'none';
+  document.getElementById('buchungTable').style.display  = '';
+  document.getElementById('buchungCount').textContent = out.length + ' Zeilen';
+
+  var totalSoll = 0, totalHaben = 0;
+
+  var body = document.getElementById('buchungBody');
+  body.innerHTML = out.map(function(r) {
+    var pkLabel = r.pk === 50
+      ? '<span class="pk-50">50 – Haben</span>'
+      : '<span class="pk-40">40 – Soll</span>';
+    if (r.pk === 50) totalHaben += r.amount;
+    else             totalSoll  += r.amount;
+    return '<tr>' +
+      '<td style="color:var(--muted)">' + r.nr + '</td>' +
+      '<td>' + r.cocode + '</td>' +
+      '<td style="font-family:monospace;font-size:11px">' + esc(r.reference) + '</td>' +
+      '<td style="font-size:11px">' + esc(r.headerText) + '</td>' +
+      '<td>' + esc(r.postDate) + '</td>' +
+      '<td>' + esc(r.docDate) + '</td>' +
+      '<td>' + r.currency + '</td>' +
+      '<td>' + pkLabel + '</td>' +
+      '<td style="font-family:monospace;color:#79b8ff">' + r.account + '</td>' +
+      '<td class="num">' + fmtAmt(r.amount) + '</td>' +
+      '<td style="font-family:monospace;padding:4px 8px">' +
+        '<span class="editable-cell" onclick="startEdit(this,' + r.nr + ',\'assignment\')" ' +
+        'title="Zuordnung bearbeiten">' + esc(r.assignment || '–') + '</span></td>' +
+      (function(){
+        var isResyGesamt = r.text && r.text.trim().toUpperCase() === 'RESY GESAMT';
+        var resyTax = r._resynTaxCode;
+        var taxBadge = '';
+        if (resyTax === 'V0')   taxBadge = '<span style="margin-left:6px;padding:1px 7px;border-radius:4px;background:rgba(167,139,250,.15);border:1px solid rgba(167,139,250,.5);color:#a78bfa;font-size:10px;font-weight:700">V0</span>';
+        else if (resyTax === 'V1') taxBadge = '<span style="margin-left:6px;padding:1px 7px;border-radius:4px;background:rgba(52,211,153,.12);border:1px solid rgba(52,211,153,.5);color:#34d399;font-size:10px;font-weight:700">V1 19%</span>';
+        else if (resyTax === 'V4') taxBadge = '<span style="margin-left:6px;padding:1px 7px;border-radius:4px;background:rgba(96,165,250,.12);border:1px solid rgba(96,165,250,.5);color:#60a5fa;font-size:10px;font-weight:700">V4 7%</span>';
+        else if (resyTax === 'o.VSt') taxBadge = '<span style="margin-left:6px;padding:1px 7px;border-radius:4px;background:rgba(139,148,158,.1);border:1px solid rgba(139,148,158,.4);color:#8b949e;font-size:10px;font-weight:700">o.VSt</span>';
+        var resyBtn = isResyGesamt
+          ? '<button onclick="triggerResyUpload(' + r.nr + ')" ' +
+            'style="margin-left:8px;padding:2px 9px;background:rgba(167,139,250,.15);' +
+            'border:1px solid rgba(167,139,250,.5);border-radius:5px;color:#a78bfa;' +
+            'font-size:10px;font-weight:700;cursor:pointer;vertical-align:middle" ' +
+            'title="RESY-Abrechnung hochladen und nach Steuersatz aufteilen">📂 RESY aufteilen</button>'
+          : '';
+        return '<td style="padding:4px 8px">' +
+          '<span class="editable-cell" onclick="startEdit(this,' + r.nr + ',\'item_text\')" ' +
+          'title="Text bearbeiten">' + esc(r.text) + '</span>' +
+          taxBadge + resyBtn + '</td>';
+      })() +
+      kstCellEdit(r) +
+      '</tr>';
+  }).join('');
+  var diff = totalSoll - totalHaben;
+  document.getElementById('buchungFoot').innerHTML =
+    '<tr class="sum-row">' +
+    '<td colspan="9" style="color:var(--muted)">Σ Gesamt</td>' +
+    '<td class="num">' + fmtAmt(totalSoll + totalHaben) + '</td>' +
+    '<td colspan="3" style="font-size:11px;color:var(--muted)">' +
+      'S: ' + fmtAmt(totalSoll) + ' | H: ' + fmtAmt(totalHaben) +
+      ' | Diff: <span style="color:' + (Math.abs(diff)<0.01?'var(--ok)':'var(--err)') + '">' + fmtAmt(diff) + '</span>' +
+    '</td>' +
+    '</tr>';
+}
+
+// ─── Plausibilität ─────────────────────────────────────────
+function renderPlaus(out) {
+  document.getElementById('emptyPlaus').style.display  = 'none';
+  document.getElementById('plausContent').style.display = '';
+
+  var sRows = out.filter(function(r){ return r.pk===40; });
+  var hRows = out.filter(function(r){ return r.pk===50; });
+  var totalS = sRows.reduce(function(s,r){ return s+r.amount; }, 0);
+  var totalH = hRows.reduce(function(s,r){ return s+r.amount; }, 0);
+  var diff   = totalS - totalH;
+  var balanced = Math.abs(diff) < 0.01;
+
+  document.getElementById('pvSoll').textContent      = fmtAmt(totalS);
+  document.getElementById('pvSollRows').textContent  = sRows.length + ' Zeilen PK 40';
+  document.getElementById('pvHaben').textContent     = fmtAmt(totalH);
+  document.getElementById('pvHabenRows').textContent = hRows.length + ' Zeilen PK 50';
+  document.getElementById('pvDiff').textContent      = fmtAmt(diff);
+  document.getElementById('pvDiff').style.color      = balanced ? 'var(--ok)' : 'var(--err)';
+  document.getElementById('pvStatus').textContent    = balanced ? '✓ OK' : '✗ Diff';
+  document.getElementById('pvStatus').style.color    = balanced ? 'var(--ok)' : 'var(--err)';
+  document.getElementById('pvStatusSub').textContent = balanced ? 'Soll = Haben' : 'Nicht ausgeglichen!';
+
+  // KST KPIs
+  var kstRows  = out.filter(function(r){ var a=String(r.account||''); return a[0]==='6'||a[0]==='7'; });
+  var kstAuto  = kstRows.filter(function(r){ return r._kstAutofill; });
+  document.getElementById('pvKstCount').textContent = kstRows.length;
+  document.getElementById('pvKstAuto').textContent  = kstAuto.length;
+  document.getElementById('pvKstSub').textContent   = kstRows.length + ' Zeilen mit KST-Pflicht';
+
+  // Balance detail
+  var bd = document.getElementById('balanceDetail');
+  bd.innerHTML =
+    '<div class="balance-row ' + (balanced?'ok':'err') + '">' +
+      '<span class="balance-label">' + (balanced ? '✓ Ausgeglichen' : '✗ Nicht ausgeglichen') + '</span>' +
+      '<span class="balance-val" style="color:' + (balanced?'var(--ok)':'var(--err)') + '">' +
+        'S: ' + fmtAmt(totalS) + '  /  H: ' + fmtAmt(totalH) + '  /  Diff: ' + fmtAmt(diff) +
+      '</span>' +
+    '</div>';
+
+  // Account Summary
+  var acctMap = {};
+  out.forEach(function(r) {
+    var k = r.account + '|' + (r.pk===50 ? 'H' : 'S');
+    if (!acctMap[k]) acctMap[k] = { account: r.account, pk: r.pk, sum: 0, cnt: 0 };
+    acctMap[k].sum += r.amount;
+    acctMap[k].cnt++;
+  });
+  var acctRows = Object.values(acctMap).sort(function(a,b){ return a.account.localeCompare(b.account); });
+  document.getElementById('acctSummaryBody').innerHTML = acctRows.map(function(a) {
+    return '<tr>' +
+      '<td style="font-family:monospace;color:#79b8ff">' + esc(a.account) + '</td>' +
+      '<td style="color:var(--muted);font-size:11px">–</td>' +
+      '<td>' + (a.pk===50 ? '<span class="pk-50">50 – Haben</span>' : '<span class="pk-40">40 – Soll</span>') + '</td>' +
+      '<td class="num">' + fmtAmt(a.sum) + '</td>' +
+      '<td class="num" style="color:var(--muted)">' + a.cnt + '</td>' +
+      '</tr>';
+  }).join('');
+  document.getElementById('acctSummaryFoot').innerHTML =
+    '<tr class="sum-row"><td colspan="3">Gesamt</td>' +
+    '<td class="num">' + fmtAmt(out.reduce(function(s,r){return s+r.amount;},0)) + '</td>' +
+    '<td class="num" style="color:var(--muted)">' + out.length + '</td></tr>';
+
+  renderKstPlaus(out);
+}
+
+function renderKstPlaus(out) {
+  var kstResult = (state && state.kstResult) || { needed: [], autofill: [], ok: [] };
+  var needed    = kstResult.needed   || [];
+  var autofill  = kstResult.autofill || [];
+  var origOk    = kstResult.ok       || [];
+
+  var kstLines = out.filter(function(r) {
+    var a = String(r.account || '');
+    return a.charAt(0) === '6' || a.charAt(0) === '7';
+  });
+
+  var allOk    = kstLines.every(function(r){ return r._kstManual || (!r._kstAutofill && r.costcenter); });
+  var autoCount = kstLines.filter(function(r){ return r._kstAutofill && !r._kstManual; }).length;
+  var secColor = autoCount === 0 ? 'rgba(16,185,129,.35)' : 'rgba(249,115,22,.45)';
+  var secBg    = autoCount === 0 ? 'rgba(16,185,129,.05)' : 'rgba(249,115,22,.05)';
+  var icon     = autoCount === 0 ? '✅' : '⚡';
+  var title    = autoCount === 0
+    ? 'Kostenstellen vollständig (' + needed.length + ' Zeilen)'
+    : autoCount + ' Zeilen automatisch mit KST ' + KST_DEFAULT + ' ergänzt';
+
+  var html = '<div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:0">';
+  html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;' +
+    'background:' + secBg + ';border-bottom:1px solid ' + secColor + ';border-left:4px solid ' + secColor + '">' +
+    '<div>' +
+      '<div style="font-size:13px;font-weight:700">' + icon + ' Kostenstellen-Pflicht (Konten 6* / 7*)</div>' +
+      '<div style="font-size:11px;color:var(--muted);margin-top:2px">' + title + '</div>' +
+    '</div>' +
+    '<div style="display:flex;gap:8px;font-size:12px">' +
+      '<span style="padding:3px 10px;border-radius:6px;background:rgba(96,165,250,.12);border:1px solid rgba(96,165,250,.3);color:#60a5fa">' +
+        needed.length + ' Konten 6*/7*</span>' +
+      (autoCount > 0
+        ? '<span style="padding:3px 10px;border-radius:6px;background:rgba(249,115,22,.12);border:1px solid rgba(249,115,22,.3);color:#f97316">' +
+          '⚡ ' + autoCount + ' ergänzt</span>'
+        : '<span style="padding:3px 10px;border-radius:6px;background:rgba(16,185,129,.1);border:1px solid rgba(16,185,129,.3);color:#10b981">' +
+          '✓ alle vollständig</span>') +
+      '<span style="padding:3px 10px;border-radius:6px;background:rgba(139,148,158,.1);border:1px solid rgba(139,148,158,.25);color:var(--muted)">' +
+        origOk.length + ' original</span>' +
+    '</div>' +
+  '</div>';
+
+  if (kstLines.length > 0) {
+    html += '<div style="overflow-x:auto;max-height:300px;overflow-y:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">';
+    html += '<thead><tr style="background:var(--bg3)">' +
+      '<th style="padding:7px 12px;text-align:left;font-size:10.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--border)">#</th>' +
+      '<th style="padding:7px 12px;text-align:left;font-size:10.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--border)">Sachkonto</th>' +
+      '<th style="padding:7px 12px;text-align:left;font-size:10.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--border)">Text</th>' +
+      '<th style="padding:7px 12px;text-align:right;font-size:10.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--border)">Betrag</th>' +
+      '<th style="padding:7px 12px;text-align:left;font-size:10.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--border)">Kostenstelle</th>' +
+      '<th style="padding:7px 12px;text-align:left;font-size:10.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--border)">Status</th>' +
+      '</tr></thead><tbody>';
+    kstLines.forEach(function(r) {
+      var isAuto   = r._kstAutofill && !r._kstManual;
+      var isManual = r._kstManual;
+      var kstColor = isManual ? '#60a5fa' : isAuto ? '#f97316' : '#10b981';
+      var kstPrefix = isManual ? '✏ ' : isAuto ? '⚡ ' : '';
+      var kstTip = isManual ? 'Manuell eingetragen — klicken zum Ändern'
+                 : isAuto   ? 'Automatisch ergänzt — klicken zum Überschreiben'
+                 : 'Klicken zum Bearbeiten';
+      var badge = isManual
+        ? '<span style="padding:2px 8px;border-radius:5px;background:rgba(96,165,250,.12);border:1px solid rgba(96,165,250,.3);color:#60a5fa;font-size:11px;font-weight:700">✏ Manuell</span>'
+        : isAuto
+          ? '<span style="padding:2px 8px;border-radius:5px;background:rgba(249,115,22,.12);border:1px solid rgba(249,115,22,.3);color:#f97316;font-size:11px;font-weight:700">⚡ Ergänzt</span>'
+          : '<span style="padding:2px 8px;border-radius:5px;background:rgba(16,185,129,.1);border:1px solid rgba(16,185,129,.3);color:#10b981;font-size:11px;font-weight:700">✓ Original</span>';
+      html += '<tr style="border-bottom:1px solid rgba(48,54,61,.5)">' +
+        '<td style="padding:6px 12px;color:var(--muted)">' + r.nr + '</td>' +
+        '<td style="padding:6px 12px;font-family:monospace;color:#79b8ff">' + r.account + '</td>' +
+        '<td style="padding:6px 12px;color:var(--text)">' +
+          '<span class="editable-cell" onclick="startEditPlaus(this,' + r.nr + ',\'item_text\')" title="Text bearbeiten">' + esc(r.text || '') + '</span>' +
+        '</td>' +
+        '<td style="padding:6px 12px;text-align:right;font-variant-numeric:tabular-nums;font-family:monospace">' + fmtAmt(r.amount) + '</td>' +
+        '<td style="padding:6px 12px">' +
+          '<span class="editable-cell" onclick="startEditPlaus(this,' + r.nr + ',\'costcenter\')" ' +
+          'title="' + kstTip + '" style="font-family:monospace;font-weight:600;color:' + kstColor + '">' +
+          kstPrefix + esc(r.costcenter || '–') + '</span>' +
+        '</td>' +
+        '<td style="padding:6px 12px" id="plausKstBadge_' + r.nr + '">' + badge + '</td>' +
+        '</tr>';
+    });
+    html += '</tbody></table></div>';
+  }
+
+  if (autoCount > 0) {
+    html += '<div style="padding:10px 16px;border-top:1px solid var(--border);font-size:12px;color:var(--muted)">' +
+      '⚡ <strong style="color:#f97316">' + autoCount + ' Zeilen</strong> wurden automatisch mit Kostenstelle ' +
+      '<code style="background:var(--bg3);padding:1px 6px;border-radius:4px;color:#f97316">' + KST_DEFAULT + '</code>' +
+      ' ergänzt. Klicke auf eine Kostenstelle zum Überschreiben.' +
+      '</div>';
+  }
+  html += '</div>';
+  document.getElementById('kstPlausSection').innerHTML = html;
+}
+
+// Plausibilitäts-Tab: Inline-Edit mit Badge-Refresh nach Änderung
+function startEditPlaus(el, nr, field) {
+  if (el.querySelector('input')) return;
+  var r = state.output.find(function(x){ return x.nr === nr; });
+  if (!r) return;
+  var currentVal = field === 'item_text' ? (r.text || '') : (r.costcenter || '');
+
+  el.innerHTML = '';
+  var inp = document.createElement('input');
+  inp.className = 'edit-input';
+  inp.value     = currentVal;
+  el.appendChild(inp);
+  inp.focus(); inp.select();
+
+  function commit() {
+    var newVal = inp.value.trim();
+    if (newVal === currentVal) {
+      var rr = state.output.find(function(x){ return x.nr === nr; });
+      var prefix = rr && rr._kstManual ? '✏ ' : rr && rr._kstAutofill ? '⚡ ' : '';
+      el.textContent = (field === 'costcenter' ? prefix + (rr ? rr.costcenter || '–' : '–') : (rr ? rr.text || '' : ''));
+      return;
+    }
+    applyFieldChange(el, nr, field, currentVal, newVal).then(function() {
+      var badgeEl = document.getElementById('plausKstBadge_' + nr);
+      if (badgeEl && field === 'costcenter') {
+        var rr = state.output.find(function(x){ return x.nr === nr; });
+        if (rr && rr._kstManual) {
+          badgeEl.innerHTML = '<span style="padding:2px 8px;border-radius:5px;background:rgba(96,165,250,.12);border:1px solid rgba(96,165,250,.3);color:#60a5fa;font-size:11px;font-weight:700">✏ Manuell</span>';
+        }
+      }
+      if (field === 'costcenter') renderKstPlaus(state.output);
+    });
+  }
+  inp.addEventListener('blur',    commit);
+  inp.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter')  { e.preventDefault(); inp.blur(); }
+    if (e.key === 'Escape') {
+      var rr = state.output.find(function(x){ return x.nr === nr; });
+      var prefix = rr && rr._kstManual ? '✏ ' : rr && rr._kstAutofill ? '⚡ ' : '';
+      el.textContent = (field === 'costcenter' ? prefix + (rr ? rr.costcenter || '–' : '–') : (rr ? rr.text || '' : ''));
+    }
+  });
+}
+
+// ─── KST-Zellen-Helper ───────────────────────────────────
+function kstCell(r) {
+  var a       = String(r.account || '');
+  var needKst = a.charAt(0) === '6' || a.charAt(0) === '7';
+  if (!needKst) return '<td style="font-family:monospace;color:var(--muted)">' + (r.costcenter || '–') + '</td>';
+  if (r._kstManual)   return '<td style="font-family:monospace;color:#60a5fa" title="✏ Manuell">✏ ' + esc(r.costcenter) + '</td>';
+  if (r._kstAutofill) return '<td style="font-family:monospace;color:#f97316" title="⚡ Automatisch ergänzt">⚡ ' + (r.costcenter || KST_DEFAULT) + '</td>';
+  return '<td style="font-family:monospace;color:#fbbf24">' + (r.costcenter || '–') + '</td>';
+}
+
+// Editierbare KST-Zelle für Buchungsliste
+function kstCellEdit(r) {
+  var a       = String(r.account || '');
+  var needKst = a.charAt(0) === '6' || a.charAt(0) === '7';
+  if (!needKst) return '<td style="font-family:monospace;color:var(--muted);padding:4px 8px">' + (r.costcenter || '–') + '</td>';
+  var color  = r._kstManual ? '#60a5fa' : r._kstAutofill ? '#f97316' : '#fbbf24';
+  var prefix = r._kstManual ? '✏ ' : r._kstAutofill ? '⚡ ' : '';
+  var tip    = r._kstManual   ? 'Manuell eingetragen — klicken zum Ändern'
+             : r._kstAutofill ? 'Automatisch ergänzt — klicken zum Überschreiben'
+             : 'Klicken zum Bearbeiten';
+  return '<td style="padding:4px 8px">' +
+    '<span class="editable-cell" onclick="startEdit(this,' + r.nr + ',\'costcenter\')" ' +
+    'title="' + tip + '" style="font-family:monospace;font-weight:600;color:' + color + '">' +
+    prefix + esc(r.costcenter || '–') + '</span></td>';
+}
+
+// ─── SAP Payload Builder ───────────────────────────────────
+function updateBookBtnLabels() {
+  var sys = getUserSapSystemId();
+  var label1 = document.getElementById('btnPost');
+  var label2 = document.getElementById('btnPostSap');
+  if (label1) label1.innerHTML = '&#9654; In ' + sys + ' buchen';
+  if (label2) label2.innerHTML = '&#9654; Jetzt in ' + sys + ' buchen';
+}
+
+function getUserSapSystemId() {
+  if (!AUTH || !AUTH.user) return 'SEQ';
+  var sys = AUTH.user.sap_system || '';
+  if (sys === 'SEP' || sys.includes('8'))  return 'SEP';
+  return 'SEQ';
+}
+
+function buildPayload() {
+  var out    = state.output || [];
+  var meta   = state.meta   || {};
+  var creds  = AUTH.user    || {};
+
+  var sysId  = getUserSapSystemId();
+  var cfg    = SAP_SYSTEMS[sysId] || SAP_SYSTEMS.SEQ;
+
+  var postDate = document.getElementById('cfgPostDate').value || meta.postDate || '';
+  var docDate  = document.getElementById('cfgDocDate').value  || meta.postDate || '';
+  var fiscYear = document.getElementById('cfgFiscYear').value || '2026';
+  var period   = document.getElementById('cfgPeriod').value   || '1';
+  var docType  = 'SA';   // App-Regel: PayRoll immer Belegtyp SA
+
+  var header = {
+    BUS_ACT:  'RFBU',
+    USERNAME: creds.sap_username || 'ANONYMOUS',
+    COMP_CODE: meta.cocode || '0435',
+    DOC_DATE:  docDate,
+    PSTNG_DATE: postDate,
+    FISC_YEAR: fiscYear,
+    FIS_PERIOD: period,
+    DOC_TYPE:  docType,   // App-Regel: immer 'SA'
+    REF_DOC_NO: meta.reference || '',
+    HEADER_TXT: meta.docId || '',
+    // LDGRP nicht senden – Feld existiert nicht auf allen SAP-Systemen (RFC_INVALID_PARAMETER)
+  };
+
+  // App-Regel P-10: RESY-Bruttobeträge → SAP-Nettobeträge + ACCOUNTTAX
+  // V1 (19%): Netto = Brutto / 1.19,  Steuer = Brutto - Netto
+  // V4  (7%): Netto = Brutto / 1.07,  Steuer = Brutto - Netto
+  // V0  (0%): kein Abzug, kein ACCOUNTTAX-Eintrag
+  var RESY_MWST = { 'V1': 0.19, 'V4': 0.07 };
+
+  var accounttax = [];
+  var taxItemBase = out.length;   // ACCOUNTTAX-Items beginnen nach allen GL-Items
+
+  var accountgl = out.map(function(r, i) {
+    var item = {
+      ITEMNO_ACC: String(i + 1).padStart(10, '0'),
+      GL_ACCOUNT: String(r.account).padStart(10, '0'),
+      COMP_CODE:  r.cocode || meta.cocode,
+      ITEM_TEXT:  r.text || '',
+      ALLOC_NMBR: r.assignment || '',
+    };
+    if (r.costcenter) item.COSTCENTER = r.costcenter;
+    // Steuerkennzeichen V1/V4 in ACCOUNTGL → SAP kennt die Steuerrelevanz
+    if (r._resynTaxCode && RESY_MWST[r._resynTaxCode] !== undefined) {
+      item.TAX_CODE = r._resynTaxCode;
+    }
+    return item;
+  });
+
+  var currencyamount = out.map(function(r, i) {
+    var isSoll  = r.pk === 40;
+    var gross   = parseFloat(r.amount);
+    var rate    = r._resynTaxCode ? RESY_MWST[r._resynTaxCode] : undefined;
+
+    if (rate !== undefined) {
+      // Brutto → Netto für ACCOUNTGL-Betrag
+      var net = Math.round(gross / (1 + rate) * 100) / 100;
+      var tax = Math.round((gross - net) * 100) / 100;
+
+      // ACCOUNTTAX-Eintrag (Vorsteuer → SAP ermittelt Kto. 260000/260001 aus Steuerkennzeichen)
+      var taxNr = String(taxItemBase + accounttax.length + 1).padStart(10, '0');
+      accounttax.push({
+        ITEMNO_ACC:      taxNr,
+        TAX_CODE:        r._resynTaxCode,
+        TAX_BASE_AMOUNT: net,   // nur für UI-Anzeige; handlers.py entfernt vor BAPI-Aufruf
+        TAX_AMOUNT:      tax,   // (BAPITAX09 auf diesem System kennt diese Felder nicht)
+      });
+
+      return {
+        ITEMNO_ACC: String(i + 1).padStart(10, '0'),
+        CURRENCY:   r.currency || 'EUR',
+        AMT_DOCCUR: isSoll ? net : -net,
+      };
+    }
+
+    return {
+      ITEMNO_ACC: String(i + 1).padStart(10, '0'),
+      CURRENCY:   r.currency || 'EUR',
+      AMT_DOCCUR: isSoll ? gross : -gross,
+    };
+  });
+
+  // CURRENCYAMOUNT-Einträge für ACCOUNTTAX-Items
+  // AMT_DOCCUR = Steuerbetrag, AMT_BASE = Netto-Basis (beide Pflichtfelder laut RW/602)
+  accounttax.forEach(function(t) {
+    currencyamount.push({
+      ITEMNO_ACC: t.ITEMNO_ACC,
+      CURRENCY:   'EUR',
+      AMT_DOCCUR: t.TAX_AMOUNT,
+      AMT_BASE:   t.TAX_BASE_AMOUNT,
+    });
+  });
+
+  return {
+    _sap_auth: {
+      ashost: creds.ashost  || cfg.ashost,
+      sysnr:  creds.sysnr   || cfg.sysnr,
+      client: creds.client  || cfg.client,
+      lang:   creds.lang    || cfg.lang,
+      user:   creds.sap_username || cfg.user,
+      passwd: creds.passwd  || ''
+    },
+    DOCUMENTHEADER: header,
+    ACCOUNTGL:      accountgl,
+    ACCOUNTTAX:     accounttax,
+    CURRENCYAMOUNT: currencyamount,
+  };
+}
+
+// ─── SAP Übergabe Tab aktualisieren ───────────────────────
+function updateSapPayload() {
+  if (!state.output || !state.output.length) return;
+  var payload = buildPayload();
+  var out     = state.output;
+  var meta    = state.meta || {};
+
+  // Pflicht-Validierungsregeln rendern
+  renderValidRules(payload, out);
+
+  // DOCUMENTHEADER Grid
+  var hdr = payload.DOCUMENTHEADER;
+  document.getElementById('docHeaderGrid').innerHTML = [
+    {name:'BUS_ACT',    val:hdr.BUS_ACT,    desc:'Buchungskreis-Aktivität'},
+    {name:'USERNAME',   val:hdr.USERNAME,   desc:'SAP-Benutzername (angemeldeter User)'},
+    {name:'COMP_CODE',  val:hdr.COMP_CODE,  desc:'Buchungskreis'},
+    {name:'DOC_DATE',   val:hdr.DOC_DATE,   desc:'Belegdatum'},
+    {name:'PSTNG_DATE', val:hdr.PSTNG_DATE, desc:'Buchungsdatum'},
+    {name:'FISC_YEAR',  val:hdr.FISC_YEAR,  desc:'Geschäftsjahr'},
+    {name:'FIS_PERIOD', val:hdr.FIS_PERIOD, desc:'Buchungsperiode'},
+    {name:'DOC_TYPE',   val:hdr.DOC_TYPE,   desc:'Belegtyp (App-Regel: immer SA)', locked:true},
+    {name:'REF_DOC_NO', val:hdr.REF_DOC_NO, desc:'Referenznummer'},
+    {name:'HEADER_TXT', val:hdr.HEADER_TXT, desc:'Belegkopftext'},
+    {name:'LDGRP',      val:'(nicht gesendet)', desc:'Ledger-Gruppe – wird nicht übertragen (systemabhängig)', locked:true},
+  ].map(function(f) {
+    var cls = f.locked ? 'field-warn' : (f.val ? 'field-ok' : 'field-err');
+    return '<div class="field-row ' + cls + '">' +
+      '<div class="field-name">' + f.name + (f.locked ? ' 🔒' : '') + '</div>' +
+      '<div class="field-val">' + esc(String(f.val || '')) + '</div>' +
+      '<div class="field-desc">' + f.desc + '</div>' +
+    '</div>';
+  }).join('');
+
+  // SAP Auth Grid
+  var auth = payload._sap_auth;
+  document.getElementById('sapAuthGrid').innerHTML = [
+    {name:'ashost', val:auth.ashost, desc:'SAP Application Server'},
+    {name:'sysnr',  val:auth.sysnr,  desc:'System-Nummer'},
+    {name:'client', val:auth.client, desc:'Mandant'},
+    {name:'lang',   val:auth.lang,   desc:'Sprache'},
+    {name:'user',   val:auth.user,   desc:'RFC-User / SAP-Anmeldename'},
+    {name:'passwd', val:'••••••••',   desc:'Passwort (wird nicht gespeichert)'},
+  ].map(function(f) {
+    var cls = f.val ? 'field-ok' : 'field-err';
+    return '<div class="field-row ' + cls + '">' +
+      '<div class="field-name">' + f.name + '</div>' +
+      '<div class="field-val">' + esc(String(f.val || '')) + '</div>' +
+      '<div class="field-desc">' + f.desc + '</div>' +
+    '</div>';
+  }).join('');
+
+  // ACCOUNTGL Table
+  document.getElementById('acctGlCount').textContent = '— ' + out.length + ' Sachkontenpositionen';
+  document.getElementById('acctGlBody').innerHTML = payload.ACCOUNTGL.map(function(g, i) {
+    var r = out[i];
+    var hasCostcenter = g.COSTCENTER;
+    var needKst = r && (String(r.account||'').charAt(0) === '6' || String(r.account||'').charAt(0) === '7');
+    var kstCls  = needKst && !hasCostcenter ? 'color:#ef4444' : needKst ? 'color:#f97316' : 'color:var(--muted)';
+    return '<tr>' +
+      '<td class="mono">' + g.ITEMNO_ACC + '</td>' +
+      '<td class="mono" style="color:#79b8ff">' + g.GL_ACCOUNT + '</td>' +
+      '<td class="mono">' + g.COMP_CODE + '</td>' +
+      '<td>' + esc(g.ITEM_TEXT) + '</td>' +
+      '<td class="mono" style="color:var(--muted)">' + esc(g.ALLOC_NMBR||'') + '</td>' +
+      '<td class="mono" style="' + kstCls + '">' + esc(g.COSTCENTER||'–') + '</td>' +
+      '<td class="mono" style="' + (g.TAX_CODE ? 'color:#a78bfa;font-weight:700' : 'color:var(--muted)') + '">' + esc(g.TAX_CODE||'–') + '</td>' +
+      '<td>' + (r ? (r.pk===50?'<span class="pk-50">Haben (50)</span>':'<span class="pk-40">Soll (40)</span>') : '') + '</td>' +
+      '<td>' + (needKst && !hasCostcenter ? '<span style="color:#ef4444;font-size:11px">⚠ KST fehlt</span>' : '<span style="color:var(--ok);font-size:11px">✓</span>') + '</td>' +
+      '</tr>';
+  }).join('');
+
+  // ACCOUNTTAX Table (nur wenn RESY-Aufteilung mit V1/V4 vorhanden)
+  var taxItems = payload.ACCOUNTTAX || [];
+  var taxSection = document.getElementById('acctTaxSection');
+  if (taxSection) taxSection.style.display = taxItems.length ? '' : 'none';
+  if (taxItems.length) {
+    var MWST_LABEL = { 'V1': '19% Vorsteuer → Kto. 260001', 'V4': '7% Vorsteuer → Kto. 260000' };
+    document.getElementById('acctTaxCount').textContent = '— ' + taxItems.length + ' Steuerpositionen';
+    document.getElementById('acctTaxBody').innerHTML = taxItems.map(function(t) {
+      var c = t.TAX_CODE === 'V1' ? '#34d399' : t.TAX_CODE === 'V4' ? '#60a5fa' : '#8b949e';
+      return '<tr>' +
+        '<td class="mono" style="color:var(--muted)">' + t.ITEMNO_ACC + '</td>' +
+        '<td class="mono" style="color:' + c + ';font-weight:700">' + esc(t.TAX_CODE) + '</td>' +
+        '<td class="num">' + fmtAmt(t.TAX_BASE_AMOUNT) + ' EUR</td>' +
+        '<td class="num" style="color:' + c + '">' + fmtAmt(t.TAX_AMOUNT) + ' EUR</td>' +
+        '<td style="color:var(--muted);font-size:11px">' + (MWST_LABEL[t.TAX_CODE]||'') + '</td>' +
+        '</tr>';
+    }).join('');
+  }
+
+  // CURRENCYAMOUNT Table
+  var totalAmt = 0;
+  document.getElementById('currAmtCount').textContent = '— ' + payload.CURRENCYAMOUNT.length + ' Beträge';
+  document.getElementById('currAmtBody').innerHTML = payload.CURRENCYAMOUNT.map(function(c, i) {
+    var r   = out[i];
+    var pos = c.AMT_DOCCUR >= 0;
+    totalAmt += c.AMT_DOCCUR;
+    return '<tr>' +
+      '<td class="mono">' + c.ITEMNO_ACC + '</td>' +
+      '<td class="mono">' + c.CURRENCY + '</td>' +
+      '<td class="num ' + (pos?'amt-pos':'amt-neg') + '">' + fmtAmt(Math.abs(c.AMT_DOCCUR)) + '</td>' +
+      '<td>' + (pos ? '<span class="pk-40">+ Soll</span>' : '<span class="pk-50">– Haben</span>') + '</td>' +
+      '<td>' + (r ? (r.pk===50?'<span class="pk-50">50 – Haben</span>':'<span class="pk-40">40 – Soll</span>') : '') + '</td>' +
+      '<td class="mono" style="color:var(--muted);font-size:11px">' + esc(r ? r.reference||'' : '') + '</td>' +
+      '<td><span style="color:var(--ok);font-size:11px">✓</span></td>' +
+      '</tr>';
+  }).join('');
+  document.getElementById('currAmtFoot').innerHTML =
+    '<tr class="sum-row"><td colspan="2">Σ Netto</td>' +
+    '<td class="num">' + fmtAmt(Math.abs(totalAmt)) + '</td>' +
+    '<td colspan="4" style="font-size:11px;color:var(--muted)">' +
+      (Math.abs(totalAmt) < 0.01 ? '✓ ausgeglichen' : '⚠ Differenz ' + fmtAmt(totalAmt)) + '</td></tr>';
+
+  // JSON Payload Preview
+  var safePayload = JSON.parse(JSON.stringify(payload));
+  if (safePayload._sap_auth) safePayload._sap_auth.passwd = '••••••••';
+  document.getElementById('jsonPreview').innerHTML = syntaxHighlightJSON(JSON.stringify(safePayload, null, 2));
+
+  // Status Banner
+  var allRulesOk = !document.querySelector('#validRulesGrid .rule-err');
+  document.getElementById('sapStatusBanner').className = 'status-banner ' + (allRulesOk ? 'ok' : 'warn');
+  document.getElementById('sapStatusText').textContent = allRulesOk
+    ? '✓ Alle Pflichtfelder gesetzt — bereit zur SAP-Buchung'
+    : '⚠ Bitte Pflichtregeln prüfen bevor SAP-Buchung gestartet wird';
+
+  document.getElementById('emptySap').style.display  = 'none';
+  document.getElementById('sapContent').style.display = '';
+}
+
+function renderValidRules(payload, out) {
+  var hdr   = payload.DOCUMENTHEADER;
+  var rules = [
+    { id:'P-1', name:'SAP-System gesperrt (Session)',     ok: !!getUserSapSystemId(),           desc:'System aus Benutzer-Session' },
+    { id:'P-2', name:'Buchungskreis vorhanden',           ok: !!hdr.COMP_CODE,                  desc:'COMP_CODE: ' + hdr.COMP_CODE },
+    { id:'P-3', name:'Buchungsdatum gesetzt',             ok: !!hdr.PSTNG_DATE,                 desc:'PSTNG_DATE: ' + hdr.PSTNG_DATE },
+    { id:'P-4', name:'Mindestens 2 Buchungszeilen',       ok: out.length >= 2,                  desc:out.length + ' Zeilen' },
+    { id:'P-5', name:'KST bei allen 6*/7*-Konten',       ok: !out.some(function(r){ var a=String(r.account||''); return (a[0]==='6'||a[0]==='7')&&!r.costcenter; }), desc:'Kostenstellen-Pflicht' },
+    { id:'P-6', name:'Belegtyp SA (App-Regel)',           ok: hdr.DOC_TYPE === 'SA',            desc:'DOC_TYPE = SA (gesperrt)' },
+    { id:'P-7', name:'Ohne Ledger-Gruppe (App-Regel)',    ok: !hdr.LDGRP,                       desc:'LDGRP wird nicht gesendet (systemabhängig)' },
+  ];
+  document.getElementById('validRulesGrid').innerHTML = rules.map(function(r) {
+    return '<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;' +
+      'background:' + (r.ok ? 'rgba(16,185,129,.06)' : 'rgba(239,68,68,.06)') + ';' +
+      'border:1px solid ' + (r.ok ? 'rgba(16,185,129,.3)' : 'rgba(239,68,68,.35)') + ';' +
+      'border-radius:8px;font-size:12px" class="' + (r.ok ? '' : 'rule-err') + '">' +
+      '<span style="font-size:15px">' + (r.ok ? '✓' : '✗') + '</span>' +
+      '<span style="font-weight:700;color:var(--muted);font-size:10px;min-width:30px">' + r.id + '</span>' +
+      '<span style="font-weight:600">' + r.name + '</span>' +
+      '<span style="color:var(--muted);font-size:11px;margin-left:auto">' + r.desc + '</span>' +
+    '</div>';
+  }).join('');
+}
+
+// ─── JSON Syntax Highlighting ─────────────────────────────
+function syntaxHighlightJSON(json) {
+  return json.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g,
+    function(match) {
+      var cls = 'json-num';
+      if (/^"/.test(match)) cls = /:$/.test(match) ? 'json-key' : 'json-str';
+      else if (/true|false/.test(match)) cls = 'json-bool';
+      return '<span class="' + cls + '">' + match.replace(/</g,'&lt;') + '</span>';
+    });
+}
+
+// ─── Posting ──────────────────────────────────────────────
+async function postToSap() {
+  if (!state.output || !state.output.length) {
+    alert('Bitte zuerst eine CSV-Datei laden.'); return;
+  }
+  var kstMissing = state.output.filter(function(r) {
+    var a = String(r.account||'');
+    return (a[0]==='6'||a[0]==='7') && !r.costcenter;
+  });
+  if (kstMissing.length) {
+    alert('⚠ ' + kstMissing.length + ' Zeilen haben keine Kostenstelle. Bitte zuerst KST ergänzen.'); return;
+  }
+
+  // App-Regel P-8: Nur 1 Buchung pro Monat erlaubt
+  var thisMonthKey = runDateToMonthKey((state.meta || {}).runDate || '');
+  if (thisMonthKey) {
+    var alreadyBooked = (_histAll || []).find(function(imp) {
+      return imp.status === 'booked'
+          && runDateToMonthKey(imp.run_date) === thisMonthKey
+          && imp.comp_code === ((state.meta || {}).cocode || '');
+    });
+    if (alreadyBooked) {
+      alert('⛔ App-Regel: Für den Monat ' + thisMonthKey + ' existiert bereits eine Buchung.\n\n' +
+            'Belegnr.: ' + (alreadyBooked.booking_doc_nr || '–') + '\n' +
+            'Datei: ' + (alreadyBooked.file_name || '–') + '\n\n' +
+            'Bitte zuerst die bestehende Buchung stornieren, bevor eine neue erstellt werden kann.');
+      return;
+    }
+  }
+
+  var creds = AUTH.user || {};
+  if (!creds.passwd) {
+    var pw = prompt('SAP-Passwort für ' + (creds.sap_username||'?') + ' eingeben:');
+    if (!pw) return;
+    creds.passwd = pw;
+  }
+
+  var payload = buildPayload();
+  payload._sap_auth.passwd = creds.passwd;
+
+  document.getElementById('postModal').style.display = 'flex';
+  document.getElementById('postProgress').innerHTML =
+    '<div class="status-banner warn"><span>⏳</span> Buchung läuft… BAPI_ACC_DOCUMENT_POST</div>';
+  document.getElementById('postResult').innerHTML = '';
+
+  try {
+    var ctrl  = new AbortController();
+    var timer = setTimeout(function(){ ctrl.abort(); }, 60000);
+    var resp  = await fetch(BRIDGE_URL + '/run', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        method:  'BAPI',
+        tcode:   'BAPI_ACC_DOCUMENT_POST',
+        payload: payload
+      }),
+      signal: ctrl.signal
+    });
+    clearTimeout(timer);
+
+    // Erst prüfen ob die Bridge überhaupt JSON zurückgegeben hat
+    var rawText = await resp.text();
+    var data;
+    try {
+      data = JSON.parse(rawText);
+    } catch(_) {
+      // Bridge hat kein JSON geliefert (HTML-Fehlerseite, nicht gestartet, falscher Port)
+      var preview = rawText.substring(0, 200).trim();
+      var isBridgeDown = preview.toLowerCase().includes('<!doctype') || preview.toLowerCase().includes('<html') || !resp.ok;
+      throw new Error(
+        isBridgeDown
+          ? 'Bridge auf localhost:8765 nicht erreichbar oder nicht gestartet.\n\nServer-Antwort: ' + preview
+          : 'Ungültige JSON-Antwort von Bridge: ' + preview
+      );
+    }
+
+    if (!resp.ok || data.error) {
+      var errMsg = data.error || data.detail || JSON.stringify(data);
+      document.getElementById('postProgress').innerHTML =
+        '<div class="status-banner err"><span>✗</span> Buchung fehlgeschlagen</div>';
+      document.getElementById('postResult').innerHTML =
+        '<div class="tbl-wrap" style="padding:16px">' +
+        '<pre style="font-size:11px;overflow-x:auto;color:var(--err)">' + esc(errMsg) + '</pre>' +
+        '</div>';
+      return;
+    }
+
+    // Bridge-Antwort: { status:'ok'|'error', doc_number, message, result:{OBJ_KEY, RETURN} }
+    var isOk  = data.status === 'ok';
+    var isErr = data.status === 'error' || (!isOk && !!data.error);
+
+    // Belegnummer: SAP OBJ_KEY = 18-stellig (BELNR[10]+BUKRS[4]+GJAHR[4]).
+    // Vollständige 18-stellige Nummer wird in DB gespeichert; Anzeige nur BELNR (erste 10 Stellen).
+    var docNr = data.doc_number || '';
+    if (!docNr && data.result && data.result.OBJ_KEY) {
+      docNr = String(data.result.OBJ_KEY).replace(/\D/g,'') || data.result.OBJ_KEY;
+    }
+    if (!docNr && data.message) {
+      // Treffer: 18-stellige OBJ_KEY bevorzugt, sonst 7-10-stellige BELNR
+      var m18 = String(data.message).match(/\b(\d{18})\b/);
+      var m10 = String(data.message).match(/\b(\d{7,10})\b/);
+      docNr = (m18 && m18[1]) || (m10 && m10[1]) || '';
+    }
+
+    // RETURN-Messages normalisieren
+    var ret  = data.result || {};
+    var msgs = Array.isArray(ret.RETURN) ? ret.RETURN : [];
+    if (!msgs.length && data.message) {
+      msgs = [{ TYPE: isOk ? 'S' : 'E', MESSAGE: data.message, ID: '', NUMBER: '' }];
+    }
+    var hasErr = msgs.some(function(m){ return m.TYPE === 'E' || m.TYPE === 'A'; });
+
+    if (isOk || (docNr && !hasErr)) {
+      // Anzeige: nur BELNR (erste 10 Stellen), in DB vollen OBJ_KEY speichern
+      var docNrDisplay = docNr.length === 18 ? docNr.substring(0, 10) : docNr;
+      document.getElementById('postProgress').innerHTML =
+        '<div class="status-banner ok"><span>✓</span> Buchung erfolgreich! Belegnummer: <strong>' + esc(docNrDisplay || '(siehe Meldungen)') + '</strong>' +
+        (docNr.length === 18 ? ' <span style="color:var(--muted);font-size:11px">(OBJ_KEY: ' + esc(docNr) + ')</span>' : '') +
+        '</div>';
+      // Status in DB aktualisieren
+      if (state.dbImportId) {
+        fetch('http://localhost:8000/payroll/imports/' + state.dbImportId + '/status', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'booked', booking_doc_nr: docNr || '' })
+        }).catch(function(){});
+      }
+      // Buchungshistorie (cockpit.html) aktualisieren
+      _savePayrollBookingToHistory(docNr, sysId, 'ok');
+    } else {
+      var errDetail = data.error || data.message ||
+        (hasErr ? msgs.filter(function(m){return m.TYPE==='E'||m.TYPE==='A';})
+                      .map(function(m){return m.MESSAGE;}).join(' | ') : '');
+      document.getElementById('postProgress').innerHTML =
+        '<div class="status-banner ' + (isErr||hasErr ? 'err' : 'warn') + '"><span>' + (isErr||hasErr ? '✗' : '⚠') + '</span> ' +
+        esc(isErr||hasErr ? 'BAPI-Fehler — Buchung nicht durchgeführt' : 'Buchung mit Warnung') + '</div>' +
+        (errDetail ? '<div style="margin-top:8px;padding:8px 12px;background:rgba(239,68,68,.06);border:1px solid rgba(239,68,68,.3);border-radius:8px;font-size:12px;color:var(--err)">' + esc(errDetail) + '</div>' : '');
+    }
+
+    if (msgs.length) {
+      var typeColor = { 'S':'var(--ok)', 'I':'#60a5fa', 'W':'#f59e0b', 'E':'var(--err)', 'A':'var(--err)' };
+      document.getElementById('postResult').innerHTML =
+        '<div class="tbl-wrap" style="margin-top:12px"><table style="font-size:12px">' +
+        '<thead><tr style="background:var(--bg3)"><th>Typ</th><th>ID</th><th>Nr.</th><th>Text</th></tr></thead>' +
+        '<tbody>' + msgs.map(function(m) {
+          return '<tr><td style="color:' + (typeColor[m.TYPE]||'var(--muted)') + ';font-weight:700">' + m.TYPE + '</td>' +
+            '<td style="font-family:monospace;font-size:11px">' + esc(m.ID||'') + '</td>' +
+            '<td style="font-family:monospace">' + esc(m.NUMBER||'') + '</td>' +
+            '<td>' + esc(m.MESSAGE||'') + '</td></tr>';
+        }).join('') + '</tbody></table></div>';
+    }
+  } catch(e) {
+    var isTimeout  = e.name === 'AbortError';
+    var isBridgeDown = String(e.message).includes('nicht erreichbar') || String(e.message).includes('Failed to fetch') || isTimeout;
+    var headline   = isTimeout        ? '⏱ Timeout — Bridge antwortet nicht (>60s)'
+                   : isBridgeDown     ? '🔌 Bridge nicht gestartet oder Port 8765 nicht erreichbar'
+                   : '✗ Fehler bei SAP-Buchung';
+    document.getElementById('postProgress').innerHTML =
+      '<div class="status-banner err"><span>✗</span> ' + esc(headline) + '</div>';
+    document.getElementById('postResult').innerHTML  =
+      '<div style="padding:16px">' +
+      '<pre style="font-size:11px;overflow-x:auto;color:var(--err);white-space:pre-wrap;word-break:break-word">' +
+        esc(e.message || String(e)) +
+      '</pre>' +
+      (isBridgeDown
+        ? '<div style="margin-top:12px;padding:10px 14px;background:rgba(245,158,11,.06);border:1px solid rgba(245,158,11,.3);border-radius:8px;font-size:12px;color:var(--muted)">' +
+            '<strong style="color:#f59e0b">Bridge starten:</strong><br>' +
+            '<code style="font-size:11px">cd C:\\WF\\sap-robots\\bridge &amp;&amp; python main.py</code><br>' +
+            'Danach muss der Bridge-Server auf <code>http://localhost:8765</code> erreichbar sein.' +
+          '</div>'
+        : '') +
+      '</div>';
+  }
+}
+
+// ─── DB Speicher-Badge ────────────────────────────────────
+function showDbBadge(type, text) {
+  var el = document.getElementById('dbSaveBadge');
+  el.style.display = '';
+  el.textContent   = text;
+  el.style.color   = type === 'ok' ? 'var(--ok)' : type === 'err' ? 'var(--err)' : 'var(--warn)';
+  el.style.borderColor = type === 'ok' ? 'rgba(16,185,129,.4)' : type === 'err' ? 'rgba(239,68,68,.4)' : 'rgba(245,158,11,.4)';
+}
+
+// ─── Buchungshistorie-Eintrag ─────────────────────────────
+var _DE_MONTHS = ['Januar','Februar','März','April','Mai','Juni',
+                  'Juli','August','September','Oktober','November','Dezember'];
+
+function _savePayrollBookingToHistory(docNr, sysId, status) {
+  try {
+    var meta     = state.meta  || {};
+    var out      = state.output || [];
+    var creds    = AUTH.user   || {};
+
+    // Datum aus runDate (DD.MM.YYYY) oder cfgPostDate
+    var dateStr  = (document.getElementById('cfgPostDate') || {}).value || meta.runDate || '';
+    var parts    = dateStr.split('.');
+    var day      = parts[0] || '01';
+    var mon      = parts[1] || '01';
+    var yr       = parts[2] || String(new Date().getFullYear());
+    var mi       = parseInt(mon, 10) - 1;
+    var monthName = _DE_MONTHS[mi] || mon;
+
+    // Beträge
+    var sollRows  = out.filter(function(r){ return r.pk === 40; });
+    var habenRows = out.filter(function(r){ return r.pk === 50; });
+    var totalSoll = sollRows.reduce(function(s,r){ return s + parseFloat(r.amount||0); }, 0);
+    totalSoll     = Math.round(totalSoll * 100) / 100;
+
+    // Hauptkonten
+    var mainAcct  = sollRows.length  ? String(sollRows[0].account||'').replace(/^0+/,'')  : '';
+    var mainOffs  = habenRows.length ? String(habenRows[0].account||'').replace(/^0+/,'') : '';
+
+    var entry = {
+      ts:        new Date().toISOString(),
+      yr:        yr,
+      mi:        mi,
+      monthName: monthName,
+      nr:        meta.docId || '',
+      bukrs:     meta.cocode || '',
+      cocode:    meta.cocode || '',
+      company:   meta.cocode || '',
+      account:   mainAcct,
+      offset:    mainOffs,
+      dtyp:      'SA',
+      curr:      meta.currency || 'EUR',
+      amount:    totalSoll,
+      docNr:     docNr || '',
+      system:    sysId || getUserSapSystemId(),
+      status:    status || 'ok',
+      source:    'app',
+      user:      creds.sap_username || creds.username || '',
+      text:      'PayRoll ' + (meta.docId || meta.fileName || '')
+    };
+
+    var hist = [];
+    try { hist = JSON.parse(localStorage.getItem('yconn_booking_history') || '[]'); } catch(_){}
+    hist.unshift(entry);
+    localStorage.setItem('yconn_booking_history', JSON.stringify(hist));
+  } catch(e) {
+    console.warn('Buchungshistorie: Fehler beim Speichern', e);
+  }
+}
+
+// ─── Regel P-8: Monats-Duplikat-Prüfung ──────────────────
+function runDateToMonthKey(runDate) {
+  var p = (runDate || '').split('.');
+  if (p.length >= 3) return p[1].padStart(2,'0') + '.' + p[2];
+  return runDate || '';
+}
+
+async function checkMonthDuplicateAndSave(meta, output) {
+  showDbBadge('warn', '⏳ Prüfe Monatsregel…');
+  var thisKey    = runDateToMonthKey(meta.runDate);
+  var thisCocode = meta.cocode || '';
+  try {
+    var resp = await fetch('http://localhost:8000/payroll/imports?limit=200');
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    var list = await resp.json();
+    var duplicate = list.find(function(imp) {
+      return runDateToMonthKey(imp.run_date) === thisKey
+          && imp.comp_code === thisCocode
+          && imp.status !== 'error';
+    });
+    if (duplicate) {
+      showDbBadge('warn', '⚠ Bereits importiert: Monat ' + thisKey);
+      showMonthDuplicateModal(duplicate, meta, output);
+      return;
+    }
+  } catch(e) {
+    console.warn('[P-8] Duplikat-Prüfung fehlgeschlagen:', e.message);
+  }
+  saveToDb(meta, output);
+}
+
+function showMonthDuplicateModal(existing, newMeta, newOutput) {
+  document.getElementById('mdExistingInfo').innerHTML =
+    '<b>Datei:</b> ' + esc(existing.file_name || '–') + '<br>' +
+    '<b>Laufdatum:</b> ' + esc(existing.run_date || '–') + '<br>' +
+    '<b>Buchungskreis:</b> ' + esc(existing.comp_code || '–') + '<br>' +
+    '<b>Status:</b> ' + esc(existing.status || '–') + '<br>' +
+    '<b>DB-ID:</b> #' + existing.id;
+  document.getElementById('mdNewInfo').innerHTML =
+    '<b>Datei:</b> ' + esc(newMeta.fileName || '–') + '<br>' +
+    '<b>Laufdatum:</b> ' + esc(newMeta.runDate || '–') + '<br>' +
+    '<b>Buchungskreis:</b> ' + esc(newMeta.cocode || '–') + '<br>' +
+    '<b>Zeilen:</b> ' + (newOutput.length);
+  var modal = document.getElementById('monthDupModal');
+  modal.style.display = 'flex';
+  document.getElementById('mdBtnCancel').onclick = function() {
+    modal.style.display = 'none';
+    showDbBadge('warn', '⚠ Import nicht gespeichert (Monat bereits vorhanden)');
+  };
+  document.getElementById('mdBtnOverwrite').onclick = function() {
+    modal.style.display = 'none';
+    saveToDb(newMeta, newOutput);
+  };
+}
+
+function closeMonthDupModal() {
+  document.getElementById('monthDupModal').style.display = 'none';
+}
+
+async function saveToDb(meta, output) {
+  var creds = AUTH.user || {};
+  var body  = {
+    doc_id:      meta.docId      || '',
+    run_date:    meta.runDate    || '',
+    comp_code:   meta.cocode     || '',
+    currency:    meta.currency   || 'EUR',
+    row_count:   meta.rowCount   || output.length,
+    file_name:   meta.fileName   || '',
+    imported_by: creds.sap_username || '',
+    sap_system:  getUserSapSystemId() || '',
+    lines: output.map(function(r) {
+      var amt = parseFloat(r.amount);
+      return {
+        nr:         r.nr         || 0,
+        comp_code:  r.cocode     || '',
+        currency:   r.currency   || 'EUR',
+        pk:         r.pk         || 40,
+        account:    r.account    || '',
+        amount:     isNaN(amt) ? 0 : amt,
+        costcenter: r.costcenter || '',
+        assignment: r.assignment || '',
+        item_text:  r.text       || '',
+        tax_code:   r._resynTaxCode || '',  // P-10: SAP-Steuerkennzeichen (leer wenn kein RESY-Split)
+      };
+    })
+  };
+  showDbBadge('warn', '⏳ Speichern…');
+  try {
+    var ctrl  = new AbortController();
+    var timer = setTimeout(function(){ ctrl.abort(); }, 10000);
+    var resp  = await fetch('http://localhost:8000/payroll/imports', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body), signal: ctrl.signal
+    });
+    clearTimeout(timer);
+    var data = await resp.json();
+    if (!resp.ok) {
+      var detail = '';
+      if (data.detail) {
+        detail = typeof data.detail === 'string'
+          ? data.detail
+          : JSON.stringify(data.detail).substring(0, 120);
+      }
+      showDbBadge('err', '✗ HTTP ' + resp.status + (detail ? ': ' + detail : ''));
+      return;
+    }
+    if (data.id) {
+      state.dbImportId = data.id;
+      showDbBadge('ok', '✓ DB #' + data.id + ' gespeichert');
+      if (document.getElementById('pane-history').classList.contains('active')) {
+        loadImportHistory();
+      }
+    } else {
+      showDbBadge('warn', '⚠ DB-Antwort ohne id');
+    }
+  } catch(e) {
+    if (e.name === 'AbortError') {
+      showDbBadge('err', '✗ Timeout — Orchestrator antwortet nicht (Port 8000)');
+    } else {
+      showDbBadge('err', '✗ Netzwerkfehler: ' + e.message);
+    }
+  }
+}
+
+// ─── Import aus DB in alle Tabs laden ─────────────────────
+async function loadImportIntoTabs(id) {
+  var btn = document.querySelector('[data-loadbtn="' + id + '"]');
+  if (btn) { btn.textContent = '⏳ Lade…'; btn.disabled = true; }
+  try {
+    var resp = await fetch('http://localhost:8000/payroll/imports/' + id);
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    var data = await resp.json();
+    var meta = {
+      docId:     data.doc_id    || '',
+      runDate:   data.run_date  || '',
+      cocode:    data.comp_code || '',
+      currency:  data.currency  || 'EUR',
+      rowCount:  data.row_count || data.lines.length,
+      fileName:  data.file_name || '',
+      reference: (data.comp_code || '').replace(/^0+/,'') + (data.doc_id || ''),
+      postDate:  data.run_date  || '',
+    };
+    var output = data.lines.map(function(l) {
+      var isHaben = l.pk === 50;
+      var amt     = parseFloat(l.amount) || 0;
+      var row = {
+        nr:         l.nr,
+        cocode:     l.comp_code || meta.cocode,
+        reference:  meta.reference,
+        headerText: meta.docId,
+        postDate:   meta.runDate,
+        docDate:    meta.runDate,
+        currency:   l.currency || meta.currency,
+        pk:         l.pk,
+        account:    l.account,
+        amount:     amt,
+        assignment: l.assignment || '',
+        text:       l.item_text  || '',
+        costcenter: l.costcenter || '',
+        sh:         isHaben ? 'H' : 'S',
+        sacckto:    isHaben ? '' : l.account,
+        gegkto:     isHaben ? l.account : '',
+        period:     '',
+        _fromDb:    true,
+      };
+      // SAP-Steuerkennzeichen (P-10) aus DB wiederherstellen
+      // → _resynTaxCode wird von buildPayload() für ACCOUNTTAX benötigt
+      if (l.tax_code) row._resynTaxCode = l.tax_code;
+      return row;
+    });
+    // KST-Autofill markieren
+    output.forEach(function(r) {
+      var a = String(r.account || '');
+      if ((a[0]==='6'||a[0]==='7') && r.costcenter === KST_DEFAULT) r._kstAutofill = true;
+    });
+    state.meta      = meta;
+    state.rows      = [];
+    state.output    = output;
+    state.kstResult = {
+      needed:   output.filter(function(r){ var a=String(r.account||''); return a[0]==='6'||a[0]==='7'; }).map(function(r){return r.nr;}),
+      autofill: output.filter(function(r){ return r._kstAutofill; }).map(function(r){return r.nr;}),
+      ok:       []
+    };
+    state.dbImportId = data.id;
+
+    // Meta-Bar aktualisieren
+    document.getElementById('mFile').textContent     = meta.fileName || '(aus DB)';
+    document.getElementById('mDocId').textContent    = meta.docId;
+    document.getElementById('mRunDate').textContent  = meta.runDate;
+    document.getElementById('mCocode').textContent   = meta.cocode;
+    document.getElementById('mCurrency').textContent = meta.currency;
+    document.getElementById('mRows').textContent     = meta.rowCount;
+    document.getElementById('metaBar').style.display = 'flex';
+    document.getElementById('btnPost').style.display = 'inline-flex';
+
+    // Input-Tab: Hinweis dass Rohdaten nicht in DB gespeichert sind
+    document.getElementById('emptyInput').innerHTML =
+      '<div class="empty-icon">🗄</div>' +
+      '<h3>Import aus Datenbank geladen</h3>' +
+      '<p style="max-width:400px">Raw-Eingabedaten werden nicht in der DB gespeichert.<br>' +
+      'Buchungsliste, Plausibilität und SAP-Übergabe sind vollständig verfügbar.</p>';
+    document.getElementById('emptyInput').style.display  = '';
+    document.getElementById('inputTable').style.display  = 'none';
+
+    renderBuchung(output);
+    renderPlaus(output);
+    initSapTab(meta);
+
+    var sc = { imported:'Importiert', validated:'Validiert', booked:'Gebucht ✓', error:'Fehler' };
+    showDbBadge('ok', '🗄 DB #' + data.id + ' – ' + (sc[data.status] || data.status));
+    switchTabById('buchung', document.getElementById('tabBtn-buchung'));
+    if (btn) { btn.textContent = '✓ Geladen'; btn.style.color = '#34d399'; }
+  } catch(e) {
+    if (btn) { btn.textContent = '✗ Fehler'; btn.disabled = false; }
+    alert('Fehler beim Laden: ' + e.message);
+  }
+}
+
+// ─── Importhistorie Tab ───────────────────────────────────
+var _histAll = [];
+
+async function loadImportHistory() {
+  document.getElementById('histLoading').style.display = '';
+  document.getElementById('histEmpty').style.display   = 'none';
+  document.getElementById('histList').innerHTML        = '';
+  try {
+    var ctrl  = new AbortController();
+    var timer = setTimeout(function(){ ctrl.abort(); }, 8000);
+    var resp  = await fetch('http://localhost:8000/payroll/imports?limit=200', { signal: ctrl.signal });
+    clearTimeout(timer);
+
+    if (!resp.ok) {
+      var errBody = '';
+      try { errBody = await resp.text(); } catch(_){}
+      throw new Error('HTTP ' + resp.status + (errBody ? ': ' + errBody.substring(0,120) : ''));
+    }
+    var data = await resp.json();
+    _histAll = Array.isArray(data) ? data : [];
+    document.getElementById('histLoading').style.display = 'none';
+    document.getElementById('histCount').textContent = _histAll.length + ' Import(e)';
+    filterHistory();
+  } catch(e) {
+    document.getElementById('histLoading').style.display = 'none';
+    document.getElementById('histEmpty').style.display   = '';
+    var isTimeout = e.name === 'AbortError';
+    document.getElementById('histEmpty').innerHTML =
+      '<div style="font-size:36px;margin-bottom:10px">' + (isTimeout ? '⏱' : '⚠') + '</div>' +
+      '<div style="font-size:14px;font-weight:600;color:var(--err);margin-bottom:6px">' +
+        (isTimeout ? 'Orchestrator antwortet nicht (Timeout nach 8s)' : 'Importhistorie konnte nicht geladen werden') +
+      '</div>' +
+      '<div style="font-size:12px;color:var(--muted);margin-bottom:8px">' + esc(e.message) + '</div>' +
+      '<div style="font-size:12px;color:var(--muted);margin-bottom:14px;padding:8px 12px;' +
+        'background:rgba(239,68,68,.06);border:1px solid rgba(239,68,68,.2);border-radius:8px">' +
+        '💡 Orchestrator starten: Doppelklick auf <strong>Orchestrator starten.bat</strong><br>' +
+        'Warten bis <em>"Uvicorn running on http://0.0.0.0:8000"</em> erscheint, dann hier klicken:' +
+      '</div>' +
+      '<div style="font-size:11px;color:var(--muted);padding:10px 16px;background:var(--bg3);' +
+        'border:1px solid var(--border);border-radius:8px;max-width:420px;margin:0 auto;text-align:left">' +
+        '<strong>Checkliste:</strong><br>' +
+        '1. Orchestrator läuft? → <code>python orchestrator/main.py</code><br>' +
+        '2. Port 8000 erreichbar? → <code>http://localhost:8000/health</code><br>' +
+        '3. DB-Tabelle vorhanden? → nach Neustart des Orchestrators prüfen' +
+      '</div>' +
+      '<div style="margin-top:14px">' +
+        '<button onclick="loadImportHistory()" ' +
+          'style="padding:8px 20px;background:rgba(31,111,235,.15);border:1px solid rgba(31,111,235,.4);' +
+          'border-radius:8px;color:#60a5fa;font-size:13px;font-weight:700;cursor:pointer">' +
+          '🔄 Erneut versuchen</button>' +
+      '</div>';
+  }
+}
+
+// App-Regel P-9: SAP OBJ_KEY-Format
+// SAP gibt Belege als 18-stelligen OBJ_KEY zurück: BELNR(10) + BUKRS(4) + GJAHR(4)
+// Beispiel: "230000964704352026" → BELNR="2300009647", BUKRS="0435", GJAHR="2026"
+function parseObjKey(bookingDocNr) {
+  var s = String(bookingDocNr || '').trim();
+  if (s.length === 18 && /^\d{18}$/.test(s)) {
+    return { belnr: s.substring(0, 10), bukrs: s.substring(10, 14), gjahr: s.substring(14, 18) };
+  }
+  return null;
+}
+
+// ─── Storno-Vorschau und Ausführung ──────────────────────────
+var _stornoCtx = null;
+
+function closeStornoModal() {
+  document.getElementById('stornoModal').style.display = 'none';
+  document.getElementById('stornoProgress').style.display = 'none';
+  document.getElementById('stornoExecBtn').disabled = false;
+  document.getElementById('stornoExecBtn').textContent = '↩ Jetzt in SAP stornieren';
+  document.getElementById('stornoCancelBtn').disabled = false;
+  _stornoCtx = null;
+}
+
+function _stornoField(label, value, mono, highlight) {
+  return '<div style="display:flex;flex-direction:column;gap:3px">' +
+    '<span style="font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.06em">' + label + '</span>' +
+    '<span style="font-size:13px;font-weight:600;' +
+      (mono ? 'font-family:monospace;letter-spacing:.04em;' : '') +
+      (highlight ? 'color:' + highlight + ';' : '') +
+    '">' + esc(String(value || '–')) + '</span>' +
+  '</div>';
+}
+
+async function stornoImport(importId, bookingDocNr, compCode) {
+  var parsed = parseObjKey(bookingDocNr);
+  var belnr, bukrs, gjahr;
+
+  if (parsed) {
+    belnr = parsed.belnr;
+    bukrs = parsed.bukrs;
+    gjahr = parsed.gjahr;
+  } else {
+    if (!bookingDocNr) {
+      bookingDocNr = prompt('Belegnummer (BELNR, 10-stellig) für Storno:', '');
+      if (!bookingDocNr) return;
+    }
+    belnr = String(bookingDocNr).trim().padStart(10, '0');
+    bukrs = compCode || '';
+    gjahr = prompt('Geschäftsjahr (GJAHR):', new Date().getFullYear().toString());
+    if (!gjahr) return;
+  }
+
+  var creds = AUTH.user || {};
+  if (!creds.passwd) {
+    var pw = prompt('SAP-Passwort für ' + (creds.sap_username||'?') + ':');
+    if (!pw) return;
+    creds.passwd = pw;
+  }
+
+  // App-Regel G-5: SAP-System IMMER aus Benutzer-Session
+  var stornoSystem = getUserSapSystemId();
+  var cfg = SAP_SYSTEMS[stornoSystem] || SAP_SYSTEMS.SEQ;
+
+  var _d = new Date();
+  var todayDisp = String(_d.getDate()).padStart(2,'0') + '.' +
+                  String(_d.getMonth()+1).padStart(2,'0') + '.' + _d.getFullYear();
+  var todaySap  = String(_d.getFullYear()) +
+                  String(_d.getMonth()+1).padStart(2,'0') +
+                  String(_d.getDate()).padStart(2,'0');
+  var todayPeriod = String(_d.getMonth() + 1);
+
+  var origLines = [];
+  try {
+    var lresp = await fetch('http://localhost:8000/payroll/imports/' + importId);
+    if (!lresp.ok) throw new Error('HTTP ' + lresp.status);
+    var importData = await lresp.json();
+    origLines = importData.lines || [];
+    if (!parsed && !gjahr && importData.run_date) {
+      var rp = (importData.run_date || '').split('.');
+      if (rp.length >= 3) gjahr = rp[2];
+    }
+  } catch(e) {
+    alert('Fehler beim Laden der Original-Buchungszeilen:\n' + e.message);
+    return;
+  }
+  if (!origLines.length) {
+    alert('Keine Buchungszeilen für Import #' + importId + ' gefunden.');
+    return;
+  }
+
+  var reversedAccountGL = origLines.map(function(l, i) {
+    var item = {
+      ITEMNO_ACC: String(i + 1).padStart(10, '0'),
+      GL_ACCOUNT: String(l.account).padStart(10, '0'),
+      COMP_CODE:  l.comp_code || bukrs,
+      ITEM_TEXT:  l.item_text || '',
+      ALLOC_NMBR: l.assignment || '',
+    };
+    if (l.costcenter) item.COSTCENTER = l.costcenter;
+    return item;
+  });
+
+  var reversedCurrencyAmount = origLines.map(function(l, i) {
+    var origPk  = l.pk;
+    var origAmt = (origPk === 40) ? parseFloat(l.amount) : -parseFloat(l.amount);
+    var newAmt  = -origAmt;
+    return {
+      ITEMNO_ACC: String(i + 1).padStart(10, '0'),
+      CURRENCY:   l.currency || 'EUR',
+      AMT_DOCCUR: newAmt,
+    };
+  });
+
+  var stornoDocHeader = {
+    BUS_ACT:    'RFBU',
+    USERNAME:   creds.sap_username || 'ANONYMOUS',
+    COMP_CODE:  bukrs,
+    DOC_DATE:   todaySap,
+    PSTNG_DATE: todaySap,
+    FISC_YEAR:  gjahr,
+    FIS_PERIOD: todayPeriod,
+    DOC_TYPE:   'SA',
+    REF_DOC_NO: belnr,
+    HEADER_TXT: 'STORNO ' + belnr,
+  };
+
+  var payload = {
+    _sap_auth: {
+      ashost: cfg.ashost, sysnr: cfg.sysnr,
+      client: cfg.client, lang:  cfg.lang || 'DE',
+      user:   creds.sap_username || '', passwd: creds.passwd
+    },
+    DOCUMENTHEADER: stornoDocHeader,
+    ACCOUNTGL:      reversedAccountGL,
+    CURRENCYAMOUNT: reversedCurrencyAmount,
+  };
+
+  _stornoCtx = { importId: importId, payload: payload };
+
+  document.getElementById('stornoReversalGrid').innerHTML =
+    _stornoField('Original BELNR', belnr, true, '#60a5fa') +
+    _stornoField('Original BUKRS (Buchungskreis)', bukrs, true, '#34d399') +
+    _stornoField('Original GJAHR (Geschäftsjahr)', gjahr, true, '#f59e0b') +
+    _stornoField('REF_DOC_NO (im Stornobeleg-Kopf)', belnr, true) +
+    _stornoField('HEADER_TXT', 'STORNO ' + belnr, false);
+
+  document.getElementById('stornoDocHeaderGrid').innerHTML =
+    _stornoField('USERNAME', creds.sap_username || '–', true) +
+    _stornoField('COMP_CODE', bukrs, true) +
+    _stornoField('DOC_DATE', todayDisp, true) +
+    _stornoField('PSTNG_DATE', todayDisp, true) +
+    _stornoField('FISC_YEAR', gjahr, true) +
+    _stornoField('FIS_PERIOD', todayPeriod, true) +
+    _stornoField('DOC_TYPE', 'SA', true) +
+    _stornoField('REF_DOC_NO', belnr, true);
+
+  var glHtml = '<table style="width:100%;border-collapse:collapse;font-size:11px">' +
+    '<thead><tr style="background:var(--bg3)">' +
+      '<th style="padding:6px 8px;text-align:left;color:var(--muted);font-size:10px;font-weight:700;text-transform:uppercase">ITEMNO</th>' +
+      '<th style="padding:6px 8px;text-align:left;color:var(--muted);font-size:10px;font-weight:700;text-transform:uppercase">GL_ACCOUNT</th>' +
+      '<th style="padding:6px 8px;text-align:left;color:var(--muted);font-size:10px;font-weight:700;text-transform:uppercase">PK orig→Storno</th>' +
+      '<th style="padding:6px 8px;text-align:right;color:var(--muted);font-size:10px;font-weight:700;text-transform:uppercase">AMT_DOCCUR</th>' +
+      '<th style="padding:6px 8px;text-align:left;color:var(--muted);font-size:10px;font-weight:700;text-transform:uppercase">COSTCENTER</th>' +
+      '<th style="padding:6px 8px;text-align:left;color:var(--muted);font-size:10px;font-weight:700;text-transform:uppercase">TEXT</th>' +
+    '</tr></thead><tbody>';
+  origLines.forEach(function(l, i) {
+    var origPk = l.pk;
+    var newPk  = origPk === 40 ? 50 : 40;
+    var origAmt = (origPk === 40) ? parseFloat(l.amount) : -parseFloat(l.amount);
+    var newAmt  = -origAmt;
+    var amtCls  = newAmt >= 0 ? 'amt-pos' : 'amt-neg';
+    glHtml += '<tr style="border-bottom:1px solid rgba(48,54,61,.5)">' +
+      '<td style="padding:4px 8px;font-family:monospace;color:var(--muted)">' + String(i+1).padStart(10,'0') + '</td>' +
+      '<td style="padding:4px 8px;font-family:monospace;color:#79b8ff">' + esc(String(l.account).padStart(10,'0')) + '</td>' +
+      '<td style="padding:4px 8px">' +
+        '<span style="color:#8b949e">' + origPk + '</span>' +
+        ' <span style="color:var(--muted)">→</span> ' +
+        '<span class="' + (newPk===50 ? 'pk-50' : 'pk-40') + '">' + newPk + (newPk===50 ? ' Haben' : ' Soll') + '</span>' +
+      '</td>' +
+      '<td style="padding:4px 8px;text-align:right;font-family:monospace" class="' + amtCls + '">' +
+        (newAmt >= 0 ? '+' : '') + fmtAmt(newAmt) +
+      '</td>' +
+      '<td style="padding:4px 8px;font-family:monospace;color:#f97316">' + esc(l.costcenter||'–') + '</td>' +
+      '<td style="padding:4px 8px;color:var(--muted)">' + esc(l.item_text||'') + '</td>' +
+    '</tr>';
+  });
+  glHtml += '</tbody></table>';
+  document.getElementById('stornoAccountGlSection').innerHTML = glHtml;
+
+  document.getElementById('stornoAuthGrid').innerHTML =
+    _stornoField('System', stornoSystem, true, stornoSystem === 'SEP' ? '#f59e0b' : '#34d399') +
+    _stornoField('ashost', cfg.ashost, true) +
+    _stornoField('sysnr', cfg.sysnr, true) +
+    _stornoField('client', cfg.client, true) +
+    _stornoField('user', creds.sap_username || '–', true) +
+    _stornoField('passwd', '••••••••', false);
+
+  var previewPayload = JSON.parse(JSON.stringify(payload));
+  previewPayload._sap_auth.passwd = '••••••••';
+  document.getElementById('stornoJsonPreview').textContent =
+    JSON.stringify({ method: 'BAPI', tcode: 'BAPI_ACC_DOCUMENT_POST', payload: previewPayload }, null, 2);
+
+  document.getElementById('stornoProgress').style.display = 'none';
+  document.getElementById('stornoExecBtn').disabled = false;
+  document.getElementById('stornoExecBtn').textContent = '↩ Jetzt in SAP stornieren';
+  document.getElementById('stornoCancelBtn').disabled = false;
+  document.getElementById('stornoModal').style.display = 'flex';
+}
+
+function copyStornoPayload() {
+  var txt = document.getElementById('stornoJsonPreview').textContent;
+  navigator.clipboard.writeText(txt).catch(function(){});
+}
+
+async function executeStorno() {
+  if (!_stornoCtx) return;
+  var { importId, payload } = _stornoCtx;
+
+  document.getElementById('stornoExecBtn').disabled = true;
+  document.getElementById('stornoExecBtn').textContent = '⏳ Storno läuft…';
+  document.getElementById('stornoCancelBtn').disabled = true;
+  var prog = document.getElementById('stornoProgress');
+  prog.style.display = '';
+  prog.innerHTML = '<div class="status-banner warn" style="margin:0"><span>⏳</span> ' +
+    'BAPI_ACC_DOCUMENT_POST (Gegenbuchung) wird ausgeführt…</div>';
+
+  try {
+    var ctrl  = new AbortController();
+    var timer = setTimeout(function(){ ctrl.abort(); }, 60000);
+    var resp  = await fetch(BRIDGE_URL + '/run', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ method: 'BAPI', tcode: 'BAPI_ACC_DOCUMENT_POST', payload: payload }),
+      signal: ctrl.signal
+    });
+    clearTimeout(timer);
+
+    var rawText = await resp.text();
+    var data;
+    try { data = JSON.parse(rawText); }
+    catch(_) {
+      var preview = rawText.substring(0, 200).trim();
+      throw new Error(preview.toLowerCase().includes('<!doctype') || preview.toLowerCase().includes('<html')
+        ? 'Bridge nicht gestartet oder Port 8765 nicht erreichbar.'
+        : 'Ungültige Bridge-Antwort: ' + preview);
+    }
+
+    if (data.status !== 'ok') throw new Error(data.message || data.error || 'Storno fehlgeschlagen.');
+
+    var stornoNr = data.doc_number || '';
+    if (!stornoNr && data.result && data.result.OBJ_KEY) {
+      stornoNr = String(data.result.OBJ_KEY).replace(/\D/g,'') || data.result.OBJ_KEY;
+    }
+    if (!stornoNr && data.message) {
+      var m18 = String(data.message).match(/\b(\d{18})\b/);
+      var m10 = String(data.message).match(/\b(\d{7,10})\b/);
+      stornoNr = (m18 && m18[1]) || (m10 && m10[1]) || '';
+    }
+    var stornoNrDisplay = stornoNr && stornoNr.length === 18 ? stornoNr.substring(0, 10) : stornoNr;
+
+    await fetch('http://localhost:8000/payroll/imports/' + importId + '/storno', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ storno_doc_nr: stornoNr || '' })
+    });
+
+    // Buchungshistorie: Storno-Eintrag
+    try {
+      var _sEntry = (_histAll || []).find(function(x){ return x.id === importId; }) || {};
+      var _d2     = new Date();
+      var _mi2    = _d2.getMonth();
+      var _storHist = {
+        ts:        _d2.toISOString(),
+        yr:        String(_d2.getFullYear()),
+        mi:        _mi2,
+        monthName: _DE_MONTHS[_mi2],
+        nr:        'STORNO-' + (importId || ''),
+        bukrs:     bukrs || (_sEntry.comp_code || ''),
+        cocode:    bukrs || (_sEntry.comp_code || ''),
+        company:   bukrs || (_sEntry.comp_code || ''),
+        account:   '',
+        offset:    '',
+        dtyp:      'SA',
+        curr:      'EUR',
+        amount:    0,
+        docNr:     stornoNr || '',
+        system:    stornoSystem || getUserSapSystemId(),
+        status:    'storno',
+        source:    'app',
+        user:      (AUTH.user || {}).sap_username || (AUTH.user || {}).username || '',
+        text:      'Storno PayRoll Import #' + importId + ' (Orig: ' + (bookingDocNr||'') + ')'
+      };
+      var _h = [];
+      try { _h = JSON.parse(localStorage.getItem('yconn_booking_history') || '[]'); } catch(_){}
+      _h.unshift(_storHist);
+      localStorage.setItem('yconn_booking_history', JSON.stringify(_h));
+    } catch(_) {}
+
+    var entry = (_histAll || []).find(function(x){ return x.id === importId; });
+    if (entry) { entry.status = 'reversed'; entry.storno_doc_nr = stornoNr || ''; }
+    filterHistory();
+
+    prog.innerHTML = '<div class="status-banner ok" style="margin:0"><span>✓</span> ' +
+      'Storno-Gegenbuchung erfolgreich! Stornobeleg: <strong>' + esc(stornoNrDisplay || '(kein Beleg)') + '</strong>' +
+      (stornoNr && stornoNr.length === 18
+        ? ' <span style="color:var(--muted);font-size:11px">(OBJ_KEY: ' + esc(stornoNr) + ')</span>'
+        : '') +
+      '</div>';
+    document.getElementById('stornoExecBtn').style.display = 'none';
+    document.getElementById('stornoCancelBtn').disabled = false;
+    document.getElementById('stornoCancelBtn').textContent = '✕ Schließen';
+
+  } catch(e) {
+    var isBridgeDown = String(e.message).includes('nicht erreichbar') ||
+                       String(e.message).includes('Failed to fetch') ||
+                       e.name === 'AbortError';
+    var errHtml = isBridgeDown
+      ? '<div class="status-banner err" style="margin:0"><span>🔌</span> ' +
+          'Bridge nicht erreichbar (localhost:8765). Bitte Bridge starten und erneut versuchen.</div>'
+      : '<div class="status-banner err" style="margin:0"><span>✗</span> ' +
+          'Storno fehlgeschlagen: ' + esc(e.message) + '</div>';
+    prog.innerHTML = errHtml;
+    document.getElementById('stornoExecBtn').disabled = false;
+    document.getElementById('stornoExecBtn').textContent = '↩ Erneut versuchen';
+    document.getElementById('stornoCancelBtn').disabled = false;
+  }
+}
+
+async function deleteImport(importId, fileName, status) {
+  var msg = status === 'reversed'
+    ? 'Import "' + fileName + '" (storniert) wirklich löschen?'
+    : 'Import "' + fileName + '" löschen?\n\nStatus: ' + status;
+  if (!confirm(msg)) return;
+  try {
+    var resp = await fetch('http://localhost:8000/payroll/imports/' + importId, { method: 'DELETE' });
+    if (!resp.ok) {
+      var err = await resp.json().catch(function(){ return {}; });
+      throw new Error(err.detail || 'HTTP ' + resp.status);
+    }
+    _histAll = (_histAll || []).filter(function(x){ return x.id !== importId; });
+    filterHistory();
+  } catch(e) {
+    alert('✗ Löschen fehlgeschlagen:\n' + e.message);
+  }
+}
+
+async function patchDocNr(importId) {
+  var nr = prompt('Belegnummer für Import #' + importId + ' eintragen:', '');
+  if (!nr || !nr.trim()) return;
+  nr = nr.trim();
+  try {
+    var resp = await fetch('http://localhost:8000/payroll/imports/' + importId + '/status', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'booked', booking_doc_nr: nr })
+    });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    var entry = _histAll.find(function(x){ return x.id === importId; });
+    if (entry) { entry.booking_doc_nr = nr; }
+    filterHistory();
+  } catch(e) {
+    alert('Fehler beim Speichern: ' + e.message);
+  }
+}
+
+// ─── PayRoll Excel-Export ────────────────────────────────
+async function exportPayrollXlsx() {
+  var btn = document.getElementById('btnExportXlsx');
+  if (!_histAll || !_histAll.length) { alert('Keine Importdaten vorhanden.'); return; }
+
+  // Aktuelle Filterauswahl übernehmen
+  var search = (document.getElementById('histSearch').value || '').toLowerCase();
+  var status = document.getElementById('histStatusFilter').value || '';
+  var list = _histAll.filter(function(imp) {
+    var matchStatus = !status || imp.status === status;
+    var matchSearch = !search ||
+      (imp.file_name || '').toLowerCase().includes(search) ||
+      (imp.comp_code || '').toLowerCase().includes(search) ||
+      (imp.run_date  || '').toLowerCase().includes(search) ||
+      (imp.doc_id    || '').toLowerCase().includes(search);
+    return matchStatus && matchSearch;
+  });
+  if (!list.length) { alert('Keine Einträge für den Export vorhanden.'); return; }
+
+  // Ladeindikator
+  var origTxt = btn.innerHTML;
+  btn.innerHTML = '⏳ Lädt…';
+  btn.disabled  = true;
+
+  try {
+    // Buchungszeilen für jeden Import nachladen
+    var allRows = [];
+    var statusLabel = { imported:'Importiert', validated:'Validiert', booked:'Gebucht', reversed:'Storniert', error:'Fehler' };
+
+    for (var i = 0; i < list.length; i++) {
+      var imp  = list[i];
+      var belnr = imp.booking_doc_nr || '';
+      // SAP BELNR = erste 10 Stellen des OBJ_KEY
+      var belnrDisp = belnr.length >= 10 ? belnr.substring(0, 10) : belnr;
+
+      var lines = [];
+      try {
+        var resp = await fetch('http://localhost:8000/payroll/imports/' + imp.id);
+        if (resp.ok) {
+          var data = await resp.json();
+          lines = data.lines || [];
+        }
+      } catch(_) {}
+
+      if (!lines.length) {
+        // Mindestens eine Kopfzeile ohne Zeilendetails
+        allRows.push([
+          imp.id, imp.file_name || '', imp.comp_code || '', imp.run_date || '',
+          imp.doc_id || '', statusLabel[imp.status] || imp.status,
+          belnrDisp, imp.storno_doc_nr || '',
+          '', '', '', '', '', '', '', ''
+        ]);
+      } else {
+        lines.forEach(function(l) {
+          allRows.push([
+            imp.id,
+            imp.file_name   || '',
+            imp.comp_code   || '',
+            imp.run_date    || '',
+            imp.doc_id      || '',
+            statusLabel[imp.status] || imp.status,
+            belnrDisp,
+            imp.storno_doc_nr || '',
+            l.nr            || '',
+            l.comp_code     || imp.comp_code || '',
+            l.pk === 40 ? 'Soll (40)' : 'Haben (50)',
+            String(l.account || ''),
+            l.currency      || 'EUR',
+            parseFloat(l.amount) || 0,
+            l.costcenter    || '',
+            l.assignment    || '',
+            l.item_text     || '',
+            l.tax_code      || ''
+          ]);
+        });
+      }
+    }
+
+    var headers = [
+      'Import-ID', 'Dateiname', 'Buchungskreis', 'Laufdatum', 'Dok-ID',
+      'Status', 'SAP-Belegnr.', 'Stornobelegnr.',
+      'Pos.', 'CoCode', 'Soll/Haben', 'Konto', 'Währung', 'Betrag',
+      'Kostenstelle', 'Zuordnung', 'Buchungstext', 'Steuerkennzeichen'
+    ];
+
+    if (typeof XLSX !== 'undefined') {
+      var wb = XLSX.utils.book_new();
+      var ws = XLSX.utils.aoa_to_sheet([headers].concat(allRows));
+      ws['!cols'] = [
+        {wch:10},{wch:32},{wch:13},{wch:12},{wch:18},
+        {wch:11},{wch:14},{wch:14},
+        {wch:5},{wch:8},{wch:11},{wch:10},{wch:8},{wch:12},
+        {wch:13},{wch:14},{wch:36},{wch:16}
+      ];
+      // Betrag-Spalte (Index 13) als Zahl
+      for (var r = 1; r <= allRows.length; r++) {
+        var cell = ws[XLSX.utils.encode_cell({r:r, c:13})];
+        if (cell && typeof cell.v === 'number') { cell.t = 'n'; cell.z = '#,##0.00'; }
+      }
+      XLSX.utils.book_append_sheet(wb, ws, 'PayRoll Buchungen');
+      var fn = 'PayRoll_Export_' + new Date().toISOString().slice(0,10) + '.xlsx';
+      XLSX.writeFile(wb, fn);
+    } else {
+      // CSV-Fallback
+      var csvRows = [headers].concat(allRows).map(function(r) {
+        return r.map(function(v) {
+          var s = String(v === null || v === undefined ? '' : v);
+          return s.includes(';') || s.includes('"') ? '"' + s.replace(/"/g,'""') + '"' : s;
+        }).join(';');
+      });
+      var blob = new Blob(['﻿' + csvRows.join('\r\n')], {type:'text/csv;charset=utf-8'});
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'PayRoll_Export_' + new Date().toISOString().slice(0,10) + '.csv';
+      a.click();
+    }
+  } catch(e) {
+    alert('Export fehlgeschlagen:\n' + e.message);
+  } finally {
+    btn.innerHTML = origTxt;
+    btn.disabled  = false;
+  }
+}
+
+function filterHistory() {
+  var search  = (document.getElementById('histSearch').value || '').toLowerCase();
+  var status  = document.getElementById('histStatusFilter').value || '';
+  var filtered = _histAll.filter(function(imp) {
+    var matchStatus = !status || imp.status === status;
+    var matchSearch = !search ||
+      (imp.file_name  || '').toLowerCase().includes(search) ||
+      (imp.comp_code  || '').toLowerCase().includes(search) ||
+      (imp.run_date   || '').toLowerCase().includes(search) ||
+      (imp.doc_id     || '').toLowerCase().includes(search);
+    return matchStatus && matchSearch;
+  });
+  renderHistory(filtered);
+}
+
+function renderHistory(list) {
+  var cont = document.getElementById('histList');
+  if (!list.length) {
+    document.getElementById('histEmpty').style.display = '';
+    cont.innerHTML = '';
+    return;
+  }
+  document.getElementById('histEmpty').style.display = 'none';
+  var statusColor = { imported:'#60a5fa', validated:'#f59e0b', booked:'#34d399', reversed:'#a78bfa', error:'#ef4444' };
+  var statusLabel = { imported:'Importiert', validated:'Validiert', booked:'Gebucht ✓', reversed:'Storniert ↩', error:'Fehler' };
+
+  cont.innerHTML = list.map(function(imp) {
+    var sc  = statusColor[imp.status] || '#8b949e';
+    var sl  = statusLabel[imp.status] || imp.status;
+    var monthKey = runDateToMonthKey(imp.run_date || '');
+    return '<div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;' +
+      'margin-bottom:12px;overflow:hidden" id="histCard_' + imp.id + '">' +
+      '<div style="display:flex;align-items:center;justify-content:space-between;' +
+           'padding:12px 16px;gap:12px;flex-wrap:wrap">' +
+        '<div style="display:flex;align-items:center;gap:12px;flex:1;min-width:0">' +
+          '<div style="font-size:28px">📄</div>' +
+          '<div style="min-width:0">' +
+            '<div style="font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' +
+              esc(imp.file_name || '(unbekannt)') + '</div>' +
+            '<div style="font-size:11px;color:var(--muted);margin-top:2px">' +
+              'DB #' + imp.id + ' · ' + esc(imp.comp_code||'') + ' · ' + esc(imp.run_date||'') +
+              ' · ' + (imp.row_count||0) + ' Zeilen' +
+              (monthKey ? ' · Monat: <strong>' + monthKey + '</strong>' : '') +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+        '<div style="display:flex;align-items:center;gap:8px;flex-shrink:0;flex-wrap:wrap">' +
+          '<span style="padding:3px 10px;border-radius:6px;background:rgba(0,0,0,.2);' +
+            'border:1px solid ' + sc + ';color:' + sc + ';font-size:11px;font-weight:700">' + sl +
+            (imp.status === 'booked' && imp.booking_doc_nr ? ' · <span style="font-family:monospace;letter-spacing:.04em" title="OBJ_KEY: ' + esc(imp.booking_doc_nr) + '">' + esc(imp.booking_doc_nr.substring(0,10)) + '</span>' : '') +
+            '</span>' +
+          (imp.status === 'booked' && !imp.booking_doc_nr ?
+            '<button onclick="patchDocNr(' + imp.id + ')" ' +
+            'style="padding:4px 10px;background:rgba(52,211,153,.1);border:1px solid rgba(52,211,153,.4);' +
+            'border-radius:8px;color:#34d399;font-size:11px;cursor:pointer" ' +
+            'title="Belegnummer manuell nachtragen">✎ Belegnr.</button>' : '') +
+          (imp.status === 'reversed' && imp.storno_doc_nr ?
+            '<span style="padding:3px 8px;border-radius:6px;background:rgba(167,139,250,.1);' +
+            'border:1px solid rgba(167,139,250,.35);color:#a78bfa;font-size:11px">↩ ' +
+            esc(imp.storno_doc_nr) + '</span>' : '') +
+          (imp.status === 'booked' ?
+            '<button onclick="stornoImport(' + imp.id + ',\'' + esc(imp.booking_doc_nr||'') + '\',\'' + esc(imp.comp_code||'') + '\')" ' +
+            'style="padding:6px 12px;background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.35);' +
+            'border-radius:8px;color:#fbbf24;font-size:12px;font-weight:700;cursor:pointer" ' +
+            'title="Buchung in SAP stornieren">↩ Stornieren</button>' : '') +
+          (imp.status !== 'booked' ?
+            '<button onclick="deleteImport(' + imp.id + ',\'' + esc(imp.file_name||'') + '\',\'' + imp.status + '\')" ' +
+            'style="padding:6px 12px;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);' +
+            'border-radius:8px;color:#ef4444;font-size:12px;cursor:pointer" ' +
+            'title="Import löschen">🗑 Löschen</button>' : '') +
+          '<button data-loadbtn="' + imp.id + '" onclick="loadImportIntoTabs(' + imp.id + ')" ' +
+            'style="padding:6px 14px;background:rgba(31,111,235,.15);border:1px solid rgba(31,111,235,.4);' +
+            'border-radius:8px;color:#60a5fa;font-size:12px;font-weight:700;cursor:pointer">' +
+            '📂 In Tabs öffnen</button>' +
+          '<button onclick="toggleHistPreview(' + imp.id + ')" ' +
+            'style="padding:6px 12px;background:var(--bg3);border:1px solid var(--border);' +
+            'border-radius:8px;color:var(--muted);font-size:12px;cursor:pointer" ' +
+            'id="prevBtn_' + imp.id + '">▶ Vorschau</button>' +
+        '</div>' +
+      '</div>' +
+      '<div id="histPreview_' + imp.id + '" style="display:none;border-top:1px solid var(--border);' +
+        'padding:12px 16px;font-size:12px">' +
+        '<div style="color:var(--muted);padding:12px;text-align:center">⏳ Lade Vorschau…</div>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
+async function toggleHistPreview(id) {
+  var el  = document.getElementById('histPreview_' + id);
+  var btn = document.getElementById('prevBtn_' + id);
+  if (el.style.display !== 'none') {
+    el.style.display = 'none';
+    btn.textContent = '▶ Vorschau';
+    return;
+  }
+  el.style.display = '';
+  btn.textContent  = '▼ Vorschau';
+  if (el.dataset.loaded) return;
+  try {
+    var resp = await fetch('http://localhost:8000/payroll/imports/' + id);
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    var data = await resp.json();
+    el.dataset.loaded = '1';
+    var lines = data.lines || [];
+    el.innerHTML =
+      '<div style="overflow-x:auto;max-height:200px;overflow-y:auto">' +
+      '<table style="width:100%;border-collapse:collapse;font-size:11px">' +
+      '<thead><tr style="background:var(--bg3)">' +
+        '<th style="padding:5px 8px;text-align:left;color:var(--muted)">#</th>' +
+        '<th style="padding:5px 8px;text-align:left;color:var(--muted)">Konto</th>' +
+        '<th style="padding:5px 8px;text-align:left;color:var(--muted)">PK</th>' +
+        '<th style="padding:5px 8px;text-align:right;color:var(--muted)">Betrag</th>' +
+        '<th style="padding:5px 8px;text-align:left;color:var(--muted)">Kostenstelle</th>' +
+        '<th style="padding:5px 8px;text-align:left;color:var(--muted)">Text</th>' +
+      '</tr></thead><tbody>' +
+      lines.slice(0,30).map(function(l) {
+        return '<tr style="border-bottom:1px solid rgba(48,54,61,.5)">' +
+          '<td style="padding:4px 8px;color:var(--muted)">' + l.nr + '</td>' +
+          '<td style="padding:4px 8px;font-family:monospace;color:#79b8ff">' + esc(l.account||'') + '</td>' +
+          '<td style="padding:4px 8px">' + (l.pk===50?'<span class="pk-50">50 H</span>':'<span class="pk-40">40 S</span>') + '</td>' +
+          '<td style="padding:4px 8px;text-align:right;font-family:monospace">' + fmtAmt(l.amount) + '</td>' +
+          '<td style="padding:4px 8px;font-family:monospace;color:#f97316">' + esc(l.costcenter||'–') + '</td>' +
+          '<td style="padding:4px 8px;color:var(--muted)">' + esc(l.item_text||'') + '</td>' +
+          '</tr>';
+      }).join('') +
+      '</tbody></table>' +
+      (lines.length > 30 ? '<div style="padding:6px 8px;color:var(--muted);font-size:11px">… und ' + (lines.length-30) + ' weitere Zeilen</div>' : '') +
+      '</div>';
+  } catch(e) {
+    el.innerHTML = '<div style="color:var(--err);padding:8px">Fehler: ' + esc(e.message) + '</div>';
+  }
+}
+
+// ─── Helper ───────────────────────────────────────────────
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function fmtAmt(n) {
+  return Number(n).toLocaleString('de-DE', {minimumFractionDigits:2, maximumFractionDigits:2});
+}
+
+function exportCSV() {
+  if (!state.output || !state.output.length) return;
+  var rows = [['Nr','Company','Referenz','Belegkopftext','Buchungsdatum','Belegdatum','Währung','PK','Sachkonto','Betrag','Zuordnung','Text','Kostenstelle']];
+  state.output.forEach(function(r) {
+    rows.push([r.nr,r.cocode,r.reference,r.headerText,r.postDate,r.docDate,r.currency,r.pk,r.account,r.amount,r.assignment,r.text,r.costcenter||'']);
+  });
+  var csv = rows.map(function(r){ return r.map(function(c){ return '"'+String(c||'').replace(/"/g,'""')+'"'; }).join(';'); }).join('\n');
+  var blob = new Blob(['﻿'+csv], {type:'text/csv;charset=utf-8'});
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'payroll_buchungsliste.csv';
+  a.click();
+}
+
+// ─── App-Regel P-10: RESY Steuerkennzeichen → SAP (Buchungskreis 0435) ──────
+// Mapping RESY-Steuerkennzeichen → SAP-Vorsteuerkennzeichen:
+//   RESY ohne VSt (NONE)  →  SAP V0  (steuerfrei, z.B. Tagegeld/Verpflegungsmehraufwand)
+//   RESY V0               →  SAP V0  (Vorsteuerfrei, z.B. steuerfreie Auslandsreisekosten)
+//   RESY V1               →  SAP V1  (19% Vorsteuer, z.B. Inland-Hotels, Taxen)
+//   RESY V7               →  SAP V4  (7% Vorsteuer, z.B. ÖPNV-Tickets)
+// Hinweis: NONE und V0 werden zu SAP V0 zusammengefasst (gleicher Steuersatz in 0435).
+// ─────────────────────────────────────────────────────────────────────────────
+var RESY_SAP_TAX = { 'NONE': 'V0', 'V0': 'V0', 'V1': 'V1', 'V7': 'V4' };
+
+// SAP-Steuerkennzeichen-Badge-Farben
+var SAP_TAX_COLORS = { 'V0': '#8b949e', 'V1': '#34d399', 'V4': '#60a5fa' };
+
+// ─── RESY-Reisekostenaufteilung ──────────────────────────────
+var _resyTargetNr = null;
+
+function triggerResyUpload(lineNr) {
+  _resyTargetNr = lineNr;
+  var inp = document.getElementById('resyFileInput');
+  inp.value = '';
+  inp.click();
+}
+
+function handleResyFile(lineNr, file) {
+  if (!file) return;
+  if (!file.name.toLowerCase().endsWith('.pdf')) {
+    alert('Bitte eine PDF-Datei (RESY-Abrechnung) auswählen.\nGewählte Datei: ' + file.name);
+    return;
+  }
+  handleResyPdf(lineNr, file);
+}
+
+// ─── RESY PDF-Parser via Orchestrator (POST /payroll/resy-parse) ─────────────
+// Kein CDN erforderlich — pdfplumber läuft server-seitig auf Port 8000
+function handleResyPdf(lineNr, file) {
+  var fd = new FormData();
+  fd.append('file', file, file.name);
+  fetch('http://localhost:8000/payroll/resy-parse', { method: 'POST', body: fd })
+    .then(function(r) {
+      if (!r.ok) return r.json().then(function(e) { throw new Error(e.detail || r.status); });
+      return r.json();
+    })
+    .then(function(totals) {
+      // totals: { NONE, V0, V1, V7 } — applyResySplit mappt V7 → SAP V4
+      applyResySplit(lineNr, totals);
+    })
+    .catch(function(err) {
+      alert('Fehler beim Parsen der RESY-PDF:\n' + err.message +
+            '\n\nOrchestratorStatus prüfen (http://localhost:8000/health).');
+    });
+}
+
+function parseResyTxt(text) {
+  // Summiert SOLL-Positionen aus RESY-Datei nach RESY-Steuerkennzeichen
+  var totals = { V0: 0, V1: 0, V7: 0, NONE: 0 };
+  var lines  = text.split('\n');
+  for (var i = 1; i < lines.length; i++) {
+    var line = lines[i];
+    if (!line || line.indexOf('0435') === -1) continue;
+    // Steuerkennzeichen: optional V0/V1/V7 direkt vor KST 0435-XXXX
+    var taxMatch = line.match(/(V[017])?0435-\d{4}/);
+    var taxCode  = (taxMatch && taxMatch[1]) ? taxMatch[1] : 'NONE';
+    // Nur SOLL-Zeilen (SSOLL)
+    var shMatch = line.match(/\s+([SH])(SOLL|haben)\s/i);
+    if (!shMatch || shMatch[1].toUpperCase() !== 'S') continue;
+    // Betrag: nach EUR und 3-stelligem Kürzel
+    var amtMatch = line.match(/EUR\s+\d{3}\s+([\d\.]+,\d{2})\s/);
+    if (!amtMatch) continue;
+    var amt = parseFloat(amtMatch[1].replace(/\./g, '').replace(',', '.'));
+    if (!isNaN(amt)) totals[taxCode] += amt;
+  }
+  Object.keys(totals).forEach(function(k) {
+    totals[k] = Math.round(totals[k] * 100) / 100;
+  });
+  return totals;
+}
+
+function applyResySplit(lineNr, resyTotals) {
+  var idx = state.output.findIndex(function(r) { return r.nr === lineNr; });
+  if (idx === -1) { alert('Zeile ' + lineNr + ' nicht gefunden.'); return; }
+  var orig      = state.output[idx];
+  var totalResy = parseFloat(orig.amount);
+
+  // App-Regel P-10: RESY → SAP Steuerkennzeichen-Mapping (Buchungskreis 0435)
+  // NONE + V0 → beide SAP V0 → zusammenfassen
+  var sapV0 = Math.round((resyTotals.NONE + resyTotals.V0) * 100) / 100;
+  var sapV1 = resyTotals.V1;
+  var sapV4 = resyTotals.V7;  // RESY V7 → SAP V4
+
+  var splits = [
+    { sap: 'V0', amt: sapV0, label: 'RESY V0 (steuerfrei/o.VSt)' },
+    { sap: 'V1', amt: sapV1, label: 'RESY V1 (19% VSt)'          },
+    { sap: 'V4', amt: sapV4, label: 'RESY V4 (7% VSt)'           },
+  ].filter(function(s) { return s.amt > 0.004; });
+
+  if (!splits.length) {
+    alert('Keine positiven Beträge in der RESY-Datei gefunden.');
+    return;
+  }
+
+  var splitSum = splits.reduce(function(s, x) { return s + x.amt; }, 0);
+  splitSum = Math.round(splitSum * 100) / 100;
+  if (Math.abs(splitSum - totalResy) > 0.05) {
+    if (!confirm(
+      'Summe der Aufteilung (' + fmtAmt(splitSum) + ' EUR) weicht von\n' +
+      'Zeile ' + lineNr + ' (' + fmtAmt(totalResy) + ' EUR) ab.\n\n' +
+      'Trotzdem aufteilen?'
+    )) return;
+  }
+
+  // Original-Zeile durch Split-Zeilen ersetzen
+  var newLines = splits.map(function(s) {
+    return Object.assign({}, orig, {
+      amount:        s.amt,
+      text:          s.label,
+      item_text:     s.label,
+      _resynTaxCode: s.sap,  // SAP-Steuerkennzeichen speichern
+    });
+  });
+  state.output.splice.apply(state.output, [idx, 1].concat(newLines));
+
+  // Nummerierung neu vergeben
+  state.output.forEach(function(r, i) { r.nr = i + 1; });
+
+  // KST neu berechnen
+  if (typeof ensureCostCenters === 'function') {
+    state.kstResult = ensureCostCenters(state.output);
+  }
+
+  renderBuchung(state.output);
+  renderPlaus(state.output);
+  updateSapPayload();
+  _showResySplitBanner(splits, totalResy, splitSum);
+}
+
+function _showResySplitBanner(splits, total, splitSum) {
+  var el = document.getElementById('resySplitBanner');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'resySplitBanner';
+    var tbl = document.getElementById('buchungTable');
+    if (tbl && tbl.parentNode) tbl.parentNode.insertBefore(el, tbl);
+  }
+  var ok = Math.abs(splitSum - total) <= 0.05;
+  el.style.cssText = 'margin-bottom:14px;padding:10px 16px;border-radius:10px;' +
+    'background:rgba(16,185,129,.07);border:1px solid rgba(16,185,129,.35);' +
+    'border-left:4px solid #10b981;font-size:12px;display:flex;align-items:center;' +
+    'gap:10px;flex-wrap:wrap';
+  el.innerHTML =
+    '<span style="font-size:15px">✓</span>' +
+    '<strong style="color:#10b981">RESY aufgeteilt (SAP-Steuerkennzeichen)</strong>' +
+    '<span style="color:var(--muted)">Σ = ' + fmtAmt(total) + ' EUR</span>' +
+    splits.map(function(s) {
+      var c = SAP_TAX_COLORS[s.sap] || '#8b949e';
+      return '<span style="padding:2px 10px;border-radius:5px;background:rgba(139,148,158,.08);' +
+        'border:1px solid ' + c + ';color:' + c + ';font-weight:700">' +
+        'SAP ' + s.sap + ': ' + fmtAmt(s.amt) + ' EUR</span>';
+    }).join('') +
+    (!ok ? '<span style="color:#f59e0b">⚠ Differenz ' + fmtAmt(splitSum - total) + '</span>' : '') +
+    '<button id="resySavBtn" onclick="saveResySplit()" ' +
+    'style="margin-left:auto;padding:3px 12px;border-radius:6px;cursor:pointer;font-size:11px;font-weight:700;' +
+    'background:rgba(16,185,129,.15);border:1px solid rgba(16,185,129,.5);color:#10b981">' +
+    '💾 In DB speichern</button>' +
+    '<button onclick="document.getElementById(\'resySplitBanner\').remove()" ' +
+    'style="background:none;border:none;color:var(--muted);cursor:pointer;' +
+    'font-size:16px;line-height:1" title="Schließen">✕</button>';
+}
+
+async function saveResySplit() {
+  var btn = document.getElementById('resySavBtn');
+  if (!state.dbImportId) {
+    alert('Kein DB-Eintrag vorhanden.\nBitte zuerst die CSV importieren und warten bis sie automatisch gespeichert wurde.');
+    return;
+  }
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Speichern…'; }
+  var meta  = state.meta || {};
+  var creds = AUTH.user  || {};
+  var body = {
+    doc_id:      meta.docId    || '',
+    run_date:    meta.runDate  || '',
+    comp_code:   meta.cocode   || '',
+    currency:    meta.currency || 'EUR',
+    row_count:   state.output.length,
+    file_name:   meta.fileName || '',
+    imported_by: creds.sap_username || '',
+    sap_system:  getUserSapSystemId() || '',
+    lines: state.output.map(function(r) {
+      var amt = parseFloat(r.amount);
+      return {
+        nr:         r.nr         || 0,
+        comp_code:  r.cocode     || '',
+        currency:   r.currency   || 'EUR',
+        pk:         r.pk         || 40,
+        account:    r.account    || '',
+        amount:     isNaN(amt) ? 0 : amt,
+        costcenter: r.costcenter || '',
+        assignment: r.assignment || '',
+        item_text:  r.text       || '',
+        tax_code:   r._resynTaxCode || '',
+      };
+    })
+  };
+  try {
+    var resp = await fetch('http://localhost:8000/payroll/imports/' + state.dbImportId + '/lines', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    var data = await resp.json();
+    if (!resp.ok) throw new Error(data.detail || ('HTTP ' + resp.status));
+    showDbBadge('ok', '🗄 RESY-Aufteilung in DB #' + state.dbImportId + ' gespeichert');
+    if (btn) { btn.textContent = '✓ Gespeichert'; btn.style.color = '#34d399'; }
+  } catch(e) {
+    if (btn) { btn.disabled = false; btn.textContent = '💾 In DB speichern'; }
+    alert('Fehler beim Speichern der RESY-Aufteilung:\n' + e.message);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+
+function copyPayload() {
+  var el = document.getElementById('jsonPreview');
+  navigator.clipboard.writeText(el.innerText).catch(function(){});
+}
+
+function downloadPayload() {
+  var el   = document.getElementById('jsonPreview');
+  var blob = new Blob([el.innerText], {type:'application/json'});
+  var a    = document.createElement('a');
+  a.href   = URL.createObjectURL(blob);
+  a.download = 'payroll_sap_payload.json';
+  a.click();
+}
+
+</script>
+</body>
+</html>

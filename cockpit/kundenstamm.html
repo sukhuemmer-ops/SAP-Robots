@@ -1,0 +1,900 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SAP Kundenstamm – Zahlungsbedingungen</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root {
+  --bg:#0d1117;--bg2:#161b22;--bg3:#21262d;--border:#30363d;
+  --text:#e6edf3;--muted:#8b949e;--acc:#58a6ff;
+  --ok:#3fb950;--warn:#d2a21a;--err:#f85149;--purple:#bc8cff;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:13px;height:100vh;display:flex;flex-direction:column}
+a{color:inherit;text-decoration:none}
+
+/* ── Header ── */
+header{background:var(--bg2);border-bottom:1px solid var(--border);padding:0 20px;height:52px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;position:sticky;top:0;z-index:100}
+.logo{font-size:14px;font-weight:700;color:var(--acc)}
+.header-right{display:flex;align-items:center;gap:10px}
+.btn{padding:5px 13px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);color:var(--text);cursor:pointer;font-size:12px;font-weight:600;display:inline-flex;align-items:center;gap:5px;transition:.15s}
+.btn:hover{background:#2d333b;border-color:#8b949e}
+.btn-acc{background:rgba(88,166,255,.15);border-color:rgba(88,166,255,.5);color:var(--acc)}
+.btn-acc:hover{background:rgba(88,166,255,.25)}
+.btn-ok{background:rgba(63,185,80,.12);border-color:rgba(63,185,80,.4);color:var(--ok)}
+.btn-ok:hover{background:rgba(63,185,80,.2)}
+.btn-warn{background:rgba(210,162,26,.12);border-color:rgba(210,162,26,.4);color:var(--warn)}
+.btn-err{background:rgba(248,81,73,.12);border-color:rgba(248,81,73,.4);color:var(--err)}
+.btn-muted{background:rgba(88,88,88,.2);color:var(--muted);cursor:not-allowed;opacity:.55}
+.btn-sm{padding:3px 9px;font-size:11px;border-radius:6px}
+
+/* ── Layout ── */
+.layout{display:flex;flex:1;overflow:hidden}
+
+/* ── Sidebar ── */
+.sidebar{width:300px;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0}
+.upload-zone{padding:10px 14px;border-bottom:1px solid var(--border)}
+.drop-area{border:2px dashed rgba(88,166,255,.35);border-radius:10px;padding:14px 10px;text-align:center;cursor:pointer;transition:.15s;background:rgba(88,166,255,.05)}
+.drop-area:hover,.drop-area.drag-over{border-color:var(--acc);background:rgba(88,166,255,.12)}
+.drop-icon{font-size:22px;display:block;margin-bottom:4px;transition:transform .15s;pointer-events:none}
+.drop-area.drag-over .drop-icon{transform:scale(1.15)}
+.drop-label{font-size:12px;font-weight:600;color:var(--acc);margin-bottom:3px;pointer-events:none}
+.drop-sub{font-size:10px;color:var(--muted);pointer-events:none}
+.upload-info{font-size:10px;color:var(--muted);text-align:center;margin-top:7px;min-height:14px}
+#fileInput{display:none}
+.sidebar-stats{padding:12px 14px;border-bottom:1px solid var(--border)}
+.sidebar-stats h2{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px}
+.stats-row{display:flex;gap:6px;margin-bottom:8px}
+.stat{flex:1;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:8px;text-align:center}
+.stat .num{font-size:18px;font-weight:700;display:block}
+.stat .lbl{font-size:10px;color:var(--muted);margin-top:2px}
+.stat.err .num{color:var(--err)}
+.stat.ok .num{color:var(--ok)}
+.stat.acc .num{color:var(--acc)}
+.stat.warn .num{color:var(--warn)}
+.progress-wrap{background:var(--bg3);border-radius:4px;height:4px}
+.progress-bar{background:var(--ok);height:4px;border-radius:4px;transition:width .3s}
+.progress-lbl{font-size:10px;color:var(--muted);margin-top:4px;text-align:right}
+.filter-bar{display:flex;gap:5px;padding:8px 14px;border-bottom:1px solid var(--border);flex-wrap:wrap}
+.filter-btn{padding:3px 10px;border-radius:20px;border:1px solid var(--border);background:var(--bg3);color:var(--muted);cursor:pointer;font-size:11px;font-weight:600;transition:.15s}
+.filter-btn.active{background:var(--acc);color:#0d1117;border-color:var(--acc)}
+.cust-list{flex:1;overflow-y:auto}
+.cust-item{padding:10px 14px;border-bottom:1px solid var(--border);cursor:pointer;position:relative;transition:background .1s;border-left:3px solid transparent}
+.cust-item:hover{background:var(--bg3)}
+.cust-item.active{background:rgba(88,166,255,.1);border-left-color:var(--acc)}
+.cust-item.needs-change{border-left-color:var(--err)}
+.cust-item.needs-change.active{border-left-color:var(--acc)}
+.cust-item.is-done{border-left-color:var(--ok)}
+.cust-name{font-weight:600;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:225px}
+.cust-num{font-size:10px;color:var(--muted);margin-top:2px}
+.cust-badge{position:absolute;right:8px;top:11px;font-size:10px;padding:2px 7px;border-radius:10px;font-weight:600}
+.badge-err{background:rgba(248,81,73,.12);color:var(--err);border:1px solid rgba(248,81,73,.3)}
+.badge-ok{background:rgba(63,185,80,.1);color:var(--ok);border:1px solid rgba(63,185,80,.3)}
+.badge-done{background:rgba(88,166,255,.1);color:var(--acc);border:1px solid rgba(88,166,255,.3)}
+.badge-part{background:rgba(210,162,26,.1);color:var(--warn);border:1px solid rgba(210,162,26,.3)}
+
+/* ── Main ── */
+.main{flex:1;overflow:hidden;display:flex;flex-direction:column}
+
+/* Tab bar */
+.tab-bar{display:flex;border-bottom:1px solid var(--border);background:var(--bg2);flex-shrink:0}
+.tab-btn{padding:12px 20px;font-size:12px;font-weight:600;color:var(--muted);cursor:pointer;border:none;background:transparent;border-bottom:2px solid transparent;margin-bottom:-1px;transition:.15s;display:flex;align-items:center;gap:6px}
+.tab-btn:hover{color:var(--text)}
+.tab-btn.active{color:var(--acc);border-bottom-color:var(--acc)}
+.tab-count{background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:1px 7px;font-size:10px;color:var(--muted)}
+.tab-count.red{background:rgba(248,81,73,.12);border-color:rgba(248,81,73,.3);color:var(--err)}
+
+.tab-panel{flex:1;overflow-y:auto;display:none}
+.tab-panel.active{display:block}
+
+/* ── Übersicht Tab ── */
+.overview-header{padding:16px 20px 12px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border)}
+.overview-title{font-size:14px;font-weight:700}
+.overview-sub{font-size:11px;color:var(--muted);margin-top:3px}
+.overview-actions{display:flex;gap:8px;align-items:center}
+.ov-table-wrap{padding:16px 20px}
+.ov-table{width:100%;border-collapse:collapse}
+.ov-table th{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;padding:8px 12px;text-align:left;border-bottom:2px solid var(--border);white-space:nowrap}
+.ov-table td{padding:0;vertical-align:top;border-bottom:1px solid var(--border)}
+.ov-table tr:last-child td{border-bottom:none}
+/* Expandable customer rows */
+.ov-row-header{padding:10px 12px;cursor:pointer;transition:background .1s;display:flex;align-items:center;gap:8px}
+.ov-row-header:hover{background:var(--bg3)}
+.ov-expand-icon{font-size:10px;color:var(--muted);width:12px;flex-shrink:0;transition:transform .2s}
+.ov-row-header.open .ov-expand-icon{transform:rotate(90deg)}
+.ov-cust-name{font-weight:600;font-size:12px}
+.ov-cust-num{font-size:10px;color:var(--muted);margin-top:1px}
+.ov-sub-rows{display:none;background:rgba(0,0,0,.15)}
+.ov-sub-rows.open{display:table-row-group}
+.ov-sub-row td{padding:8px 12px 8px 32px;border-top:1px solid rgba(255,255,255,.04);border-bottom:none;vertical-align:middle}
+.ov-section-lbl{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;width:110px;flex-shrink:0}
+.term-change{display:flex;align-items:center;gap:10px}
+.term-pill{padding:4px 10px;border-radius:6px;font-family:monospace;font-size:12px;font-weight:700}
+.term-pill.old{background:rgba(248,81,73,.1);color:var(--err);border:1px solid rgba(248,81,73,.25)}
+.term-pill.new{background:rgba(63,185,80,.1);color:var(--ok);border:1px solid rgba(63,185,80,.25)}
+.term-arrow{color:var(--muted);font-size:14px}
+.term-desc{font-size:10px;color:var(--muted);margin-top:2px}
+.no-change-pill{padding:4px 10px;border-radius:6px;background:rgba(63,185,80,.08);color:var(--ok);border:1px solid rgba(63,185,80,.2);font-size:11px}
+.status-pill{padding:3px 9px;border-radius:10px;font-size:10px;font-weight:700;white-space:nowrap}
+.status-offen{background:rgba(139,148,158,.1);color:var(--muted);border:1px solid rgba(139,148,158,.25)}
+.status-done{background:rgba(63,185,80,.1);color:var(--ok);border:1px solid rgba(63,185,80,.3)}
+.status-part{background:rgba(210,162,26,.1);color:var(--warn);border:1px solid rgba(210,162,26,.3)}
+.status-err{background:rgba(248,81,73,.1);color:var(--err);border:1px solid rgba(248,81,73,.3)}
+.info-pill{padding:4px 10px;border-radius:6px;background:rgba(188,140,255,.08);color:var(--purple);border:1px solid rgba(188,140,255,.25);font-size:11px}
+.tcode-tag{display:inline-block;background:rgba(88,166,255,.12);color:var(--acc);font-family:monospace;font-size:10px;padding:1px 6px;border-radius:4px;font-weight:700;margin-right:4px}
+
+/* ── Detail Tab ── */
+.detail-wrap{padding:20px}
+.welcome{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:360px;color:var(--muted);text-align:center;gap:12px}
+.welcome .icon{font-size:52px}
+.welcome h2{font-size:17px;color:var(--text);font-weight:700}
+.customer-detail{display:none}
+.customer-detail.visible{display:block}
+
+/* Detail sections */
+.detail-topbar{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px}
+.detail-title{font-size:16px;font-weight:700}
+.detail-meta{font-size:11px;color:var(--muted);margin-top:4px}
+.section-card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;margin-bottom:14px;overflow:hidden}
+.section-head{display:flex;align-items:center;justify-content:space-between;padding:12px 18px;border-bottom:1px solid var(--border);background:var(--bg3)}
+.section-head h3{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;display:flex;align-items:center;gap:8px}
+.section-body{padding:16px 18px}
+.field-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px}
+.field-item{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 14px}
+.field-item .lbl{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.field-item .val{font-size:14px;font-weight:700;margin-top:4px;font-family:monospace}
+.field-item .val.acc{color:var(--acc)}
+.field-item .val.err{color:var(--err)}
+.field-item .val.ok{color:var(--ok)}
+.field-item .val-sub{font-size:10px;color:var(--muted);margin-top:2px;font-family:inherit}
+.change-row{display:flex;align-items:center;gap:16px;padding:12px 0}
+.change-row+.change-row{border-top:1px solid var(--border)}
+.change-box{flex:1;padding:12px;border-radius:10px;text-align:center}
+.change-box.old{background:rgba(248,81,73,.07);border:1px solid rgba(248,81,73,.25)}
+.change-box.new{background:rgba(63,185,80,.07);border:1px solid rgba(63,185,80,.25)}
+.change-code{font-size:20px;font-weight:700;font-family:monospace}
+.change-box.old .change-code{color:var(--err)}
+.change-box.new .change-code{color:var(--ok)}
+.change-desc{font-size:11px;color:var(--muted);margin-top:3px}
+.change-tag{font-size:10px;font-weight:700;margin-top:4px}
+.change-box.old .change-tag{color:var(--err)}
+.change-box.new .change-tag{color:var(--ok)}
+.sep-arrow{font-size:22px;color:var(--muted);flex-shrink:0}
+.ok-banner{background:rgba(63,185,80,.07);border:1px solid rgba(63,185,80,.25);border-radius:10px;padding:14px;text-align:center;color:var(--ok);font-weight:700;font-size:14px}
+.info-banner{background:rgba(88,166,255,.07);border:1px solid rgba(88,166,255,.2);border-radius:10px;padding:14px;font-size:12px;color:var(--muted)}
+.info-banner strong{color:var(--text)}
+.check-list{margin-top:0}
+.check-item{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);font-size:12px;cursor:pointer}
+.check-item:last-child{border-bottom:none}
+.check-item input{width:15px;height:15px;accent-color:var(--acc);cursor:pointer;flex-shrink:0}
+.check-item.done label{text-decoration:line-through;color:var(--muted)}
+.kpi-row{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}
+.kpi{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px 16px}
+.kpi .lbl{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.kpi .val{font-size:16px;font-weight:700;margin-top:4px;color:var(--acc)}
+.code-block{background:#010409;color:#7ee787;font-family:'Consolas',monospace;font-size:10px;padding:10px 14px;border-radius:8px;margin-top:10px;white-space:pre;overflow-x:auto;border:1px solid var(--border)}
+textarea{width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:8px 12px;font-size:12px;font-family:inherit;resize:vertical;min-height:70px;outline:none}
+textarea:focus{border-color:var(--acc)}
+.config-hint{background:rgba(210,162,26,.07);border:1px solid rgba(210,162,26,.3);border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:11px;color:var(--warn)}
+.config-hint code{background:var(--bg3);padding:1px 5px;border-radius:4px;font-family:monospace}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">🗃 SAP Kundenstamm</div>
+  <div class="header-right">
+    <a class="btn" href="startseite.html">🏠 Startseite</a>
+    <div id="headerRight"></div>
+  </div>
+</header>
+
+<div class="layout">
+
+  <!-- ═══ SIDEBAR ═══ -->
+  <div class="sidebar">
+    <div class="upload-zone">
+      <input type="file" id="fileInput" accept=".xlsx,.xls" onchange="loadExcel(this)">
+      <div class="drop-area" id="dropArea" onclick="document.getElementById('fileInput').click()">
+        <span class="drop-icon">📂</span>
+        <div class="drop-label">Excel hier ablegen</div>
+        <div class="drop-sub">oder klicken zum Auswählen (.xlsx)</div>
+      </div>
+      <div class="upload-info" id="uploadInfo">Vorgeladene Daten: BK 0439 India (35 Kunden)</div>
+    </div>
+
+    <div class="sidebar-stats">
+      <h2>Kundenübersicht</h2>
+      <div class="stats-row">
+        <div class="stat acc"><span class="num" id="statTotal">0</span><span class="lbl">Gesamt</span></div>
+        <div class="stat err"><span class="num" id="statError">0</span><span class="lbl">Zu ändern</span></div>
+        <div class="stat warn"><span class="num" id="statPart">0</span><span class="lbl">Teilweise</span></div>
+        <div class="stat ok"><span class="num" id="statDone">0</span><span class="lbl">Erledigt</span></div>
+      </div>
+      <div class="progress-wrap"><div class="progress-bar" id="progressBar" style="width:0%"></div></div>
+      <div class="progress-lbl" id="progressLbl">0 von 0 erledigt</div>
+    </div>
+
+    <div class="filter-bar">
+      <button class="filter-btn active" onclick="setFilter('all',this)">Alle</button>
+      <button class="filter-btn" onclick="setFilter('error',this)">Zu ändern</button>
+      <button class="filter-btn" onclick="setFilter('ok',this)">Korrekt</button>
+      <button class="filter-btn" onclick="setFilter('done',this)">Erledigt</button>
+    </div>
+
+    <div class="cust-list" id="custList"></div>
+  </div>
+
+  <!-- ═══ MAIN ═══ -->
+  <div class="main">
+
+    <!-- Tab Bar -->
+    <div class="tab-bar">
+      <button class="tab-btn active" onclick="switchTab('overview',this)" id="tabBtnOverview">
+        📋 Änderungsübersicht <span class="tab-count red" id="tabCountOverview">0</span>
+      </button>
+      <button class="tab-btn" onclick="switchTab('detail',this)" id="tabBtnDetail">
+        🔍 Kunden-Detail
+      </button>
+    </div>
+
+    <!-- ── Übersicht Tab ── -->
+    <div class="tab-panel active" id="tabOverview">
+      <div class="overview-header">
+        <div>
+          <div class="overview-title">Zahlungsbedingungen – Änderungsübersicht</div>
+          <div class="overview-sub" id="overviewSub">Lädt…</div>
+        </div>
+        <div class="overview-actions">
+          <button class="btn btn-ok btn-sm" onclick="markAllDone()">✓ Alle als erledigt</button>
+          <button class="btn btn-sm" onclick="resetAllStatus()">↺ Zurücksetzen</button>
+        </div>
+      </div>
+      <div class="ov-table-wrap">
+        <table class="ov-table">
+          <thead>
+            <tr>
+              <th style="width:36px"></th>
+              <th>Kunde</th>
+              <th>Transaktion / Bereich</th>
+              <th>Alte Zahlungsbedingung</th>
+              <th></th>
+              <th>Neue Zahlungsbedingung</th>
+              <th>Ausführen</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="ovTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ── Kunden-Detail Tab ── -->
+    <div class="tab-panel" id="tabDetail">
+      <div class="detail-wrap">
+        <div class="welcome" id="welcomeScreen">
+          <div class="icon">🗃</div>
+          <h2>Kunden-Detailansicht</h2>
+          <p>Wählen Sie einen Kunden aus der Seitenleiste.</p>
+          <p style="font-size:11px;margin-top:8px">Skripte: <code style="background:var(--bg3);padding:2px 6px;border-radius:4px;font-family:monospace">C:\WF\sap-robots\worker\vbs\</code></p>
+        </div>
+        <div class="customer-detail" id="custDetail"></div>
+      </div>
+    </div>
+
+  </div><!-- /main -->
+</div><!-- /layout -->
+
+<script src="auth.js"></script>
+<script>
+AUTH.renderHeader('headerRight');
+
+const BRIDGE_URL = 'http://localhost:8765';
+const SAP_SYSTEMS = {
+  SEP: { ashost:'172.28.189.8',  sysnr:'06', client:'600', lang:'DE' },
+  SEQ: { ashost:'172.28.189.11', sysnr:'05', client:'600', lang:'DE' },
+};
+function _sapAuth() {
+  var creds = (AUTH && AUTH.user) ? AUTH.user : {};
+  var sysKey = (creds.sap_system || 'SEP').toUpperCase();
+  var sys = SAP_SYSTEMS[sysKey] || SAP_SYSTEMS.SEP;
+  return { ashost:sys.ashost, sysnr:sys.sysnr, client:sys.client, lang:sys.lang,
+           user: creds.sap_username||'', passwd: creds.sap_password||'' };
+}
+
+// ── Stammdaten ────────────────────────────────────────────────
+const PRELOADED = [
+  { bk:'0439', num:'1012688', name:'MARUTI SUZUKI INDIA LIMITED - (GUJ)', curT:'0460', curD:'within 30 days Due net', checkD:'1 week after delivery', status:'Not Matched', newT:'X004', newD:'within 8 days Due net', qty:221565, sales:32629778.6 },
+  { bk:'0439', num:'1012693', name:'SHREE DHANLAXMI INDUSTRIES', curT:'0460', curD:'within 30 days Due net', checkD:'NA', status:'OK', newT:null, newD:null, qty:2300, sales:285022 },
+  { bk:'0439', num:'1012598', name:'Hyundai Motor India Limited', curT:'7604', curD:'within 64 days Due net', checkD:'within 30 days Due net', status:'Not Matched', newT:'0460', newD:'within 30 days Due net', qty:301258, sales:49698476.46 },
+  { bk:'0439', num:'93762', name:'Schaeffler India Limited (Hosur)', curT:'0460', curD:'within 30 days Due net', checkD:'within 30 days Due net', status:'OK', newT:null, newD:null, qty:118990, sales:13902982.8 },
+  { bk:'0439', num:'69886', name:'Hyundai Motors India Limited', curT:'0460', curD:'within 30 days Due net', checkD:'within 30 days Due net', status:'OK', newT:null, newD:null, qty:1232754, sales:283370071.52 },
+  { bk:'0439', num:'103309', name:'CATENSYS India Pvt. Ltd. (Gurugram)', curT:'0201', curD:'Payable immediately Due net', checkD:'Stock transfer', status:'OK', newT:null, newD:null, qty:null, sales:null },
+  { bk:'0439', num:'103310', name:'CATENSYS India Pvt. Ltd. (Chennai)', curT:'0201', curD:'Payable immediately Due net', checkD:'Stock transfer', status:'OK', newT:null, newD:null, qty:null, sales:null },
+  { bk:'0439', num:'1012588', name:'Maruti Suzuki India Limited', curT:'Z170', curD:'90 d end of month', checkD:'1 week after delivery', status:'Not Matched', newT:'X004', newD:'within 8 days Due net', qty:233896, sales:35621248.44 },
+  { bk:'0439', num:'1012483', name:'CATENSYS India Pvt. Ltd. (Gujrat)', curT:'ZI02', curD:'Before 15 in 3 months Due net', checkD:'Stock transfer', status:'OK', newT:null, newD:null, qty:null, sales:null },
+  { bk:'0439', num:'1012603', name:'Maruti Suzuki India Limited (G)', curT:'Z170', curD:'90 d end of month', checkD:'1 week after delivery', status:'Not Matched', newT:'X004', newD:'within 8 days Due net', qty:288023, sales:31727215.12 },
+  { bk:'0439', num:'97570', name:'Kia India Private Limited', curT:'0460', curD:'within 30 days Due net', checkD:'within 30 days Due net', status:'OK', newT:null, newD:null, qty:217246, sales:40370679.98 },
+  { bk:'0439', num:'77944', name:'Renault Nissan Automotive India Pvt', curT:'0540', curD:'within 60 days Due net', checkD:'within 60 days Due net', status:'OK', newT:null, newD:null, qty:96457, sales:29265547.88 },
+  { bk:'0439', num:'76085', name:'Honda Cars India Limited', curT:'0535', curD:'within 55 days Due net', checkD:'within 55 days Due net', status:'OK', newT:null, newD:null, qty:16800, sales:909384 },
+  { bk:'0439', num:'102378', name:'Mahindra & Mahindra Ltd. (Pune)', curT:'7604', curD:'within 64 days Due net', checkD:'within 64 days Due net', status:'OK', newT:null, newD:null, qty:48635, sales:11079505.95 },
+  { bk:'0439', num:'1012484', name:'KSPG Automotive India Pvt Limited', curT:'7604', curD:'within 64 days Due net', checkD:'within 45 days Due net', status:'Not Matched', newT:'0520', newD:'within 45 days Due net', qty:21839, sales:4652199.4 },
+  { bk:'0439', num:'76066', name:'Maruti Suzuki India Limited -(M)', curT:'Z170', curD:'90 d end of month', checkD:'1 week after delivery', status:'Not Matched', newT:'X004', newD:'within 8 days Due net', qty:17540, sales:2105894.6 },
+  { bk:'0439', num:'56890', name:'Schaeffler Bearings Indonesia, PT', curT:'0008', curD:'For Invoicing up to 15 of Month', checkD:'Before 15 in 2 months Due net', status:'Not Matched', newT:'Z401', newD:'Before 15 in 2 months Due net', qty:2880, sales:224549.59 },
+  { bk:'0439', num:'1012568', name:'ASAHI SANGYO KAISHA LTD', curT:'Z910', curD:'Before 15 in 2 months Due net', checkD:'T/T UPON RECEIVED OF GOODS', status:'Not Matched', newT:'Z001', newD:'Payable immediately Due net', qty:78742, sales:16081651.26 },
+  { bk:'0439', num:'103052', name:'CATENSYS Chain Drive (Nanjing)', curT:'ZI03', curD:'Before 15 in 2 months Due net', checkD:'As per IC rules', status:'OK', newT:null, newD:null, qty:33024, sales:21905211.41 },
+  { bk:'0439', num:'89654', name:'Nissan Motor India Private Limited', curT:'0540', curD:'within 60 days Due net', checkD:'within 60 days Due net', status:'OK', newT:null, newD:null, qty:1530, sales:224185.72 },
+  { bk:'0439', num:'1012433', name:'KG MOBILITY CORPORATION LTD', curT:'6100', curD:'Payable immediately Due net', checkD:'Advance', status:'OK', newT:null, newD:null, qty:11088, sales:9397342.5 },
+  { bk:'0439', num:'90577', name:'Mahindra & Mahindra Limited (JAI)', curT:'7604', curD:'within 64 days Due net', checkD:'within 64 days Due net', status:'OK', newT:null, newD:null, qty:7685, sales:1833588.1 },
+  { bk:'0439', num:'69472', name:'Mahindra & Mahindra Limited (Kanhe)', curT:'7604', curD:'within 64 days Due net', checkD:'within 64 days Due net', status:'OK', newT:null, newD:null, qty:13265, sales:3394529.7 },
+  { bk:'0439', num:'102716', name:'Mahindra & Mahindra Ltd. (BAN)', curT:'7604', curD:'within 64 days Due net', checkD:'within 64 days Due net', status:'OK', newT:null, newD:null, qty:3050, sales:616320 },
+  { bk:'0439', num:'69670', name:'Mahindra & Mahindra Limited (HYD)', curT:'7604', curD:'within 64 days Due net', checkD:'within 64 days Due net', status:'OK', newT:null, newD:null, qty:1255, sales:274605.55 },
+  { bk:'0439', num:'103056', name:'CATENSYS India Pvt. Ltd.', curT:'0201', curD:'Payable immediately Due net', checkD:'NA', status:'OK', newT:null, newD:null, qty:null, sales:null },
+  { bk:'0439', num:'100167', name:'Suzuki Motor Gujarat Pvt. Ltd.', curT:'0460', curD:'within 30 days Due net', checkD:'1 week after delivery', status:'Not Matched', newT:'X004', newD:'within 8 days Due net', qty:-2055, sales:-197093.59 },
+  { bk:'0439', num:'103053', name:'CATENSYS Korea LLC', curT:'ZI03', curD:'Before 15 in 2 months Due net', checkD:'As per IC rules', status:'OK', newT:null, newD:null, qty:53860, sales:9772520.95 },
+  { bk:'0439', num:'69896', name:'Mobis India Limited', curT:'0460', curD:'within 30 days Due net', checkD:'within 30 days Due net', status:'OK', newT:null, newD:null, qty:41745, sales:9608956.66 },
+  { bk:'0439', num:'103054', name:'CATENSYS FRANCE S.A.S.', curT:'ZI02', curD:'Before 15 in 3 months Due net', checkD:'As per IC rules', status:'OK', newT:null, newD:null, qty:39076, sales:6069049.43 },
+  { bk:'0439', num:'90152', name:'TVS Motor Company Limited', curT:'0520', curD:'within 45 days Due net', checkD:'within 45 days Due net', status:'OK', newT:null, newD:null, qty:4632, sales:2002077.09 },
+  { bk:'0439', num:'90767', name:'Honda Motor India', curT:'0535', curD:'within 55 days Due net', checkD:'within 55 days Due net', status:'OK', newT:null, newD:null, qty:6072, sales:1082141.04 },
+  { bk:'0439', num:'1012689', name:'Mahindra Research Valley (AD)', curT:'0460', curD:'within 30 days Due net', checkD:'within 64 days Due net', status:'Not Matched', newT:'7604', newD:'within 64 days Due net', qty:49, sales:586466.45 },
+  { bk:'0439', num:'1012393', name:'PUNE TRADERS', curT:'Z005', curD:'Payable immediately Due net', checkD:'NA', status:'OK', newT:null, newD:null, qty:6490, sales:145880 },
+  { bk:'0439', num:'77865', name:'Maruti Suzuki India Limited (G2)', curT:'Z170', curD:'90 d end of month', checkD:'1 week after delivery', status:'Not Matched', newT:'X004', newD:'within 8 days Due net', qty:null, sales:null },
+];
+
+let customers = JSON.parse(JSON.stringify(PRELOADED));
+let changeStatus = {};  // { num: { xd02:'offen'|'done'|'err', vk12:'offen'|'done'|'err', va42:'offen'|'done'|'err' } }
+let checksMap = {}, notesMap = {}, contractsMap = {}, contractDataMap = {};
+let activeFilter = 'all', activeCust = null;
+
+// Status helpers
+function getStatus(num) {
+  return changeStatus[num] || { xd02:'offen', vk12:'offen', va42:'offen' };
+}
+function setStep(num, step, val) {
+  if (!changeStatus[num]) changeStatus[num] = { xd02:'offen', vk12:'offen', va42:'offen' };
+  changeStatus[num][step] = val;
+  refreshAll();
+}
+function isDone(num) {
+  var s = getStatus(num);
+  return s.xd02==='done' && s.vk12==='done' && s.va42==='done';
+}
+function isPartial(num) {
+  var s = getStatus(num);
+  var vals = [s.xd02, s.vk12, s.va42];
+  var doneCount = vals.filter(function(v){ return v==='done'; }).length;
+  return doneCount > 0 && doneCount < 3;
+}
+
+// ── Tabs ─────────────────────────────────────────────────────
+function switchTab(tab, btn) {
+  document.querySelectorAll('.tab-btn').forEach(function(b){ b.classList.remove('active'); });
+  document.querySelectorAll('.tab-panel').forEach(function(p){ p.classList.remove('active'); });
+  if (btn) btn.classList.add('active');
+  document.getElementById('tab' + tab.charAt(0).toUpperCase() + tab.slice(1)).classList.add('active');
+}
+
+// ── Excel Import ──────────────────────────────────────────────
+window.onload = function(){
+  refreshAll();
+  var zone = document.getElementById('dropArea');
+  var dragCnt = 0;  // counter to handle child-element dragleave firing
+
+  zone.addEventListener('dragenter', function(e){
+    e.preventDefault(); e.stopPropagation();
+    dragCnt++;
+    zone.classList.add('drag-over');
+  });
+  zone.addEventListener('dragleave', function(e){
+    e.preventDefault(); e.stopPropagation();
+    dragCnt--;
+    if (dragCnt <= 0) { dragCnt = 0; zone.classList.remove('drag-over'); }
+  });
+  zone.addEventListener('dragover', function(e){
+    e.preventDefault(); e.stopPropagation();  // must prevent default to allow drop
+  });
+  zone.addEventListener('drop', function(e){
+    e.preventDefault(); e.stopPropagation();
+    dragCnt = 0; zone.classList.remove('drag-over');
+    var files = e.dataTransfer ? e.dataTransfer.files : null;
+    if (files && files.length > 0) processFile(files[0]);
+  });
+};
+
+function loadExcel(inp) { if (inp.files && inp.files[0]) processFile(inp.files[0]); }
+
+function processFile(file) {
+  var ext = file.name.split('.').pop().toLowerCase();
+  if (ext !== 'xlsx' && ext !== 'xls') { document.getElementById('uploadInfo').textContent = '✗ Nur .xlsx/.xls erlaubt'; return; }
+  document.getElementById('uploadInfo').textContent = '⏳ Wird geladen…';
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      var wb = XLSX.read(e.target.result, {type:'array'});
+      var ws = wb.Sheets[wb.SheetNames[0]];
+      var rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:null});
+      var imported = [];
+      for (var i = 1; i < rows.length; i++) {
+        var r = rows[i];
+        if (!r || !r[1]) continue;
+        imported.push({
+          bk: String(r[0]||'0439'), num: String(r[1]).trim(),
+          name: String(r[2]||'').replace(/\xa0/g,' ').trim(),
+          curT: String(r[3]||'').trim(), curD: String(r[4]||'').trim(),
+          checkD: String(r[9]||'').trim(), status: String(r[10]||'OK').trim(),
+          newT: r[11] ? String(r[11]).trim() : null, newD: r[12] ? String(r[12]).trim() : null,
+          qty: (r[7]!=null&&r[7]!=='') ? Number(r[7]) : null,
+          sales: (r[8]!=null&&r[8]!=='') ? Number(r[8]) : null,
+        });
+      }
+      if (!imported.length) throw new Error('Keine Daten erkannt');
+      customers = imported; changeStatus = {}; checksMap = {}; notesMap = {}; activeCust = null;
+      document.getElementById('welcomeScreen').style.display = 'flex';
+      document.getElementById('custDetail').classList.remove('visible');
+      refreshAll();
+      var need = imported.filter(function(c){ return c.status==='Not Matched'; }).length;
+      document.getElementById('uploadInfo').textContent = '✓ ' + file.name + ' · ' + imported.length + ' Kunden (' + need + ' zu ändern)';
+    } catch(ex) { document.getElementById('uploadInfo').textContent = '✗ ' + ex.message; }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// ── Refresh all views ─────────────────────────────────────────
+function refreshAll() {
+  renderList();
+  updateStats();
+  renderOverview();
+}
+
+// ── Sidebar List ──────────────────────────────────────────────
+function setFilter(f, btn) {
+  activeFilter = f;
+  document.querySelectorAll('.filter-btn').forEach(function(b){ b.classList.remove('active'); });
+  btn.classList.add('active');
+  renderList();
+}
+
+function renderList() {
+  var list = document.getElementById('custList');
+  var filtered = customers.filter(function(c) {
+    if (activeFilter === 'error') return c.status === 'Not Matched' && !isDone(c.num);
+    if (activeFilter === 'ok')    return c.status === 'OK';
+    if (activeFilter === 'done')  return isDone(c.num);
+    return true;
+  });
+  if (!filtered.length) {
+    list.innerHTML = '<div style="padding:20px;text-align:center;color:var(--muted);font-size:11px">Keine Einträge</div>';
+    return;
+  }
+  list.innerHTML = filtered.map(function(c) {
+    var need = c.status === 'Not Matched';
+    var done = isDone(c.num);
+    var part = need && isPartial(c.num);
+    var isAct = activeCust && activeCust.num === c.num;
+    var cls = 'cust-item' + (need && !done ? ' needs-change' : '') + (done ? ' is-done' : '') + (isAct ? ' active' : '');
+    var bc = 'badge-ok', bt = 'OK';
+    if (done) { bc = 'badge-done'; bt = '✓ Erledigt'; }
+    else if (part) { bc = 'badge-part'; bt = 'Teilw.'; }
+    else if (need) { bc = 'badge-err'; bt = 'Ändern'; }
+    return '<div class="' + cls + '" onclick="showCust(\'' + c.num + '\')">' +
+      '<div class="cust-name">' + esc(c.name) + '</div>' +
+      '<div class="cust-num">' + esc(c.num) + ' · BK ' + esc(c.bk) + '</div>' +
+      '<span class="cust-badge ' + bc + '">' + bt + '</span>' +
+    '</div>';
+  }).join('');
+}
+
+function updateStats() {
+  var total = customers.length;
+  var needAll = customers.filter(function(c){ return c.status==='Not Matched'; });
+  var errors = needAll.length;
+  var doneCount = needAll.filter(function(c){ return isDone(c.num); }).length;
+  var partCount = needAll.filter(function(c){ return isPartial(c.num); }).length;
+  document.getElementById('statTotal').textContent = total;
+  document.getElementById('statError').textContent = errors - doneCount - partCount;
+  document.getElementById('statPart').textContent = partCount;
+  document.getElementById('statDone').textContent = doneCount;
+  var pct = errors > 0 ? Math.round(doneCount / errors * 100) : 0;
+  document.getElementById('progressBar').style.width = pct + '%';
+  document.getElementById('progressLbl').textContent = doneCount + ' von ' + errors + ' vollständig erledigt';
+  var cnt = document.getElementById('tabCountOverview');
+  cnt.textContent = errors - doneCount;
+  cnt.className = 'tab-count' + ((errors - doneCount) > 0 ? ' red' : '');
+}
+
+// ── Übersicht Tabelle ─────────────────────────────────────────
+function renderOverview() {
+  var needChange = customers.filter(function(c){ return c.status==='Not Matched'; });
+  var doneC = needChange.filter(function(c){ return isDone(c.num); }).length;
+  document.getElementById('overviewSub').textContent =
+    needChange.length + ' Kunden mit abweichender Zahlungsbedingung · ' + doneC + ' erledigt';
+
+  var rows = needChange.map(function(c) {
+    var st = getStatus(c.num);
+    var rowDone = isDone(c.num);
+    var stepPill = function(step, label) {
+      var v = st[step];
+      var pc = v==='done' ? 'status-done' : (v==='err' ? 'status-err' : 'status-offen');
+      var pt = v==='done' ? '✓ ' + label : (v==='err' ? '✗ ' + label : label + ' offen');
+      return '<span class="status-pill ' + pc + '">' + pt + '</span>';
+    };
+
+    var subRows = [
+      { tcode:'XD02', lbl:'Stammdaten', step:'xd02',
+        desc:'KNVV-ZTERM · Reiter: Faktura',
+        btnTxt:'📋 XD02 Script', btnFn:"copyAndMark('xd02','"+c.num+"','"+c.bk+"','"+c.curT+"','"+c.newT+"')" },
+      { tcode:'VK12', lbl:'Konditionssatz', step:'vk12',
+        desc:'ZB00 · VKOrg 0439 · VTWeg 10 · Spart 00',
+        btnTxt:'📋 VK12 Script', btnFn:"copyAndMark('vk12','"+c.num+"','"+c.bk+"','"+c.curT+"','"+c.newT+"')" },
+      { tcode:'VA42', lbl:'Kundenverträge', step:'va42',
+        desc:'ZTERM in offenen Verträgen anpassen',
+        btnTxt:'📋 VA42 Script', btnFn:"copyVA42('"+c.num+"','"+c.bk+"','"+c.newT+"')" },
+    ];
+    var subHtml = subRows.map(function(sr) {
+      var stepDone = st[sr.step]==='done', stepErr=st[sr.step]==='err';
+      var pcls=stepDone?'status-done':(stepErr?'status-err':'status-offen');
+      var ptxt=stepDone?'✓ Erledigt':(stepErr?'✗ Fehler':'Offen');
+      var va42clist=contractsMap[c.num]||[];
+      var va42cdata=contractDataMap[c.num]||[];
+      var changeHtml = sr.tcode==='VA42'
+        ? (function(){
+            var inner='<div style="display:flex;align-items:center;gap:8px;margin-bottom:'+(va42cdata.length?'6':'0')+'px">'+
+              '<button class="btn btn-sm" style="font-size:10px;padding:3px 8px" '+
+                'onclick="loadContracts(\''+c.num+'\',\''+c.bk+'\')" title="Verträge aus SAP laden">🔄 SAP laden</button>'+
+              '<span id="cv_status_'+c.num+'" style="font-size:10px;color:var(--muted)">'+
+                (va42cdata.length ? va42cdata.length+' Vertrag'+(va42cdata.length!==1?'e':'')+' geladen' : 'Noch nicht geladen')+
+              '</span></div>';
+            if(va42cdata.length){
+              inner+='<table style="font-size:10px;border-collapse:collapse;min-width:340px">';
+              inner+='<tr style="color:var(--muted);border-bottom:1px solid var(--border)">'+
+                '<th style="padding:2px 6px;font-weight:600">Vertrag</th>'+
+                '<th style="padding:2px 6px;font-weight:600">Typ</th>'+
+                '<th style="padding:2px 6px;font-weight:600">Akt. ZTERM</th>'+
+                '<th style="padding:2px 6px;font-weight:600">Gültig bis</th></tr>';
+              va42cdata.forEach(function(v){
+                var zMatch = v.zterm===c.newT;
+                inner+='<tr style="border-bottom:1px solid rgba(255,255,255,.03)">'+
+                  '<td style="padding:2px 6px;font-weight:600">'+esc(v.vbeln)+'</td>'+
+                  '<td style="padding:2px 6px;color:var(--muted)">'+esc(v.vbtyp_label||v.vbtyp)+'</td>'+
+                  '<td style="padding:2px 6px"><span class="term-pill '+(zMatch?'new':'old')+'">'+esc(v.zterm||'—')+'</span></td>'+
+                  '<td style="padding:2px 6px;color:var(--muted)">'+esc(v.gueen||'—')+'</td></tr>';
+              });
+              inner+='</table>';
+            }
+            return '<div style="display:flex;flex-direction:column;gap:0">'+inner+'</div>';
+          })()
+        : '<div class="term-change">'+
+            '<div><span class="term-pill old">'+esc(c.curT)+'</span><div class="term-desc">'+esc(c.curD)+'</div></div>'+
+            '<span class="term-arrow">→</span>'+
+            '<div><span class="term-pill new">'+esc(c.newT)+'</span><div class="term-desc">'+esc(c.newD)+'</div></div>'+
+          '</div>';
+      var hasContracts=sr.tcode==='VA42'?(contractsMap[c.num]||[]).length>0:true;
+      var va42ExecBtn=sr.tcode==='VA42'&&hasContracts
+        ? ' <button class="btn btn-sm" style="background:rgba(120,200,80,.15);color:#7cc852;font-size:10px;padding:3px 8px" onclick="execVA42(\''+c.num+'\',\''+c.newT+'\')">⚡ Ausführen</button>'
+        : '';
+      var execBtn=stepDone
+        ? '<button class="btn btn-sm btn-ok" onclick="'+sr.btnFn+'">↺ Wiederholen</button>'+va42ExecBtn
+        : '<button class="btn btn-sm '+(hasContracts?'btn-acc':'btn-muted')+'" '+(hasContracts?'':'disabled ')+'onclick="'+sr.btnFn+'">'+sr.btnTxt+'</button>'+
+          va42ExecBtn+
+          ' <button class="btn btn-sm btn-err" onclick="setStep(\''+c.num+'\',\''+sr.step+'\',\'err\')">✗ Fehler</button>';
+      return '<tr><td style="padding:8px 12px 8px 14px;width:36px"></td>'+
+        '<td style="padding:8px 12px"><span class="tcode-tag">'+sr.tcode+'</span>'+
+        '<span style="font-size:11px;color:var(--muted)">'+esc(sr.lbl)+'</span>'+
+        '<div style="font-size:10px;color:var(--muted);margin-top:2px">'+esc(sr.desc)+'</div></td>'+
+        '<td style="padding:8px 12px" colspan="3">'+changeHtml+'</td>'+
+        '<td style="padding:8px 12px">'+execBtn+'</td>'+
+        '<td style="padding:8px 12px"><span class="status-pill '+pcls+'">'+ptxt+'</span></td>'+
+      '</tr>';
+    }).join('');
+    var overallPill=isDone(c.num)?'<span class="status-pill status-done">✓ Vollständig</span>':
+      isPartial(c.num)?'<span class="status-pill status-part">⏳ Teilweise</span>':
+      '<span class="status-pill status-offen">Offen</span>';
+    var subid='ovsub_'+c.num, hdrid='ovhdr_'+c.num;
+    return '<tr><td colspan="8" style="padding:0;border-bottom:2px solid var(--border)">'+
+      '<table style="width:100%;border-collapse:collapse">'+
+        '<tr style="background:'+(isDone(c.num)?'rgba(63,185,80,.04)':'var(--bg)')+'">'+
+          '<td style="width:36px;padding:10px 8px 10px 14px;cursor:pointer" onclick="toggleOvRow(\''+c.num+'\')">'+
+            '<span id="'+hdrid+'" style="font-size:11px;color:var(--muted)">▶</span></td>'+
+          '<td style="padding:10px 12px;cursor:pointer" onclick="goToDetail(\''+c.num+'\')">'+
+            '<div style="font-weight:600;font-size:12px">'+esc(c.name)+'</div>'+
+            '<div style="font-size:10px;color:var(--muted)">'+esc(c.num)+' · BK '+esc(c.bk)+'</div></td>'+
+          '<td style="padding:10px 12px;font-size:10px;color:var(--muted)">XD02 · VK12 · VA42</td>'+
+          '<td style="padding:10px 12px" colspan="3">'+
+            '<div class="term-change">'+
+              '<div><span class="term-pill old">'+esc(c.curT)+'</span><div class="term-desc">'+esc(c.curD)+'</div></div>'+
+              '<span class="term-arrow">→</span>'+
+              '<div><span class="term-pill new">'+esc(c.newT)+'</span><div class="term-desc">'+esc(c.newD)+'</div></div>'+
+            '</div></td>'+
+          '<td style="padding:10px 12px;white-space:nowrap">'+
+            '<button class="btn btn-sm btn-acc" onclick="copyAndMark(\'xd02\',\''+c.num+'\',\''+c.bk+'\',\''+c.curT+'\',\''+c.newT+'\')">📋 XD02</button>'+
+            ' <button class="btn btn-sm" onclick="copyAndMark(\'vk12\',\''+c.num+'\',\''+c.bk+'\',\''+c.curT+'\',\''+c.newT+'\')">📋 VK12</button></td>'+
+          '<td style="padding:10px 12px">'+overallPill+'</td>'+
+        '</tr>'+
+        '<tr id="'+subid+'" style="display:none"><td colspan="8" style="padding:0;border-top:1px solid var(--border);background:rgba(0,0,0,.1)">'+
+          '<table style="width:100%;border-collapse:collapse">'+subHtml+'</table></td></tr>'+
+      '</table></td></tr>';
+  }).join('');
+  document.getElementById('ovTableBody').innerHTML=rows||
+    '<tr><td colspan="8" style="padding:24px;text-align:center;color:var(--muted)">✅ Alle Zahlungsbedingungen korrekt</td></tr>';
+}
+function toggleOvRow(num){
+  var sub=document.getElementById('ovsub_'+num);
+  var hdr=document.getElementById('ovhdr_'+num);
+  if(!sub)return;
+  var open=sub.style.display!=='none';
+  sub.style.display=open?'none':'table-row';
+  hdr.textContent=open?'▶':'▼';
+}
+function goToDetail(num){ showCust(num); switchTab('detail',document.getElementById('tabBtnDetail')); }
+function markAllDone(){ customers.filter(function(c){return c.status==='Not Matched';}).forEach(function(c){changeStatus[c.num]={xd02:'done',vk12:'done',va42:'done'};});refreshAll();}
+function resetAllStatus(){changeStatus={};refreshAll();}
+function copyAndMark(type,num,bk,oldT,newT){
+  var code=type==='xd02'
+    ? "' XD02 – Kunde "+num+"\nDim SapGuiAuto,app,conn,session\nSet SapGuiAuto=GetObject(\"SAPGUI\")\nSet app=SapGuiAuto.GetScriptingEngine\nSet conn=app.Children(0)\nSet session=conn.Children(0)\nsession.findById(\"wnd[0]/tbar[0]/okcd\").text=\"/nXD02\"\nsession.findById(\"wnd[0]\").sendVKey 0\nWScript.Sleep 1500\nsession.findById(\"wnd[0]/usr/ctxtRF02D-KUNNR\").text=\""+num+"\"\nsession.findById(\"wnd[0]/usr/ctxtRF02D-BUKRS\").text=\""+bk+"\"\nsession.findById(\"wnd[0]/usr/ctxtRF02D-VKORG\").text=\"0439\"\nsession.findById(\"wnd[0]/usr/ctxtRF02D-VTWEG\").text=\"10\"\nsession.findById(\"wnd[0]/usr/ctxtRF02D-SPART\").text=\"00\"\nsession.findById(\"wnd[0]\").sendVKey 0\nWScript.Sleep 1500\nsession.findById(\"wnd[0]/usr/tabsTAXI_TABSTRIP_HEAD/tabpT\\\\03\").select\nWScript.Sleep 800\nsession.findById(\"wnd[0]/usr/tabsTAXI_TABSTRIP_HEAD/tabpT\\\\03/ssubSUBSCREEN_BODY:SAPMF02D:7325/ctxtKNVV-ZTERM\").text=\""+newT+"\"\nsession.findById(\"wnd[0]\").sendVKey 11\nMsgBox \"XD02 fertig: ZTERM="+newT+" fuer Kunde "+num+"\""
+    : "' VK12 – Kunde "+num+"\nDim SapGuiAuto,app,conn,session\nSet SapGuiAuto=GetObject(\"SAPGUI\")\nSet app=SapGuiAuto.GetScriptingEngine\nSet conn=app.Children(0)\nSet session=conn.Children(0)\nsession.findById(\"wnd[0]/tbar[0]/okcd\").text=\"/nVK12\"\nsession.findById(\"wnd[0]\").sendVKey 0\nWScript.Sleep 1500\nsession.findById(\"wnd[0]/usr/ctxtKOMG-KOZGF\").text=\"ZB00\"\nsession.findById(\"wnd[0]\").sendVKey 0\nWScript.Sleep 1000\nsession.findById(\"wnd[0]/usr/ctxtKOMG-VKORG\").text=\"0439\"\nsession.findById(\"wnd[0]/usr/ctxtKOMG-VTWEG\").text=\"10\"\nsession.findById(\"wnd[0]/usr/ctxtKOMG-SPART\").text=\"00\"\nsession.findById(\"wnd[0]/usr/ctxtKOMG-KUNNR\").text=\""+num+"\"\nsession.findById(\"wnd[0]\").sendVKey 0\nWScript.Sleep 1500\nsession.findById(\"wnd[0]/usr/tblSAPMV13ATCTRL_U_KO004/ctxtKOMP-ZTERM[0,0]\").text=\""+newT+"\"\nsession.findById(\"wnd[0]\").sendVKey 11\nMsgBox \"VK12 fertig: ZB00="+newT+" fuer Kunde "+num+"\"";
+  navigator.clipboard.writeText(code).then(function(){setStep(num,type,'done');if(activeCust&&activeCust.num===num)renderDetail(activeCust);}).catch(function(){setStep(num,type,'done');});
+}
+function showCust(num){
+  activeCust=customers.find(function(c){return c.num===num;});
+  document.getElementById('welcomeScreen').style.display='none';
+  document.getElementById('custDetail').classList.add('visible');
+  renderDetail(activeCust); renderList();
+}
+function renderDetail(c){
+  var need=c.status==='Not Matched', st=getStatus(c.num), ch=checksMap[c.num]||{};
+  var fmtS=function(v){return v!=null?new Intl.NumberFormat('de-DE',{style:'currency',currency:'INR',maximumFractionDigits:0}).format(v):'–';};
+  var fmtQ=function(v){return v!=null?new Intl.NumberFormat('de-DE').format(v)+' Stk.':'–';};
+  var kpi='<div class="kpi-row">'+
+    '<div class="kpi"><div class="lbl">Menge Jan–Mai 2026</div><div class="val">'+fmtQ(c.qty)+'</div></div>'+
+    '<div class="kpi"><div class="lbl">Umsatz Jan–Mai 2026</div><div class="val">'+fmtS(c.sales)+'</div></div>'+
+    '<div class="kpi"><div class="lbl">Vereinbarte Zhlg.-bed.</div><div class="val" style="font-size:12px;margin-top:5px;color:var(--text)">'+esc(c.checkD)+'</div></div>'+
+  '</div>';
+  function changePair(old_,new_,oldD,newD){
+    return '<div class="change-row">'+
+      '<div class="change-box old"><div class="change-code">'+esc(old_)+'</div><div class="change-desc">'+esc(oldD)+'</div><div class="change-tag">AKTUELL</div></div>'+
+      '<div class="sep-arrow">→</div>'+
+      '<div class="change-box new"><div class="change-code">'+esc(new_)+'</div><div class="change-desc">'+esc(newD)+'</div><div class="change-tag">NEU</div></div>'+
+    '</div>';
+  }
+  function spill(step){return st[step]==='done'?'<span class="status-pill status-done">✓ Erledigt</span>':'<span class="status-pill status-offen">Offen</span>';}
+  var sd_body=need
+    ? changePair(c.curT,c.newT,c.curD,c.newD)+
+      '<div class="field-grid" style="margin-top:12px">'+
+        '<div class="field-item"><div class="lbl">Transaktion</div><div class="val acc">XD02</div><div class="val-sub">Kundenstamm ändern</div></div>'+
+        '<div class="field-item"><div class="lbl">Kunden-Nr.</div><div class="val acc">'+esc(c.num)+'</div><div class="val-sub">BK '+esc(c.bk)+'</div></div>'+
+        '<div class="field-item"><div class="lbl">SAP-Reiter</div><div class="val" style="font-size:12px;margin-top:5px">Faktura (T\\03)</div><div class="val-sub">KNVV-ZTERM</div></div>'+
+        '<div class="field-item"><div class="lbl">VKOrg / VTWeg / Spart</div><div class="val" style="font-size:12px;margin-top:5px">0439 / 10 / 00</div></div>'+
+      '</div>'
+    : '<div class="ok-banner">✅ ZTERM korrekt – keine Änderung in XD02</div>'+
+      '<div class="field-grid" style="margin-top:12px">'+
+        '<div class="field-item"><div class="lbl">Kunden-Nr.</div><div class="val acc">'+esc(c.num)+'</div></div>'+
+        '<div class="field-item"><div class="lbl">ZTERM aktuell</div><div class="val ok">'+esc(c.curT)+'</div><div class="val-sub">'+esc(c.curD)+'</div></div>'+
+        '<div class="field-item"><div class="lbl">Buchungskreis</div><div class="val">'+esc(c.bk)+'</div></div>'+
+      '</div>';
+  var xb=need?'<button class="btn btn-sm btn-acc" onclick="copyAndMark(\'xd02\',\''+esc(c.num)+'\',\''+esc(c.bk)+'\',\''+esc(c.curT)+'\',\''+esc(c.newT)+'\')">📋 XD02 Script</button>':'';
+  var vk_body=need
+    ? '<div class="field-grid" style="margin-bottom:12px">'+
+        '<div class="field-item"><div class="lbl">Transaktion</div><div class="val acc">VK12</div></div>'+
+        '<div class="field-item"><div class="lbl">Konditionsart</div><div class="val acc">ZB00</div><div class="val-sub">VKOrg 0439 · VTWeg 10</div></div>'+
+        '<div class="field-item"><div class="lbl">Kunden-Nr.</div><div class="val">'+esc(c.num)+'</div></div>'+
+      '</div>'+changePair(c.curT,c.newT,c.curD,c.newD)
+    : '<div class="ok-banner">✅ ZB00 korrekt – keine Änderung in VK12</div>';
+  var vb=need?'<button class="btn btn-sm btn-acc" onclick="copyAndMark(\'vk12\',\''+esc(c.num)+'\',\''+esc(c.bk)+'\',\''+esc(c.curT)+'\',\''+esc(c.newT)+'\')">📋 VK12 Script</button>':'';
+  var va42cl=contractsMap[c.num]||[];
+  var va42cd=contractDataMap[c.num]||[];
+  var va_contracts = va42cd.length
+    ? (function(){
+        var needChange = va42cd.filter(function(v){return v.zterm!==c.newT;});
+        var rows = va42cd.map(function(v){
+          var match = v.zterm===c.newT;
+          return '<tr style="border-bottom:1px solid rgba(255,255,255,.04)">'+
+            '<td style="padding:6px 10px;font-weight:600;font-family:monospace">'+esc(v.vbeln)+'</td>'+
+            '<td style="padding:6px 10px;color:var(--muted);font-size:11px">'+esc(v.vbtyp_label||v.vbtyp)+'</td>'+
+            '<td style="padding:6px 10px"><span class="term-pill '+(match?'new':'old')+'">'+esc(v.zterm||'—')+'</span></td>'+
+            '<td style="padding:6px 10px"><span class="term-arrow">→</span> <span class="term-pill new">'+esc(c.newT)+'</span></td>'+
+            '<td style="padding:6px 10px;color:var(--muted);font-size:11px">'+esc(v.guebg?v.guebg.slice(0,4)+'-'+v.guebg.slice(4,6)+'-'+v.guebg.slice(6):'')+'–'+esc(v.gueen?v.gueen.slice(0,4)+'-'+v.gueen.slice(4,6)+'-'+v.gueen.slice(6):'')+'</td>'+
+            '<td style="padding:6px 10px"><span class="status-pill '+(match?'status-ok':st.va42==='done'?'status-done':'status-offen')+'">'+(match?'✓ OK':st.va42==='done'?'✓ Geändert':'Offen')+'</span></td>'+
+          '</tr>';
+        }).join('');
+        return '<div style="font-size:11px;color:var(--muted);margin-bottom:6px">'+(needChange.length)+' von '+va42cd.length+' Vertrag'+(va42cd.length!==1?'en':'')+ ' muss ZTERM geändert werden.</div>'+
+          '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">'+
+            '<thead><tr style="border-bottom:1px solid var(--border);color:var(--muted)">'+
+              '<th style="padding:4px 10px;text-align:left;font-weight:600">Vertragsnr.</th>'+
+              '<th style="padding:4px 10px;text-align:left;font-weight:600">Typ</th>'+
+              '<th style="padding:4px 10px;text-align:left;font-weight:600">Akt. ZTERM</th>'+
+              '<th style="padding:4px 10px;text-align:left;font-weight:600">Neue ZTERM</th>'+
+              '<th style="padding:4px 10px;text-align:left;font-weight:600">Gültigkeit</th>'+
+              '<th style="padding:4px 10px;text-align:left;font-weight:600">Status</th>'+
+            '</tr></thead><tbody>'+rows+'</tbody></table></div>';
+      })()
+    : '<div style="color:var(--muted);font-size:12px;padding:6px 0">Noch keine SAP-Daten geladen.</div>';
+  var va_body=need
+    ? '<div class="info-banner" style="margin-bottom:12px"><strong>Offene Verträge auf neue Zahlungsbedingung anpassen.</strong><br>'+
+        'Für Kunde <strong>'+esc(c.num)+'</strong>: offene VA42-Kontrakte auf <strong>'+esc(c.newT)+'</strong> umstellen.</div>'+
+      '<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">'+
+        '<button class="btn btn-sm" onclick="loadContracts(\''+c.num+'\',\''+c.bk+'\')" style="font-size:12px">🔄 Verträge aus SAP laden</button>'+
+        '<span id="cv_status_'+c.num+'" style="font-size:11px;color:var(--muted)">'+
+          (va42cd.length ? va42cd.length+' Vertrag'+(va42cd.length!==1?'e':'')+' geladen' : 'Noch nicht geladen')+
+        '</span>'+
+        (va42cl.length ? '<button class="btn btn-sm btn-acc" onclick="copyVA42(\''+c.num+'\',\''+c.bk+'\',\''+c.newT+'\')" style="font-size:12px">📋 VA42 Script</button>' : '')+
+      '</div>'+
+      '<div class="field-grid" style="margin-bottom:12px">'+
+        '<div class="field-item"><div class="lbl">Neue ZTERM</div><div class="val ok">'+esc(c.newT)+'</div><div class="val-sub">'+esc(c.newD)+'</div></div>'+
+        '<div class="field-item"><div class="lbl">Verträge in SAP</div><div class="val '+(va42cd.length?'acc':'muted')+'">'+(va42cd.length||'—')+'</div></div>'+
+        '<div class="field-item"><div class="lbl">Zu ändern</div><div class="val '+(va42cd.filter(function(v){return v.zterm!==c.newT;}).length?'err':'ok')+'">'+va42cd.filter(function(v){return v.zterm!==c.newT;}).length+'</div></div>'+
+      '</div>'+
+      va_contracts
+    : '<div class="ok-banner">✅ Kundenverträge korrekt – keine Anpassung nötig</div>';
+  var vab=need?'<button class="btn btn-sm btn-'+(st.va42==='done'?'ok':'warn')+'" onclick="setStep(\''+c.num+'\',\'va42\',\'done\')">'+(st.va42==='done'?'↺ Zurücksetzen':'✓ Als geprüft markieren')+'</button>':'';
+  var vapill=st.va42==='done'?'<span class="status-pill status-done">✓ Geprüft</span>':'<span class="status-pill status-offen">Zu prüfen</span>';
+  var chk=need?'<div class="section-card"><div class="section-head"><h3>☑ Checkliste</h3></div><div class="section-body">'+
+    '<div class="check-item '+(ch.xd02?'done':'')+'" onclick="toggleCheck(\''+c.num+'\',\'xd02\',this)">'+
+      '<input type="checkbox"'+(ch.xd02?' checked':'')+' onclick="event.stopPropagation()"><label>XD02 – ZTERM auf <strong>'+esc(c.newT)+'</strong> gesetzt (Reiter Faktura)</label></div>'+
+    '<div class="check-item '+(ch.vk12?'done':'')+'" onclick="toggleCheck(\''+c.num+'\',\'vk12\',this)">'+
+      '<input type="checkbox"'+(ch.vk12?' checked':'')+' onclick="event.stopPropagation()"><label>VK12 – Konditionssatz ZB00 auf <strong>'+esc(c.newT)+'</strong> geändert</label></div>'+
+    '<div class="check-item '+(ch.va42?'done':'')+'" onclick="toggleCheck(\''+c.num+'\',\'va42\',this)">'+
+      '<input type="checkbox"'+(ch.va42?' checked':'')+' onclick="event.stopPropagation()"><label>VA42 / VF04 – offene Verträge und Fakturaliste kontrolliert</label></div>'+
+  '</div></div>':'';
+  var titleCol=need?(isDone(c.num)?'color:var(--ok)':'color:var(--err)'):'color:var(--ok)';
+  var titleTxt=need?(isDone(c.num)?'✓ Vollständig erledigt':'⚠ Änderung erforderlich'):'✓ Zahlungsbedingung korrekt';
+  document.getElementById('custDetail').innerHTML=
+    '<div class="detail-topbar">'+
+      '<div><div class="detail-title">'+esc(c.name)+'</div>'+
+        '<div class="detail-meta">Kunden-Nr: <strong>'+esc(c.num)+'</strong> · BK: <strong>'+esc(c.bk)+'</strong> · <span style="'+titleCol+'">'+titleTxt+'</span></div>'+
+      '</div>'+
+      (need?'<button class="btn btn-sm" onclick="goToOverview()">📋 Zur Übersicht</button>':'')+
+    '</div>'+kpi+
+    '<div class="section-card"><div class="section-head"><h3><span class="tcode-tag">XD02</span>Stammdaten – Kundenstamm (KNVV)</h3><div style="display:flex;align-items:center;gap:8px">'+spill('xd02')+xb+'</div></div><div class="section-body">'+sd_body+'</div></div>'+
+    '<div class="section-card"><div class="section-head"><h3><span class="tcode-tag">VK12</span>Konditionssätze – ZB00</h3><div style="display:flex;align-items:center;gap:8px">'+spill('vk12')+vb+'</div></div><div class="section-body">'+vk_body+'</div></div>'+
+    '<div class="section-card"><div class="section-head"><h3><span class="tcode-tag">VA42</span>Kundenverträge &amp; Fakturaliste (VF04)</h3><div style="display:flex;align-items:center;gap:8px">'+vapill+vab+'</div></div><div class="section-body">'+va_body+'</div></div>'+
+    chk+
+    '<div class="section-card"><div class="section-head"><h3>📝 Notizen</h3></div><div class="section-body"><textarea placeholder="Notizen…" oninput="saveNote(\''+c.num+'\',this.value)">'+esc(notesMap[c.num]||'')+'</textarea></div></div>';
+}
+function goToOverview(){switchTab('overview',document.getElementById('tabBtnOverview'));}
+function toggleCheck(num,field,el){
+  if(!checksMap[num])checksMap[num]={};
+  checksMap[num][field]=!checksMap[num][field];
+  var cb=el.querySelector('input[type=checkbox]'); if(cb)cb.checked=checksMap[num][field];
+  el.classList.toggle('done',checksMap[num][field]);
+  if(checksMap[num][field])setStep(num,field,'done');
+}
+function saveNote(num,val){notesMap[num]=val;}
+async function loadContracts(num, vkorg) {
+  var el = document.getElementById('cv_status_'+num);
+  if(el) el.textContent = '⏳ Lade…';
+  var resp;
+  try {
+    resp = await fetch(BRIDGE_URL+'/kundenvertraege', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ kunnr: num, vkorg: vkorg||'0439', _sap_auth: _sapAuth() })
+    });
+  } catch(e) {
+    if(el) el.textContent = '✗ Bridge nicht erreichbar (localhost:8765)';
+    return;
+  }
+  if(!resp.ok) {
+    var errTxt = '';
+    try { errTxt = (await resp.json()).message || ''; } catch(_){}
+    if(resp.status===404) {
+      if(el) el.textContent = '✗ Endpoint fehlt – Bridge neu starten!';
+    } else {
+      if(el) el.textContent = '✗ HTTP '+resp.status+(errTxt?' – '+errTxt:'');
+    }
+    return;
+  }
+  try {
+    var data = await resp.json();
+    if(data.status==='ok') {
+      contractDataMap[num] = data.contracts || [];
+      contractsMap[num] = contractDataMap[num].map(function(x){return x.vbeln;});
+      if(el) el.textContent = (data.contracts||[]).length
+        ? data.contracts.length+' Vertrag'+(data.contracts.length!==1?'e':'')+' geladen'
+        : 'Keine Verträge gefunden';
+      setTimeout(refreshAll, 0);
+    } else {
+      if(el) el.textContent = '✗ SAP-Fehler: ' + (data.message||'unbekannt');
+    }
+  } catch(e) {
+    if(el) el.textContent = '✗ Antwort-Fehler: '+e.message;
+  }
+}
+function setContracts(num,val){
+  contractsMap[num]=val.split(/[,;\s]+/).map(function(s){return s.trim();}).filter(function(s){return s.length>0;});
+  setTimeout(refreshAll,0);
+}
+async function execVA42(num, newT) {
+  var clist = contractsMap[num] || [];
+  if (!clist.length) { alert('Bitte erst Verträge aus SAP laden!'); return; }
+  if (!confirm('ZTERM ' + newT + ' in ' + clist.length + ' Vertrag/Verträgen für Kunde ' + num + ' direkt in SAP ändern?')) return;
+
+  // Status-Span aktualisieren
+  var el = document.getElementById('cv_status_' + num);
+  if (el) el.textContent = '⏳ Führe VA42 aus…';
+
+  var resp, data;
+  try {
+    resp = await fetch(BRIDGE_URL + '/run', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        method: 'GUI',
+        tcode:  'VA42_ZTERM',
+        payload: {
+          contracts: clist,
+          new_zterm: newT,
+          _sap_auth: _sapAuth()
+        }
+      })
+    });
+    data = await resp.json();
+  } catch(e) {
+    if (el) el.textContent = '✗ Bridge Fehler: ' + e.message;
+    return;
+  }
+
+  if (data.status === 'ok' || data.status === 'partial') {
+    var ok  = data.ok   || 0;
+    var err = data.errors || 0;
+    if (el) el.textContent = ok + ' Vertrag' + (ok!==1?'e':'') + ' geändert' + (err ? ' · ' + err + ' Fehler' : '');
+    if (err === 0) {
+      setStep(num, 'va42', 'done');
+      if (activeCust && activeCust.num === num) renderDetail(activeCust);
+    }
+    // Detail-Ergebnisse anzeigen
+    var details = (data.results || []).map(function(r) {
+      return r.vbeln + ': ' + (r.status === 'ok' ? '✓' : '✗') + ' ' + r.message;
+    }).join('\n');
+    if (details) setTimeout(function(){ alert('VA42 Ergebnis:\n' + details); }, 100);
+  } else {
+    var msg = data.message || data.error || JSON.stringify(data);
+    if (el) el.textContent = '✗ ' + msg;
+    alert('VA42 Fehler: ' + msg);
+  }
+}
+
+function copyVA42(num,bk,newT){
+  var clist=contractsMap[num]||[];
+  if(!clist.length){alert('Bitte erst Vertragsnummern eingeben!');return;}
+  var carr=clist.map(function(v){return '"'+v.replace(/"/g,'')+' "';}).join(',');
+  var code="' VA42 \u2013 Zahlungsbedingung in Kundenvertr\u00e4gen\n"+
+    "' Kunde: "+num+" | Neue Bedingung: "+newT+"\n"+
+    "Dim SapGuiAuto,app,conn,session\n"+
+    "Set SapGuiAuto=GetObject(\"SAPGUI\")\n"+
+    "Set app=SapGuiAuto.GetScriptingEngine\n"+
+    "Set conn=app.Children(0)\n"+
+    "Set session=conn.Children(0)\n\n"+
+    "Dim contracts\n"+
+    "contracts=Array("+carr+")\n\n"+
+    "Dim i,vbeln\n"+
+    "For i=0 To UBound(contracts)\n"+
+    "  vbeln=Trim(contracts(i))\n"+
+    "  If vbeln<>\"\" Then\n"+
+    "    session.findById(\"wnd[0]/tbar[0]/okcd\").text=\"/nVA42\"\n"+
+    "    session.findById(\"wnd[0]\").sendVKey 0\n"+
+    "    WScript.Sleep 1500\n"+
+    "    session.findById(\"wnd[0]/usr/ctxtKEAD-VBELN\").text=vbeln\n"+
+    "    session.findById(\"wnd[0]\").sendVKey 0\n"+
+    "    WScript.Sleep 2000\n"+
+    "    On Error Resume Next\n"+
+    "    Dim oZ\n"+
+    "    Set oZ=session.findAllByName(\"VBKD-ZTERM\")(0)\n"+
+    "    If Not IsNull(oZ) And Not IsEmpty(oZ) Then\n"+
+    "      oZ.text=\""+newT+"\"\n"+
+    "    End If\n"+
+    "    On Error GoTo 0\n"+
+    "    session.findById(\"wnd[0]\").sendVKey 11\n"+
+    "    WScript.Sleep 500\n"+
+    "  End If\n"+
+    "Next\n\n"+
+    "MsgBox \"VA42 fertig: ZTERM="+newT+" fuer Kunde "+num+"\"";
+  navigator.clipboard.writeText(code).then(function(){
+    setStep(num,'va42','done');
+    if(activeCust&&activeCust.num===num)renderDetail(activeCust);
+  }).catch(function(){setStep(num,'va42','done');});
+}
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+</script>
+</body>
+</html>

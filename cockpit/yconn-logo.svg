@@ -1,0 +1,137 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 840 840" width="840" height="840">
+
+  <!-- Black background -->
+  <rect width="840" height="840" fill="#000000"/>
+
+  <defs>
+    <!-- Cyan → blue → purple gradient (matches the image) -->
+    <linearGradient id="g1" x1="5%" y1="5%" x2="95%" y2="95%">
+      <stop offset="0%"   stop-color="#00e5ff"/>
+      <stop offset="40%"  stop-color="#3d5afe"/>
+      <stop offset="100%" stop-color="#8b2fc9"/>
+    </linearGradient>
+    <!-- Horizontal gradient for Y letter -->
+    <linearGradient id="g2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%"   stop-color="#00e5ff"/>
+      <stop offset="50%"  stop-color="#3d5afe"/>
+      <stop offset="100%" stop-color="#8b2fc9"/>
+    </linearGradient>
+    <!-- Glow filter -->
+    <filter id="glow" x="-15%" y="-15%" width="130%" height="130%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="4" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <!-- ═══════════════════════════════════════════════════════════
+       GLOBE ARC  (centre 278,295  radius 215  gap at upper-right)
+       Start ≈ −55°:  (278+215·cos−55°, 295+215·sin−55°) ≈ (401,119)
+       End   ≈  22°:  (278+215·cos 22°, 295+215·sin 22°) ≈ (477,375)
+       large-arc=1  sweep=0  →  CCW long arc ~283°
+  ════════════════════════════════════════════════════════════════ -->
+  <path d="M 401 119 A 215 215 0 1 0 477 375"
+        fill="none" stroke="url(#g1)" stroke-width="14"
+        stroke-linecap="round" filter="url(#glow)"/>
+
+  <!-- ═══════════════════════════════════════════════════════════
+       ORGANIC CONTINENT SHAPES (inside globe, left area)
+  ════════════════════════════════════════════════════════════════ -->
+  <!-- Large flowing left shape (S-curve) -->
+  <path d="M 190 215 C 148 260 162 308 184 348 C 206 388 168 428 155 460"
+        fill="none" stroke="url(#g1)" stroke-width="12" stroke-linecap="round"/>
+  <!-- Upper blob shape -->
+  <path d="M 220 185 C 264 155 316 172 338 215 C 352 245 330 268 304 275"
+        fill="none" stroke="url(#g1)" stroke-width="12" stroke-linecap="round"/>
+  <!-- Small lower-left accent -->
+  <path d="M 182 368 C 200 392 214 418 206 444"
+        fill="none" stroke="url(#g1)" stroke-width="10" stroke-linecap="round" opacity=".8"/>
+
+  <!-- ═══════════════════════════════════════════════════════════
+       Y SHAPE
+       Left-arm tip:  (168, 202)
+       Right-arm tip: (401, 119)  ← globe gap / circuit junction
+       Junction:      (264, 318)
+       Stem bottom:   (264, 452)
+  ════════════════════════════════════════════════════════════════ -->
+  <line x1="168" y1="202" x2="264" y2="318"
+        stroke="url(#g1)" stroke-width="22" stroke-linecap="round"/>
+  <line x1="401" y1="119" x2="264" y2="318"
+        stroke="url(#g1)" stroke-width="22" stroke-linecap="round"/>
+  <line x1="264" y1="318" x2="264" y2="452"
+        stroke="url(#g1)" stroke-width="22" stroke-linecap="round"/>
+
+  <!-- Left arm tip filled circle -->
+  <circle cx="168" cy="202" r="16" fill="url(#g1)" filter="url(#glow)"/>
+
+  <!-- ═══════════════════════════════════════════════════════════
+       GROUND / SIGNAL BARS below Y stem
+  ════════════════════════════════════════════════════════════════ -->
+  <line x1="240" y1="472" x2="290" y2="472" stroke="url(#g1)" stroke-width="12" stroke-linecap="round"/>
+  <line x1="248" y1="490" x2="282" y2="490" stroke="url(#g1)" stroke-width="10" stroke-linecap="round"/>
+  <line x1="256" y1="506" x2="274" y2="506" stroke="url(#g1)" stroke-width="9"  stroke-linecap="round"/>
+  <!-- Filled dot at very bottom -->
+  <circle cx="264" cy="526" r="16" fill="#8b2fc9" filter="url(#glow)"/>
+
+  <!-- ═══════════════════════════════════════════════════════════
+       PCB / CIRCUIT LINES
+       From Y right-arm tip (401,119) → horizontal to bus node (442,119)
+       Vertical bus: (442, 60) TOP DOT  down to  (442, 290)
+  ════════════════════════════════════════════════════════════════ -->
+
+  <!-- Horizontal connector: Y tip → bus -->
+  <line x1="401" y1="119" x2="442" y2="119"
+        stroke="url(#g1)" stroke-width="12" stroke-linecap="round"/>
+
+  <!-- Vertical bus line -->
+  <line x1="442" y1="60" x2="442" y2="290"
+        stroke="url(#g1)" stroke-width="12" stroke-linecap="round"/>
+
+  <!-- TOP filled circle (the large cyan dot at the top of the circuit) -->
+  <circle cx="442" cy="60" r="18" fill="url(#g1)" filter="url(#glow)"/>
+
+  <!-- Branch 1 – upper-right: from bus at y=148 → right to open circle -->
+  <line x1="442" y1="148" x2="514" y2="148"
+        stroke="url(#g1)" stroke-width="12" stroke-linecap="round"/>
+  <circle cx="514" cy="148" r="16" fill="none" stroke="url(#g1)" stroke-width="12"/>
+  <circle cx="514" cy="148" r="6"  fill="url(#g1)"/>
+
+  <!-- Branch 2 – middle-right: from bus at y=218 → right to open circle -->
+  <line x1="442" y1="218" x2="514" y2="218"
+        stroke="url(#g1)" stroke-width="12" stroke-linecap="round"/>
+  <circle cx="514" cy="218" r="16" fill="none" stroke="url(#g1)" stroke-width="12"/>
+  <circle cx="514" cy="218" r="6"  fill="url(#g1)"/>
+
+  <!-- Branch 3 – lower S-curve: from bus at y=290 → right → down → open circle -->
+  <polyline points="442,290 496,290 496,338"
+            fill="none" stroke="url(#g1)" stroke-width="12"
+            stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="496" cy="338" r="16" fill="none" stroke="url(#g1)" stroke-width="12"/>
+  <circle cx="496" cy="338" r="6"  fill="url(#g1)"/>
+
+  <!-- Junction dots on bus at branch points -->
+  <circle cx="442" cy="119" r="10" fill="url(#g1)"/>
+  <circle cx="442" cy="148" r="8"  fill="url(#g1)" opacity=".8"/>
+  <circle cx="442" cy="218" r="8"  fill="url(#g1)" opacity=".8"/>
+
+  <!-- ═══════════════════════════════════════════════════════════
+       YCONN  WORDMARK
+       Y = gradient   CONN = white
+  ════════════════════════════════════════════════════════════════ -->
+  <text x="82" y="718"
+        font-family="'Segoe UI','Arial Black','Helvetica Neue',sans-serif"
+        font-size="138" font-weight="900" letter-spacing="-2"
+        fill="url(#g2)">Y</text>
+  <text x="193" y="718"
+        font-family="'Segoe UI','Arial Black','Helvetica Neue',sans-serif"
+        font-size="138" font-weight="900" letter-spacing="-2"
+        fill="#ffffff">CONN</text>
+
+  <!-- ═══════════════════════════════════════════════════════════
+       TAGLINE  (cyan)
+  ════════════════════════════════════════════════════════════════ -->
+  <text x="88" y="778"
+        font-family="'Segoe UI','Helvetica Neue',Arial,sans-serif"
+        font-size="25" font-weight="600" letter-spacing="6"
+        fill="#00e5ff">AUTOMATE. CONNECT. ADVANCE.</text>
+
+</svg>

@@ -1,0 +1,933 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Digitales Gehirn — YCONN Intelligence</title>
+<script src="auth.js" defer></script>
+<style>
+  :root {
+    --bg: #0a0e1a;
+    --bg2: #111827;
+    --bg3: #1a2233;
+    --border: #2a3a55;
+    --text: #e2e8f0;
+    --muted: #94a3b8;
+    --accent: #6366f1;
+    --accent2: #818cf8;
+    --green: #10b981;
+    --yellow: #f59e0b;
+    --red: #ef4444;
+    --cyan: #06b6d4;
+    --purple: #a855f7;
+    --layer-colors: {
+      business: #f59e0b; finance: #10b981; sap: #3b82f6;
+      ai: #a855f7; human: #f97316; learning: #06b6d4;
+      prediction: #8b5cf6; experience: #ec4899;
+      rule: #ef4444; process: #14b8a6; risk: #f43f5e;
+      audit: #64748b; innovation: #fbbf24;
+    }
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+
+  /* ── Header ── */
+  .header { background: var(--bg2); border-bottom: 1px solid var(--border); padding: 0 20px; height: 52px; display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+  .header .logo { font-size: 20px; font-weight: 700; color: var(--accent2); letter-spacing: -0.5px; }
+  .header .subtitle { font-size: 12px; color: var(--muted); }
+  .header .nav-links { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+  .header .nav-links a { color: var(--muted); text-decoration: none; font-size: 12px; padding: 4px 8px; border-radius: 4px; transition: all 0.2s; }
+  .header .nav-links a:hover { background: var(--bg3); color: var(--text); }
+  #headerRight { margin-left: 12px; }
+
+  /* ── Main Layout ── */
+  .main { display: flex; flex: 1; overflow: hidden; }
+
+  /* ── Left Sidebar: 13 Layers ── */
+  .sidebar { width: 200px; background: var(--bg2); border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow-y: auto; flex-shrink: 0; }
+  .sidebar-title { font-size: 10px; font-weight: 700; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; padding: 12px 14px 6px; }
+  .layer-btn { display: flex; align-items: center; gap: 8px; padding: 8px 14px; cursor: pointer; transition: background 0.15s; border: none; background: none; color: var(--text); width: 100%; text-align: left; font-size: 12.5px; }
+  .layer-btn:hover { background: var(--bg3); }
+  .layer-btn.active { background: rgba(99,102,241,0.15); border-right: 2px solid var(--accent); }
+  .layer-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .layer-count { margin-left: auto; font-size: 10px; color: var(--muted); background: var(--bg3); padding: 1px 5px; border-radius: 8px; }
+  .sidebar-sep { height: 1px; background: var(--border); margin: 6px 10px; }
+  .sidebar-section { padding: 8px 14px; }
+  .sidebar-section .btn-sm { display: block; width: 100%; padding: 6px 10px; background: rgba(99,102,241,0.2); border: 1px solid rgba(99,102,241,0.4); color: var(--accent2); border-radius: 6px; font-size: 12px; cursor: pointer; margin-bottom: 5px; transition: all 0.2s; text-align: left; }
+  .sidebar-section .btn-sm:hover { background: rgba(99,102,241,0.35); }
+
+  /* ── Content Area ── */
+  .content { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
+
+  /* ── Tabs ── */
+  .tabs { display: flex; background: var(--bg2); border-bottom: 1px solid var(--border); padding: 0 16px; flex-shrink: 0; }
+  .tab { padding: 10px 16px; font-size: 12.5px; color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.2s; }
+  .tab.active { color: var(--accent2); border-bottom-color: var(--accent2); }
+  .tab:hover:not(.active) { color: var(--text); }
+
+  /* ── Panels ── */
+  .panel { flex: 1; overflow-y: auto; padding: 16px; display: none; }
+  .panel.active { display: flex; flex-direction: column; gap: 12px; }
+
+  /* ── Search Bar ── */
+  .search-bar { display: flex; gap: 8px; }
+  .search-bar input { flex: 1; background: var(--bg2); border: 1px solid var(--border); color: var(--text); padding: 8px 12px; border-radius: 6px; font-size: 13px; }
+  .search-bar input:focus { outline: none; border-color: var(--accent); }
+  .search-bar select { background: var(--bg2); border: 1px solid var(--border); color: var(--text); padding: 8px 10px; border-radius: 6px; font-size: 12px; }
+  .btn { padding: 8px 14px; border: none; border-radius: 6px; cursor: pointer; font-size: 12.5px; font-weight: 500; transition: all 0.2s; }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { background: var(--accent2); }
+  .btn-ghost { background: var(--bg3); color: var(--text); border: 1px solid var(--border); }
+  .btn-ghost:hover { background: var(--border); }
+
+  /* ── Knowledge Grid ── */
+  .knowledge-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px; }
+  .knowledge-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 12px; cursor: pointer; transition: all 0.2s; position: relative; overflow: hidden; }
+  .knowledge-card::before { content: ''; position: absolute; top: 0; left: 0; width: 3px; height: 100%; background: var(--layer-color, var(--accent)); }
+  .knowledge-card:hover { border-color: var(--accent); transform: translateY(-1px); }
+  .kc-header { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 6px; }
+  .kc-layer { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; padding: 2px 5px; border-radius: 3px; background: rgba(255,255,255,0.08); color: var(--layer-color, var(--accent)); }
+  .kc-type { font-size: 9px; color: var(--muted); }
+  .kc-confidence { margin-left: auto; display: flex; gap: 1px; }
+  .kc-dot { width: 5px; height: 5px; border-radius: 50%; }
+  .kc-title { font-size: 13px; font-weight: 600; margin-bottom: 4px; line-height: 1.3; }
+  .kc-summary { font-size: 11px; color: var(--muted); line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .kc-footer { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+  .tag { font-size: 10px; background: rgba(99,102,241,0.12); color: var(--accent2); padding: 2px 6px; border-radius: 3px; }
+
+  /* ── Decision Panel ── */
+  .decision-form { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+  .form-row { display: flex; gap: 8px; margin-bottom: 10px; }
+  .form-row label { font-size: 11px; color: var(--muted); margin-bottom: 3px; display: block; }
+  .form-row .field { flex: 1; }
+  .form-row textarea { width: 100%; background: var(--bg3); border: 1px solid var(--border); color: var(--text); padding: 10px 12px; border-radius: 6px; font-size: 13px; resize: vertical; min-height: 70px; font-family: inherit; }
+  .form-row textarea:focus { outline: none; border-color: var(--accent); }
+  .form-row input, .form-row select { width: 100%; background: var(--bg3); border: 1px solid var(--border); color: var(--text); padding: 8px 10px; border-radius: 6px; font-size: 13px; }
+  .form-row input:focus, .form-row select:focus { outline: none; border-color: var(--accent); }
+
+  /* ── Decision Result ── */
+  .decision-result { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+  .dr-header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .dr-status { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; padding: 3px 8px; border-radius: 4px; }
+  .dr-status.high { background: rgba(16,185,129,0.2); color: var(--green); }
+  .dr-status.mid { background: rgba(245,158,11,0.2); color: var(--yellow); }
+  .dr-status.low { background: rgba(239,68,68,0.2); color: var(--red); }
+  .dr-recommendation { font-size: 14px; font-weight: 600; margin-bottom: 12px; line-height: 1.5; }
+  .dr-sections { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .dr-section { background: var(--bg3); border-radius: 6px; padding: 10px; }
+  .dr-section-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); margin-bottom: 6px; }
+  .dr-item { font-size: 11.5px; color: var(--text); padding: 3px 0; border-bottom: 1px solid rgba(255,255,255,0.04); line-height: 1.4; }
+  .dr-item:last-child { border-bottom: none; }
+  .dr-item.pro::before { content: '✓ '; color: var(--green); }
+  .dr-item.contra::before { content: '✗ '; color: var(--red); }
+  .dr-item.risk::before { content: '⚠ '; color: var(--yellow); }
+  .dr-item.alt::before { content: '◈ '; color: var(--cyan); }
+  .conf-bar { display: flex; align-items: center; gap: 6px; margin-top: 10px; }
+  .conf-label { font-size: 11px; color: var(--muted); }
+  .conf-dots { display: flex; gap: 3px; }
+  .conf-dot { width: 12px; height: 12px; border-radius: 3px; }
+  .conf-dot.filled { background: var(--accent); }
+  .conf-dot.empty { background: var(--bg3); border: 1px solid var(--border); }
+  .dr-refs { margin-top: 8px; }
+  .dr-ref { font-size: 10px; color: var(--muted); display: inline-block; background: var(--bg3); padding: 2px 6px; border-radius: 3px; margin: 2px; }
+
+  /* ── Decision History ── */
+  .decision-list { display: flex; flex-direction: column; gap: 8px; }
+  .dh-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 12px; display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: start; }
+  .dh-question { font-size: 13px; font-weight: 500; }
+  .dh-rec { font-size: 11px; color: var(--muted); margin-top: 3px; }
+  .dh-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+  .conf-badge { font-size: 10px; padding: 2px 6px; border-radius: 3px; font-weight: 700; }
+  .feedback-btns { display: flex; gap: 4px; margin-top: 4px; }
+  .fb-btn { font-size: 10px; padding: 2px 6px; border-radius: 3px; border: 1px solid var(--border); background: var(--bg3); color: var(--text); cursor: pointer; }
+  .fb-btn:hover { border-color: var(--accent); }
+
+  /* ── Knowledge Detail Modal ── */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 100; display: none; align-items: center; justify-content: center; }
+  .modal-overlay.open { display: flex; }
+  .modal { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; width: 90%; max-width: 700px; max-height: 85vh; overflow-y: auto; padding: 20px; }
+  .modal-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px; }
+  .modal-title { font-size: 16px; font-weight: 700; }
+  .modal-close { background: none; border: none; color: var(--muted); font-size: 18px; cursor: pointer; padding: 4px; }
+  .modal-close:hover { color: var(--text); }
+  .detail-row { display: flex; gap: 6px; margin-bottom: 8px; flex-wrap: wrap; }
+  .detail-badge { font-size: 11px; padding: 3px 8px; border-radius: 4px; }
+  .section-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--muted); margin: 12px 0 6px; }
+  .body-content { background: var(--bg3); border-radius: 6px; padding: 12px; font-size: 12px; color: var(--muted); font-family: monospace; white-space: pre-wrap; word-break: break-all; }
+  .relation-item { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.04); font-size: 12px; }
+  .rel-type { font-size: 10px; background: var(--bg3); padding: 2px 6px; border-radius: 3px; color: var(--accent2); }
+
+  /* ── 10W Audit Panel ── */
+  .w10-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px; }
+  .w10-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 12px; }
+  .w10-header { font-size: 10px; font-weight: 700; color: var(--accent2); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+  .w10-field { font-size: 11px; color: var(--muted); display: flex; gap: 6px; margin-bottom: 3px; line-height: 1.4; }
+  .w10-label { color: var(--text); font-weight: 600; flex-shrink: 0; min-width: 100px; }
+  .w10-val { word-break: break-word; }
+  .w10-empty { color: rgba(148,163,184,0.3); font-style: italic; }
+
+  /* ── Toast ── */
+  .toast-container { position: fixed; bottom: 20px; right: 20px; display: flex; flex-direction: column; gap: 6px; z-index: 999; pointer-events: none; }
+  .toast { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; font-size: 12.5px; max-width: 320px; animation: slideIn 0.2s ease; }
+  .toast.success { border-color: var(--green); }
+  .toast.error { border-color: var(--red); }
+  @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+  /* ── New Knowledge Form ── */
+  .new-knowledge-form { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin-bottom: 12px; display: none; }
+  .new-knowledge-form.open { display: block; }
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .form-group { display: flex; flex-direction: column; gap: 4px; }
+  .form-group label { font-size: 11px; color: var(--muted); }
+  .form-group input, .form-group select, .form-group textarea { background: var(--bg3); border: 1px solid var(--border); color: var(--text); padding: 7px 10px; border-radius: 6px; font-size: 12.5px; font-family: inherit; }
+  .form-group input:focus, .form-group select:focus, .form-group textarea:focus { outline: none; border-color: var(--accent); }
+  .form-group.full { grid-column: 1 / -1; }
+
+  /* ── Scrollbar ── */
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  /* ── Empty State ── */
+  .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 60px 20px; color: var(--muted); gap: 8px; }
+  .empty-state .icon { font-size: 36px; }
+  .empty-state .text { font-size: 13px; }
+
+  /* ── Loading ── */
+  .loading { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12.5px; padding: 20px; }
+  .spinner { width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+  <div class="logo">🧠 Digitales Gehirn</div>
+  <div class="subtitle">YCONN Knowledge Intelligence System</div>
+  <div class="nav-links">
+    <a href="startseite.html">← Start</a>
+    <a href="db-kontrollzentrum.html">Kontrollzentrum</a>
+    <a href="db-admin.html">DB Admin</a>
+  </div>
+  <div id="headerRight"></div>
+</div>
+
+<div class="main">
+  <!-- Left Sidebar: 13 Layers -->
+  <div class="sidebar">
+    <div class="sidebar-title">Knowledge Universe</div>
+    <button class="layer-btn active" data-layer="" onclick="selectLayer(this,'')">
+      <span class="layer-dot" style="background:#6366f1"></span>
+      Alle Schichten
+      <span class="layer-count" id="cnt-all">0</span>
+    </button>
+    <div class="sidebar-sep"></div>
+
+    <button class="layer-btn" data-layer="business" onclick="selectLayer(this,'business')">
+      <span class="layer-dot" style="background:#f59e0b"></span>
+      Business
+      <span class="layer-count" id="cnt-business">0</span>
+    </button>
+    <button class="layer-btn" data-layer="finance" onclick="selectLayer(this,'finance')">
+      <span class="layer-dot" style="background:#10b981"></span>
+      Finance
+      <span class="layer-count" id="cnt-finance">0</span>
+    </button>
+    <button class="layer-btn" data-layer="sap" onclick="selectLayer(this,'sap')">
+      <span class="layer-dot" style="background:#3b82f6"></span>
+      SAP
+      <span class="layer-count" id="cnt-sap">0</span>
+    </button>
+    <button class="layer-btn" data-layer="ai" onclick="selectLayer(this,'ai')">
+      <span class="layer-dot" style="background:#a855f7"></span>
+      AI
+      <span class="layer-count" id="cnt-ai">0</span>
+    </button>
+    <button class="layer-btn" data-layer="human" onclick="selectLayer(this,'human')">
+      <span class="layer-dot" style="background:#f97316"></span>
+      Human
+      <span class="layer-count" id="cnt-human">0</span>
+    </button>
+    <div class="sidebar-sep"></div>
+    <button class="layer-btn" data-layer="learning" onclick="selectLayer(this,'learning')">
+      <span class="layer-dot" style="background:#06b6d4"></span>
+      Learning
+      <span class="layer-count" id="cnt-learning">0</span>
+    </button>
+    <button class="layer-btn" data-layer="prediction" onclick="selectLayer(this,'prediction')">
+      <span class="layer-dot" style="background:#8b5cf6"></span>
+      Prediction
+      <span class="layer-count" id="cnt-prediction">0</span>
+    </button>
+    <button class="layer-btn" data-layer="experience" onclick="selectLayer(this,'experience')">
+      <span class="layer-dot" style="background:#ec4899"></span>
+      Experience
+      <span class="layer-count" id="cnt-experience">0</span>
+    </button>
+    <div class="sidebar-sep"></div>
+    <button class="layer-btn" data-layer="rule" onclick="selectLayer(this,'rule')">
+      <span class="layer-dot" style="background:#ef4444"></span>
+      Rule
+      <span class="layer-count" id="cnt-rule">0</span>
+    </button>
+    <button class="layer-btn" data-layer="process" onclick="selectLayer(this,'process')">
+      <span class="layer-dot" style="background:#14b8a6"></span>
+      Process
+      <span class="layer-count" id="cnt-process">0</span>
+    </button>
+    <button class="layer-btn" data-layer="risk" onclick="selectLayer(this,'risk')">
+      <span class="layer-dot" style="background:#f43f5e"></span>
+      Risk
+      <span class="layer-count" id="cnt-risk">0</span>
+    </button>
+    <button class="layer-btn" data-layer="audit" onclick="selectLayer(this,'audit')">
+      <span class="layer-dot" style="background:#64748b"></span>
+      Audit
+      <span class="layer-count" id="cnt-audit">0</span>
+    </button>
+    <button class="layer-btn" data-layer="innovation" onclick="selectLayer(this,'innovation')">
+      <span class="layer-dot" style="background:#fbbf24"></span>
+      Innovation
+      <span class="layer-count" id="cnt-innovation">0</span>
+    </button>
+
+    <div class="sidebar-sep"></div>
+    <div class="sidebar-section">
+      <button class="btn-sm" onclick="toggleNewKnowledge()">+ Wissen hinzufügen</button>
+      <button class="btn-sm" onclick="showTab('decision')">🧩 Entscheidung</button>
+      <button class="btn-sm" onclick="showTab('tenw')">🔍 10W-Audit</button>
+    </div>
+  </div>
+
+  <!-- Content -->
+  <div class="content">
+    <!-- Tabs -->
+    <div class="tabs">
+      <div class="tab active" id="tab-knowledge" onclick="showTab('knowledge')">Knowledge Universe</div>
+      <div class="tab" id="tab-decision" onclick="showTab('decision')">Decision Engine</div>
+      <div class="tab" id="tab-history" onclick="showTab('history')">Entscheidungs-History</div>
+      <div class="tab" id="tab-tenw" onclick="showTab('tenw')">10W-Audit</div>
+    </div>
+
+    <!-- Panel: Knowledge Universe -->
+    <div class="panel active" id="panel-knowledge">
+      <!-- New Knowledge Form -->
+      <div class="new-knowledge-form" id="newKnowledgeForm">
+        <div style="font-size:13px;font-weight:600;margin-bottom:12px;">Neuen Wissenseintrag erstellen</div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Schicht (Layer)</label>
+            <select id="nk-layer">
+              <option value="business">Business</option>
+              <option value="finance">Finance</option>
+              <option value="sap">SAP</option>
+              <option value="ai">AI</option>
+              <option value="human">Human</option>
+              <option value="learning">Learning</option>
+              <option value="prediction">Prediction</option>
+              <option value="experience">Experience</option>
+              <option value="rule">Rule</option>
+              <option value="process">Process</option>
+              <option value="risk">Risk</option>
+              <option value="audit">Audit</option>
+              <option value="innovation">Innovation</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Typ</label>
+            <select id="nk-type">
+              <option value="concept">Konzept</option>
+              <option value="rule">Regel</option>
+              <option value="pattern">Muster</option>
+              <option value="risk">Risiko</option>
+              <option value="process">Prozess</option>
+              <option value="experience">Erfahrung</option>
+              <option value="prediction">Vorhersage</option>
+              <option value="fact">Fakt</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Schlüssel (eindeutig)</label>
+            <input type="text" id="nk-key" placeholder="z.B. sap.bapi.acc_document_post">
+          </div>
+          <div class="form-group">
+            <label>Konfidenz (1–5)</label>
+            <select id="nk-confidence">
+              <option value="3">3 — Mittel</option>
+              <option value="4">4 — Hoch</option>
+              <option value="5">5 — Sehr hoch</option>
+              <option value="2">2 — Niedrig</option>
+              <option value="1">1 — Sehr niedrig</option>
+            </select>
+          </div>
+          <div class="form-group full">
+            <label>Titel</label>
+            <input type="text" id="nk-title" placeholder="Kurzer, prägnanter Titel">
+          </div>
+          <div class="form-group full">
+            <label>Zusammenfassung</label>
+            <textarea id="nk-summary" rows="2" placeholder="Beschreibung in 1–3 Sätzen"></textarea>
+          </div>
+          <div class="form-group">
+            <label>Quell-Modul</label>
+            <input type="text" id="nk-source-module" placeholder="zinsen / payroll / rechnung">
+          </div>
+          <div class="form-group">
+            <label>Tags (kommagetrennt)</label>
+            <input type="text" id="nk-tags" placeholder="sap, buchung, bapi">
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:10px;">
+          <button class="btn btn-primary" onclick="saveKnowledge()">Speichern</button>
+          <button class="btn btn-ghost" onclick="toggleNewKnowledge()">Abbrechen</button>
+        </div>
+      </div>
+
+      <!-- Search Bar -->
+      <div class="search-bar">
+        <input type="text" id="searchInput" placeholder="Wissen durchsuchen…" oninput="debounceSearch(this.value)">
+        <select id="typeFilter" onchange="loadKnowledge()">
+          <option value="">Alle Typen</option>
+          <option value="concept">Konzept</option>
+          <option value="rule">Regel</option>
+          <option value="pattern">Muster</option>
+          <option value="risk">Risiko</option>
+          <option value="process">Prozess</option>
+          <option value="experience">Erfahrung</option>
+          <option value="prediction">Vorhersage</option>
+          <option value="fact">Fakt</option>
+          <option value="decision">Entscheidung</option>
+        </select>
+        <button class="btn btn-primary" onclick="loadKnowledge()">Suchen</button>
+      </div>
+
+      <div id="knowledgeGrid" class="knowledge-grid">
+        <div class="loading"><div class="spinner"></div> Lade Knowledge Universe…</div>
+      </div>
+    </div>
+
+    <!-- Panel: Decision Engine -->
+    <div class="panel" id="panel-decision">
+      <div class="decision-form">
+        <div style="font-size:14px;font-weight:600;margin-bottom:12px;">🧩 Knowledge Decision Engine</div>
+        <div class="form-row">
+          <div class="field">
+            <label>Frage / Entscheidungsbedarf</label>
+            <textarea id="de-question" rows="3" placeholder="z.B. Soll ich die Zinsbuchung für Juni 2026 in SEP buchen? Welche Risiken gibt es?"></textarea>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="field">
+            <label>Modul-Kontext</label>
+            <select id="de-module">
+              <option value="">Kein Modul</option>
+              <option value="zinsen">Zinsbuchung</option>
+              <option value="payroll">Lohnbuchung</option>
+              <option value="rechnung">Rechnung</option>
+              <option value="sap">SAP allgemein</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>SAP-System</label>
+            <select id="de-system">
+              <option value="SEP">SEP (Produktion 172.28.189.8)</option>
+              <option value="SEQ">SEQ (Qualität 172.28.189.11)</option>
+            </select>
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="runDecision()" id="de-btn">🧠 Entscheidung anfragen</button>
+      </div>
+
+      <div id="decisionResult" style="display:none"></div>
+    </div>
+
+    <!-- Panel: Decision History -->
+    <div class="panel" id="panel-history">
+      <div class="search-bar">
+        <select id="hist-module" onchange="loadHistory()">
+          <option value="">Alle Module</option>
+          <option value="zinsen">Zinsbuchung</option>
+          <option value="payroll">Lohnbuchung</option>
+          <option value="rechnung">Rechnung</option>
+        </select>
+        <button class="btn btn-ghost" onclick="loadHistory()">Aktualisieren</button>
+      </div>
+      <div id="decisionList" class="decision-list">
+        <div class="loading"><div class="spinner"></div> Lade Entscheidungs-History…</div>
+      </div>
+    </div>
+
+    <!-- Panel: 10W-Audit -->
+    <div class="panel" id="panel-tenw">
+      <div class="search-bar">
+        <select id="tenw-module" onchange="loadTenW()">
+          <option value="">Alle Module</option>
+          <option value="zinsen">Zinsbuchung</option>
+          <option value="payroll">Lohnbuchung</option>
+          <option value="rechnung">Rechnung</option>
+        </select>
+        <select id="tenw-system" onchange="loadTenW()">
+          <option value="">Alle Systeme</option>
+          <option value="SEP">SEP</option>
+          <option value="SEQ">SEQ</option>
+        </select>
+        <button class="btn btn-ghost" onclick="loadTenW()">Aktualisieren</button>
+      </div>
+      <div id="tenwGrid" class="w10-grid">
+        <div class="loading"><div class="spinner"></div> Lade 10W-Auditeinträge…</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Knowledge Detail Modal -->
+<div class="modal-overlay" id="knowledgeModal" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="modal-title">Wissenseintrag</div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div id="modal-body"></div>
+  </div>
+</div>
+
+<!-- Toast Container -->
+<div class="toast-container" id="toasts"></div>
+
+<script>
+const ORCH_URL = 'http://localhost:8000';
+
+// Layer Farben
+const LAYER_COLORS = {
+  business:'#f59e0b', finance:'#10b981', sap:'#3b82f6',
+  ai:'#a855f7', human:'#f97316', learning:'#06b6d4',
+  prediction:'#8b5cf6', experience:'#ec4899', rule:'#ef4444',
+  process:'#14b8a6', risk:'#f43f5e', audit:'#64748b', innovation:'#fbbf24'
+};
+
+let currentLayer = '';
+let searchTimer = null;
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', () => {
+  loadLayerCounts();
+  loadKnowledge();
+  loadHistory();
+  loadTenW();
+});
+
+// ── Layer Selection ───────────────────────────────────────────────────────────
+function selectLayer(btn, layer) {
+  document.querySelectorAll('.layer-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  currentLayer = layer;
+  loadKnowledge();
+}
+
+async function loadLayerCounts() {
+  try {
+    const r = await fetch(ORCH_URL + '/knowledge/layers');
+    const data = await r.json();
+    let total = 0;
+    Object.entries(data).forEach(([layer, cnt]) => {
+      const el = document.getElementById('cnt-' + layer);
+      if (el) el.textContent = cnt;
+      total += cnt;
+    });
+    const allEl = document.getElementById('cnt-all');
+    if (allEl) allEl.textContent = total;
+  } catch(_) {}
+}
+
+// ── Tab Navigation ────────────────────────────────────────────────────────────
+function showTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('tab-' + name)?.classList.add('active');
+  document.getElementById('panel-' + name)?.classList.add('active');
+}
+
+// ── Knowledge Universe ────────────────────────────────────────────────────────
+function debounceSearch(val) {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => loadKnowledge(), 350);
+}
+
+async function loadKnowledge() {
+  const grid = document.getElementById('knowledgeGrid');
+  const search = document.getElementById('searchInput').value.trim();
+  const typeFilter = document.getElementById('typeFilter').value;
+
+  let url = ORCH_URL + '/knowledge?limit=80';
+  if (currentLayer) url += '&layer=' + encodeURIComponent(currentLayer);
+  if (typeFilter)   url += '&object_type=' + encodeURIComponent(typeFilter);
+  if (search)       url += '&search=' + encodeURIComponent(search);
+
+  grid.innerHTML = '<div class="loading"><div class="spinner"></div> Lade Wissen…</div>';
+
+  try {
+    const r = await fetch(url);
+    const items = await r.json();
+    renderKnowledgeGrid(items, grid);
+    loadLayerCounts();
+  } catch(e) {
+    grid.innerHTML = '<div class="empty-state"><div class="icon">⚠</div><div class="text">Orchestrator nicht erreichbar</div></div>';
+  }
+}
+
+function renderKnowledgeGrid(items, container) {
+  if (!items.length) {
+    container.innerHTML = '<div class="empty-state"><div class="icon">🧠</div><div class="text">Noch kein Wissen in dieser Schicht — füge den ersten Eintrag hinzu.</div></div>';
+    return;
+  }
+  container.innerHTML = items.map(item => {
+    const color = LAYER_COLORS[item.layer] || '#6366f1';
+    const tags = tryParseJson(item.tags_json, []);
+    const dots = Array.from({length:5}, (_,i) =>
+      `<div class="kc-dot" style="background:${i < item.confidence ? color : 'rgba(255,255,255,0.1)'}"></div>`
+    ).join('');
+    return `
+      <div class="knowledge-card" style="--layer-color:${color}" onclick="showKnowledgeDetail(${item.id})">
+        <div class="kc-header">
+          <span class="kc-layer" style="color:${color}">${item.layer}</span>
+          <span class="kc-type">${item.object_type}</span>
+          <div class="kc-confidence">${dots}</div>
+        </div>
+        <div class="kc-title">${escHtml(item.title)}</div>
+        <div class="kc-summary">${escHtml(item.summary || '—')}</div>
+        ${tags.length ? `<div class="kc-footer">${tags.slice(0,4).map(t=>`<span class="tag">${escHtml(t)}</span>`).join('')}</div>` : ''}
+      </div>`;
+  }).join('');
+}
+
+// ── New Knowledge Form ────────────────────────────────────────────────────────
+function toggleNewKnowledge() {
+  const form = document.getElementById('newKnowledgeForm');
+  form.classList.toggle('open');
+  showTab('knowledge');
+}
+
+async function saveKnowledge() {
+  const key = document.getElementById('nk-key').value.trim();
+  const title = document.getElementById('nk-title').value.trim();
+  if (!key || !title) { toast('Schlüssel und Titel sind Pflichtfelder.', 'error'); return; }
+
+  const tags = document.getElementById('nk-tags').value.split(',').map(t=>t.trim()).filter(Boolean);
+  const payload = {
+    layer:         document.getElementById('nk-layer').value,
+    object_type:   document.getElementById('nk-type').value,
+    key,
+    title,
+    summary:       document.getElementById('nk-summary').value,
+    confidence:    parseInt(document.getElementById('nk-confidence').value),
+    source_module: document.getElementById('nk-source-module').value,
+    tags_json:     JSON.stringify(tags),
+    created_by:    getAuthUser(),
+  };
+
+  try {
+    const r = await fetch(ORCH_URL + '/knowledge', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(payload)
+    });
+    if (!r.ok) throw new Error(await r.text());
+    toast('Wissenseintrag gespeichert.', 'success');
+    toggleNewKnowledge();
+    loadKnowledge();
+  } catch(e) {
+    toast('Fehler: ' + e.message, 'error');
+  }
+}
+
+// ── Knowledge Detail Modal ────────────────────────────────────────────────────
+async function showKnowledgeDetail(id) {
+  const modal = document.getElementById('knowledgeModal');
+  const body  = document.getElementById('modal-body');
+  modal.classList.add('open');
+  body.innerHTML = '<div class="loading"><div class="spinner"></div> Lade…</div>';
+
+  try {
+    const r = await fetch(ORCH_URL + '/knowledge/' + id);
+    const item = await r.json();
+    const color = LAYER_COLORS[item.layer] || '#6366f1';
+    document.getElementById('modal-title').textContent = item.title;
+
+    let bodyJson = '{}';
+    try { bodyJson = JSON.stringify(tryParseJson(item.body_json, {}), null, 2); } catch(_) { bodyJson = item.body_json; }
+    const tags = tryParseJson(item.tags_json, []);
+
+    const rels = item.relations || [];
+    const relsHtml = rels.length
+      ? rels.map(r => `<div class="relation-item">
+          <span class="rel-type">${r.relation_type}</span>
+          <span style="font-size:11px;color:var(--muted)">
+            ${r.from_id === id ? '→ ID ' + r.to_id : '← ID ' + r.from_id}
+          </span>
+          ${r.note ? `<span style="font-size:10px;color:var(--muted)"> — ${escHtml(r.note)}</span>` : ''}
+        </div>`).join('')
+      : '<div style="font-size:12px;color:var(--muted)">Keine Beziehungen</div>';
+
+    body.innerHTML = `
+      <div class="detail-row">
+        <span class="detail-badge" style="background:${color}20;color:${color}">${item.layer}</span>
+        <span class="detail-badge" style="background:var(--bg3)">${item.object_type}</span>
+        <span class="detail-badge" style="background:var(--bg3)">Konfidenz: ${item.confidence}/5</span>
+        <span class="detail-badge" style="background:var(--bg3)">Wichtigkeit: ${item.importance}/5</span>
+        ${item.active ? '' : '<span class="detail-badge" style="background:rgba(239,68,68,0.2);color:#ef4444">INAKTIV</span>'}
+      </div>
+      ${item.summary ? `<div style="font-size:13px;color:var(--muted);line-height:1.5;margin-bottom:8px">${escHtml(item.summary)}</div>` : ''}
+      <div class="section-label">Schlüssel</div>
+      <div style="font-size:12px;font-family:monospace;color:var(--accent2)">${escHtml(item.key)}</div>
+      <div class="section-label">Quelle</div>
+      <div style="font-size:12px;color:var(--muted)">${escHtml(item.source_module || '—')} · ${escHtml(item.source_type)} · Erstellt: ${fmtDate(item.created_at)} · Aktualisiert: ${fmtDate(item.updated_at)}</div>
+      ${tags.length ? `<div class="section-label">Tags</div><div class="kc-footer">${tags.map(t=>`<span class="tag">${escHtml(t)}</span>`).join('')}</div>` : ''}
+      ${bodyJson !== '{}' ? `<div class="section-label">Inhalt (JSON)</div><div class="body-content">${escHtml(bodyJson)}</div>` : ''}
+      <div class="section-label">Wissensbeziehungen (${rels.length})</div>
+      ${relsHtml}
+      <div style="display:flex;gap:6px;margin-top:14px">
+        <button class="btn btn-ghost" style="font-size:11px" onclick="toggleKnowledgeActive(${item.id},${item.active})">
+          ${item.active ? 'Deaktivieren' : 'Aktivieren'}
+        </button>
+        <button class="btn btn-ghost" style="font-size:11px" onclick="useAsDecisionContext(${JSON.stringify(item.title).replace(/'/g,'&#39;')})">
+          Als Entscheidungskontext nutzen
+        </button>
+      </div>`;
+  } catch(e) {
+    body.innerHTML = '<div style="color:var(--red)">Fehler: ' + e.message + '</div>';
+  }
+}
+
+function closeModal() {
+  document.getElementById('knowledgeModal').classList.remove('open');
+}
+
+async function toggleKnowledgeActive(id, current) {
+  try {
+    await fetch(ORCH_URL + '/knowledge/' + id + '?active=' + (current ? 0 : 1), { method: 'PATCH' });
+    toast(current ? 'Deaktiviert.' : 'Aktiviert.', 'success');
+    closeModal();
+    loadKnowledge();
+  } catch(e) { toast('Fehler', 'error'); }
+}
+
+function useAsDecisionContext(title) {
+  closeModal();
+  showTab('decision');
+  document.getElementById('de-question').value = title;
+}
+
+// ── Decision Engine ───────────────────────────────────────────────────────────
+async function runDecision() {
+  const question = document.getElementById('de-question').value.trim();
+  if (!question) { toast('Bitte eine Frage eingeben.', 'error'); return; }
+
+  const btn = document.getElementById('de-btn');
+  btn.disabled = true; btn.textContent = '⏳ Analyse…';
+
+  const payload = {
+    question,
+    module:   document.getElementById('de-module').value,
+    asked_by: getAuthUser(),
+    context_json: JSON.stringify({
+      sap_system: document.getElementById('de-system').value,
+      timestamp: new Date().toISOString()
+    })
+  };
+
+  try {
+    const r = await fetch(ORCH_URL + '/decisions', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(payload)
+    });
+    if (!r.ok) throw new Error(await r.text());
+    const result = await r.json();
+    renderDecisionResult(result);
+    loadHistory();
+  } catch(e) {
+    toast('Fehler: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = '🧠 Entscheidung anfragen';
+  }
+}
+
+function renderDecisionResult(result) {
+  const el = document.getElementById('decisionResult');
+  el.style.display = 'block';
+
+  const pros       = tryParseJson(result.arguments_pro,     []);
+  const contras    = tryParseJson(result.arguments_contra,  []);
+  const risks      = tryParseJson(result.risks_json,         []);
+  const alts       = tryParseJson(result.alternatives_json,  []);
+  const refs       = tryParseJson(result.knowledge_refs,     []);
+  const conf       = result.confidence || 1;
+  const confLabel  = conf >= 4 ? 'high' : conf >= 3 ? 'mid' : 'low';
+  const confText   = conf >= 4 ? 'Hoch' : conf >= 3 ? 'Mittel' : 'Niedrig';
+  const confDots   = Array.from({length:5}, (_,i) =>
+    `<div class="conf-dot ${i < conf ? 'filled' : 'empty'}"></div>`).join('');
+
+  const renderItems = (arr, cls) => arr.length
+    ? arr.map(a => `<div class="dr-item ${cls}">${escHtml(a)}</div>`).join('')
+    : `<div class="dr-item" style="color:var(--muted);font-style:italic">Keine</div>`;
+
+  el.innerHTML = `
+    <div class="decision-result">
+      <div class="dr-header">
+        <span class="dr-status ${confLabel}">Konfidenz: ${confText}</span>
+        <span style="font-size:11px;color:var(--muted)">Entscheidung #${result.id}</span>
+        <span style="font-size:11px;color:var(--muted)">Modul: ${result.module || 'global'}</span>
+      </div>
+      <div class="dr-recommendation">${escHtml(result.recommendation)}</div>
+      <div class="dr-sections">
+        <div class="dr-section">
+          <div class="dr-section-title">Pro-Argumente (${pros.length})</div>
+          ${renderItems(pros, 'pro')}
+        </div>
+        <div class="dr-section">
+          <div class="dr-section-title">Contra-Argumente (${contras.length})</div>
+          ${renderItems(contras, 'contra')}
+        </div>
+        <div class="dr-section">
+          <div class="dr-section-title">Risiken (${risks.length})</div>
+          ${renderItems(risks, 'risk')}
+        </div>
+        <div class="dr-section">
+          <div class="dr-section-title">Alternativen (${alts.length})</div>
+          ${renderItems(alts, 'alt')}
+        </div>
+      </div>
+      <div class="conf-bar">
+        <span class="conf-label">Wissensbasis-Konfidenz:</span>
+        <div class="conf-dots">${confDots}</div>
+        <span style="font-size:11px;color:var(--muted)">${conf}/5</span>
+      </div>
+      ${result.rationale ? `<div style="font-size:11px;color:var(--muted);margin-top:8px;line-height:1.4">${escHtml(result.rationale)}</div>` : ''}
+      ${refs.length ? `<div class="section-label" style="margin-top:10px">Referenziertes Wissen</div>
+        <div class="dr-refs">${refs.map(r=>`<span class="dr-ref">${escHtml(r.layer)}: ${escHtml(r.title?.slice(0,40) || '')}</span>`).join('')}</div>` : ''}
+      <div style="display:flex;gap:6px;margin-top:12px">
+        <button class="btn btn-ghost" style="font-size:11px;color:var(--green)" onclick="sendFeedback(${result.id},1)">✓ Entscheidung war korrekt</button>
+        <button class="btn btn-ghost" style="font-size:11px;color:var(--red)"   onclick="sendFeedback(${result.id},0)">✗ Entscheidung war falsch</button>
+      </div>
+    </div>`;
+}
+
+async function sendFeedback(id, correct) {
+  try {
+    await fetch(ORCH_URL + '/decisions/' + id + '/feedback?outcome_correct=' + correct, { method: 'PATCH' });
+    toast(correct ? 'Feedback gespeichert — Wissen gelernt!' : 'Feedback gespeichert — System lernt.', 'success');
+    if (correct) loadLayerCounts(); // Experience Layer Update
+  } catch(e) { toast('Fehler', 'error'); }
+}
+
+// ── Decision History ──────────────────────────────────────────────────────────
+async function loadHistory() {
+  const module = document.getElementById('hist-module')?.value || '';
+  const list = document.getElementById('decisionList');
+  let url = ORCH_URL + '/decisions?limit=30';
+  if (module) url += '&module=' + module;
+
+  try {
+    const r = await fetch(url);
+    const items = await r.json();
+    if (!items.length) {
+      list.innerHTML = '<div class="empty-state"><div class="icon">🧩</div><div class="text">Noch keine Entscheidungen.</div></div>';
+      return;
+    }
+    const confColor = c => c >= 4 ? 'var(--green)' : c >= 3 ? 'var(--yellow)' : 'var(--red)';
+    list.innerHTML = items.map(item => `
+      <div class="dh-card">
+        <div>
+          <div class="dh-question">${escHtml(item.question)}</div>
+          <div class="dh-rec">${escHtml(item.recommendation?.slice(0,120) || '')}…</div>
+          <div style="font-size:10px;color:var(--muted);margin-top:4px">${fmtDate(item.created_at)} · ${escHtml(item.module || 'global')} · ${escHtml(item.asked_by || '—')}</div>
+        </div>
+        <div class="dh-meta">
+          <span class="conf-badge" style="background:${confColor(item.confidence)}22;color:${confColor(item.confidence)}">${item.confidence}/5</span>
+          <div class="feedback-btns">
+            <button class="fb-btn" title="Korrekt" onclick="sendFeedback(${item.id},1)">✓</button>
+            <button class="fb-btn" title="Falsch"  onclick="sendFeedback(${item.id},0)">✗</button>
+          </div>
+        </div>
+      </div>`).join('');
+  } catch(e) {
+    list.innerHTML = '<div style="color:var(--red);padding:20px">Orchestrator nicht erreichbar</div>';
+  }
+}
+
+// ── 10W Audit ─────────────────────────────────────────────────────────────────
+async function loadTenW() {
+  const module = document.getElementById('tenw-module').value;
+  const system = document.getElementById('tenw-system').value;
+  const grid = document.getElementById('tenwGrid');
+
+  let url = ORCH_URL + '/3w/answers?limit=60';
+  if (module) url += '&module=' + module;
+  if (system) url += '&sap_system=' + system;
+
+  grid.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+
+  try {
+    const r = await fetch(url);
+    const rows = await r.json();
+    if (!rows.length) {
+      grid.innerHTML = '<div class="empty-state"><div class="icon">📋</div><div class="text">Noch keine 10W-Einträge.</div></div>';
+      return;
+    }
+    grid.innerHTML = rows.map(row => {
+      const w = (label, val) => val
+        ? `<div class="w10-field"><span class="w10-label">${label}</span><span class="w10-val">${escHtml(val)}</span></div>`
+        : `<div class="w10-field"><span class="w10-label">${label}</span><span class="w10-val w10-empty">—</span></div>`;
+      return `<div class="w10-card">
+        <div class="w10-header">${escHtml(row.action_type || '—')} · ${escHtml(row.sap_system || '')} · ${escHtml(row.periode || '')}</div>
+        ${w('W1 Wer',    row.who)}
+        ${w('W2 Was',    row.action_desc || row.object_ref)}
+        ${w('W3 Warum',  row.why_desc)}
+        ${w('W4 Wie',    row.wie)}
+        ${w('W5 Wann',   fmtDate(row.when_ts))}
+        ${w('W6 Wo',     row.wo || row.comp_code)}
+        ${w('W7 Womit',  row.womit)}
+        ${w('W8 Risiken',row.risiken)}
+        ${w('W9 Altern.',row.alternativen)}
+        ${w('W10 Erg.',  row.ergebnis)}
+      </div>`;
+    }).join('');
+  } catch(e) {
+    grid.innerHTML = '<div style="color:var(--red);padding:20px">Orchestrator nicht erreichbar</div>';
+  }
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function tryParseJson(str, def) {
+  try { return JSON.parse(str); } catch(_) { return def; }
+}
+
+function escHtml(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function fmtDate(dt) {
+  if (!dt) return '—';
+  try {
+    const d = new Date(dt);
+    return d.toLocaleString('de-DE', {day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
+  } catch(_) { return dt; }
+}
+
+function getAuthUser() {
+  try {
+    if (typeof AUTH !== 'undefined' && AUTH.user) return AUTH.user.sap_username || AUTH.user.display_name || 'system';
+  } catch(_) {}
+  return 'system';
+}
+
+function toast(msg, type = '') {
+  const c = document.getElementById('toasts');
+  const el = document.createElement('div');
+  el.className = 'toast ' + type;
+  el.textContent = msg;
+  c.appendChild(el);
+  setTimeout(() => el.remove(), 3500);
+}
+</script>
+</body>
+</html>

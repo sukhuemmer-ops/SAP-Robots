@@ -1,0 +1,14 @@
+{
+  "_id": "20260521_102841",
+  "_created": "2026-05-21T10:28:41",
+  "_status": "pending",
+  "doc_date": "20260521",
+  "amount": "1000.00",
+  "customer": "78285",
+  "plant": "C082",
+  "po_reference": "PO-2026-001",
+  "service_type": "DIEN-STD",
+  "currency": "EUR",
+  "payment_terms": "0001",
+  "tax_code": "O0"
+}

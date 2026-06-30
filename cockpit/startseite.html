@@ -1,0 +1,1056 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>YCONN — Übersicht</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+/* ─── Reset & Base ─────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg:        #0d1117;
+  --bg2:       #161b22;
+  --bg3:       #21262d;
+  --border:    #30363d;
+  --text:      #e6edf3;
+  --muted:     #8b949e;
+  --accent:    #1f6feb;
+
+  --ap-h:  #1d4ed8;
+  --ap-l:  #3b82f6;
+  --ap-bg: rgba(59,130,246,.08);
+
+  --ar-h:  #065f46;
+  --ar-l:  #10b981;
+  --ar-bg: rgba(16,185,129,.08);
+
+  --gl-h:  #92400e;
+  --gl-l:  #f59e0b;
+  --gl-bg: rgba(245,158,11,.08);
+
+  --aa-h:  #5b21b6;
+  --aa-l:  #8b5cf6;
+  --aa-bg: rgba(139,92,246,.08);
+
+  --ok:    #10b981;
+  --warn:  #f59e0b;
+  --err:   #ef4444;
+}
+html, body {
+  background: #0a1628;
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ─── Animated Background ──────────────────────────────────────── */
+body::before {
+  content: '';
+  position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  /* dark radial base */
+  background:
+    radial-gradient(ellipse 80% 50% at 20% 10%,  rgba(14,60,140,.25) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 40% at 80% 80%,  rgba(10,40,100,.20) 0%, transparent 55%),
+    radial-gradient(ellipse 50% 60% at 50% 40%,  rgba(8,30,80,.12)   0%, transparent 70%),
+    #0a1628;
+}
+
+/* SVG grid overlay */
+body::after {
+  content: '';
+  position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background-image:
+    linear-gradient(rgba(48,54,61,.35) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(48,54,61,.35) 1px, transparent 1px);
+  background-size: 52px 52px;
+  mask-image: linear-gradient(180deg, transparent 0%, rgba(0,0,0,.6) 20%, rgba(0,0,0,.6) 80%, transparent 100%);
+  animation: gridShift 20s linear infinite;
+}
+@keyframes gridShift { from { background-position: 0 0; } to { background-position: 52px 52px; } }
+
+/* Floating glow orbs */
+.bg-orb {
+  position: fixed; border-radius: 50%; pointer-events: none; z-index: 0;
+  filter: blur(80px); opacity: 0;
+  animation: orbFloat 12s ease-in-out infinite;
+}
+.bg-orb-1 { width:520px; height:520px; background:rgba(14,60,160,.20);  top:-120px; left:-80px;  animation-delay:0s;    animation-duration:14s; }
+.bg-orb-2 { width:400px; height:400px; background:rgba(10,40,120,.16);  bottom:0;   right:-60px;  animation-delay:-5s;   animation-duration:16s; }
+.bg-orb-3 { width:300px; height:300px; background:rgba(20,70,180,.10);  top:40%;   left:35%;     animation-delay:-9s;   animation-duration:18s; }
+.bg-orb-4 { width:250px; height:250px; background:rgba(8,30,100,.12);   top:60%;   right:20%;    animation-delay:-3s;   animation-duration:12s; }
+@keyframes orbFloat {
+  0%   { opacity:.6; transform: translate(0,0)   scale(1); }
+  33%  { opacity:.9; transform: translate(30px,-40px) scale(1.05); }
+  66%  { opacity:.5; transform: translate(-20px, 30px) scale(.95); }
+  100% { opacity:.6; transform: translate(0,0)   scale(1); }
+}
+
+/* ─── Layout ───────────────────────────────────────────────────── */
+.wrap { max-width: 1380px; margin: 0 auto; padding: 24px 28px; position: relative; z-index: 1; }
+
+/* ─── Header ───────────────────────────────────────────────────── */
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 36px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid rgba(48,54,61,.6);
+  position: relative;
+}
+.page-header::after {
+  content: '';
+  position: absolute; bottom: -1px; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(31,111,235,.5) 30%, rgba(139,92,246,.4) 70%, transparent);
+}
+.brand { display: flex; align-items: center; gap: 14px; }
+.brand-icon {
+  width: 44px; height: 44px; border-radius: 12px;
+  background: linear-gradient(135deg, #1f6feb 0%, #8b5cf6 100%);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.brand-icon svg { width: 24px; height: 24px; fill: #fff; }
+.brand-title { font-size: 20px; font-weight: 700; letter-spacing: -.3px; }
+.brand-sub { font-size: 12px; color: var(--muted); margin-top: 1px; }
+
+.header-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.status-chip {
+  display: flex; align-items: center; gap: 7px;
+  padding: 6px 14px; border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg2);
+  font-size: 12px; font-weight: 600;
+  cursor: pointer; transition: border-color .2s;
+}
+.status-chip:hover { border-color: var(--muted); }
+.status-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--err);
+  transition: background .3s;
+}
+.status-dot.connected { background: var(--ok); box-shadow: 0 0 0 3px rgba(16,185,129,.2); animation: pulse 2s infinite; }
+.status-dot.checking  { background: var(--warn); }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+
+.btn-nav {
+  padding: 7px 16px; border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg2);
+  color: var(--text); font-size: 13px; font-weight: 500;
+  cursor: pointer; text-decoration: none;
+  transition: background .15s, border-color .15s;
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.btn-nav:hover { background: var(--bg3); border-color: var(--muted); }
+.btn-nav.primary {
+  background: var(--accent);
+  border-color: var(--accent); color: #fff;
+}
+.btn-nav.primary:hover { background: #1a60d4; }
+
+/* ─── KPI Bar ──────────────────────────────────────────────────── */
+.kpi-bar {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin-bottom: 28px;
+}
+.kpi-card {
+  background: linear-gradient(145deg, rgba(40,48,60,.95) 0%, rgba(28,35,45,.95) 100%);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(80,95,115,.6);
+  border-radius: 14px;
+  padding: 18px 20px;
+  position: relative;
+  overflow: hidden;
+  transition: border-color .2s, transform .2s, box-shadow .2s;
+}
+.kpi-card:hover { border-color: rgba(120,140,165,.8); transform: translateY(-2px); box-shadow: 0 10px 28px rgba(0,0,0,.5); }
+.kpi-card::before {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0; height: 3px;
+  background: var(--accent-color, var(--accent));
+  border-radius: 12px 12px 0 0;
+}
+.kpi-card.green { --accent-color: var(--ok); }
+.kpi-card.amber { --accent-color: var(--warn); }
+.kpi-card.red   { --accent-color: var(--err); }
+.kpi-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; font-weight: 600; }
+.kpi-value { font-size: 32px; font-weight: 800; margin-top: 4px; letter-spacing: -1px; }
+.kpi-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+/* ─── Section Title ────────────────────────────────────────────── */
+.section-title {
+  font-size: 11px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .08em; color: var(--muted);
+  margin-bottom: 14px;
+}
+
+/* ─── Aufgaben-Kacheln ─────────────────────────────────────────── */
+.aufgaben-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 36px;
+}
+@media (max-width: 1100px) { .aufgaben-grid { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 700px)  { .aufgaben-grid { grid-template-columns: repeat(2, 1fr); } }
+
+.aufg-tile {
+  /* Farbiger Hintergrund mit sichtbarem Kontrast */
+  background: linear-gradient(145deg, var(--at-bg1, #1a2a4a) 0%, var(--at-bg2, #0f1e38) 100%);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--at-border, rgba(59,130,246,.45));
+  border-radius: 16px;
+  padding: 22px 20px 20px;
+  display: flex; flex-direction: column; gap: 12px;
+  cursor: pointer;
+  text-decoration: none; color: inherit;
+  transition: border-color .25s, transform .2s, box-shadow .25s, background .25s;
+  position: relative; overflow: hidden;
+}
+/* Obere farbige Leuchtlinie */
+.aufg-tile::before {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  background: linear-gradient(90deg, var(--at-dark, #1d4ed8), var(--at-color, var(--accent)), var(--at-dark, #1d4ed8));
+  border-radius: 16px 16px 0 0;
+  opacity: 1;
+}
+/* Diagonaler Schimmer-Overlay */
+.aufg-tile::after {
+  content: '';
+  position: absolute; top: -40%; left: -40%; width: 80%; height: 80%;
+  background: radial-gradient(circle, rgba(255,255,255,.08) 0%, transparent 70%);
+  pointer-events: none;
+  transition: opacity .3s;
+  opacity: 1;
+}
+.aufg-tile:hover {
+  border-color: var(--at-color, var(--accent));
+  transform: translateY(-5px);
+  box-shadow:
+    0 20px 50px rgba(0,0,0,.6),
+    0 0 0 1px var(--at-color, var(--accent)),
+    0 0 40px color-mix(in srgb, var(--at-color, #3b82f6) 30%, transparent 70%);
+}
+.aufg-tile.disabled { opacity: .5; cursor: default; pointer-events: none; }
+
+.at-icon {
+  width: 44px; height: 44px; border-radius: 12px;
+  background: linear-gradient(135deg, var(--at-dark, #1d4ed8), var(--at-color, var(--accent)));
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px; flex-shrink: 0;
+}
+.at-name  { font-size: 14px; font-weight: 700; line-height: 1.3; }
+.at-desc  { font-size: 11px; color: var(--muted); }
+.at-badge {
+  display: inline-flex; align-items: center;
+  padding: 2px 8px; border-radius: 99px;
+  font-size: 10px; font-weight: 700;
+  border: 1px solid currentColor;
+  align-self: flex-start;
+}
+.at-badge.ok   { color: var(--ok);  background: rgba(16,185,129,.10); }
+.at-badge.dev  { color: var(--warn); background: rgba(245,158,11,.10); }
+
+/* ─── Robot Grid ───────────────────────────────────────────────── */
+.robot-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 18px;
+  margin-bottom: 28px;
+}
+@media (max-width: 900px) { .robot-grid { grid-template-columns: 1fr; } }
+
+.robot-card {
+  background: rgba(22,27,34,.78);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(48,54,61,.9);
+  border-radius: 16px;
+  overflow: hidden;
+  transition: border-color .25s, transform .2s, box-shadow .25s;
+  cursor: pointer;
+}
+.robot-card:hover {
+  border-color: var(--rc-light, #3b82f6);
+  transform: translateY(-3px);
+  box-shadow: 0 16px 40px rgba(0,0,0,.5), 0 0 0 1px var(--rc-light, #3b82f6);
+}
+.robot-card.AP { --rc-dark: var(--ap-h); --rc-light: var(--ap-l); --rc-bg: var(--ap-bg); }
+.robot-card.AR { --rc-dark: var(--ar-h); --rc-light: var(--ar-l); --rc-bg: var(--ar-bg); }
+.robot-card.GL { --rc-dark: var(--gl-h); --rc-light: var(--gl-l); --rc-bg: var(--gl-bg); }
+.robot-card.AA { --rc-dark: var(--aa-h); --rc-light: var(--aa-l); --rc-bg: var(--aa-bg); }
+
+.rc-header {
+  background: var(--rc-bg);
+  border-bottom: 1px solid var(--border);
+  padding: 20px 22px 18px;
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+}
+.rc-left { display: flex; align-items: center; gap: 14px; }
+.rc-icon {
+  width: 48px; height: 48px; border-radius: 12px;
+  background: linear-gradient(135deg, var(--rc-dark) 0%, var(--rc-light) 100%);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; font-size: 22px;
+}
+.rc-name { font-size: 18px; font-weight: 700; }
+.rc-domain { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.rc-id-badge {
+  display: inline-flex; align-items: center;
+  padding: 2px 10px; border-radius: 999px;
+  background: rgba(255,255,255,.06);
+  border: 1px solid var(--rc-light);
+  color: var(--rc-light);
+  font-size: 11px; font-weight: 700;
+}
+.rc-right { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+
+.rc-status-indicator {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 12px; color: var(--muted); font-weight: 500;
+}
+.rc-dot {
+  width: 9px; height: 9px; border-radius: 50%;
+  background: var(--muted);
+}
+.rc-dot.idle    { background: #4b5563; }
+.rc-dot.running { background: var(--ok); box-shadow: 0 0 0 3px rgba(16,185,129,.25); animation: pulse 1.5s infinite; }
+.rc-dot.error   { background: var(--err); }
+
+.rc-body { padding: 18px 22px 20px; }
+
+.rc-stats {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  gap: 8px; margin-bottom: 18px;
+}
+.rc-stat {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 10px 8px;
+  text-align: center;
+}
+.rc-stat-val { font-size: 20px; font-weight: 800; color: var(--text); }
+.rc-stat-lbl { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin-top: 2px; }
+
+.rc-tasks { display: flex; flex-direction: column; gap: 6px; margin-bottom: 18px; }
+.rc-task-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 12px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 12px;
+  gap: 8px;
+}
+.rc-task-name { flex: 1; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rc-task-meta { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.method-pill {
+  padding: 1px 7px; border-radius: 4px;
+  font-size: 10px; font-weight: 700;
+  background: rgba(255,255,255,.06);
+  color: var(--muted);
+  text-transform: uppercase;
+}
+.method-pill.BAPI  { color: #60a5fa; background: rgba(96,165,250,.1); }
+.method-pill.GUI   { color: #a78bfa; background: rgba(167,139,250,.1); }
+.method-pill.Batch { color: #f59e0b; background: rgba(245,158,11,.1); }
+.method-pill.Queue { color: #34d399; background: rgba(52,211,153,.1); }
+.method-pill.SQL   { color: #fb923c; background: rgba(251,146,60,.1); }
+
+.rc-actions { display: flex; gap: 8px; }
+.rc-btn {
+  flex: 1; padding: 9px 12px; border-radius: 8px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text); font-size: 12px; font-weight: 600;
+  cursor: pointer; text-align: center;
+  transition: background .15s, border-color .15s;
+}
+.rc-btn:hover { background: var(--bg3); border-color: var(--muted); }
+.rc-btn.primary {
+  background: linear-gradient(135deg, var(--rc-dark) 0%, var(--rc-light) 100%);
+  border-color: transparent; color: #fff;
+}
+.rc-btn.primary:hover { opacity: .9; }
+
+/* ─── Bottom Grid ──────────────────────────────────────────────── */
+.bottom-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  margin-bottom: 28px;
+}
+@media (max-width: 800px) { .bottom-grid { grid-template-columns: 1fr; } }
+
+.info-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 20px 22px;
+}
+.info-card h3 {
+  font-size: 14px; font-weight: 700;
+  margin-bottom: 14px;
+  display: flex; align-items: center; gap: 8px;
+}
+.info-card h3 svg { opacity: .6; }
+
+/* Connections */
+.conn-list { display: flex; flex-direction: column; gap: 8px; }
+.conn-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 14px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 13px;
+  gap: 8px;
+}
+.conn-row-left { display: flex; align-items: center; gap: 10px; }
+.env-badge {
+  padding: 2px 8px; border-radius: 4px;
+  font-size: 10px; font-weight: 700;
+}
+.env-DEV { background: rgba(16,185,129,.15); color: #10b981; }
+.env-QAS { background: rgba(245,158,11,.15); color: #f59e0b; }
+.env-PRD { background: rgba(239,68,68,.15);  color: #ef4444; }
+.conn-name { font-weight: 600; }
+.conn-type { color: var(--muted); font-size: 11px; }
+
+/* Quick Actions */
+.qa-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.qa-btn {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 14px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  cursor: pointer; text-decoration: none;
+  color: var(--text);
+  font-size: 13px; font-weight: 500;
+  transition: background .15s, border-color .15s, transform .1s;
+}
+.qa-btn:hover { background: #2d333b; border-color: #444c56; transform: translateY(-1px); }
+.qa-icon {
+  width: 36px; height: 36px; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px; flex-shrink: 0;
+}
+
+/* Log preview */
+.log-box {
+  background: #0d1117;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-family: "SF Mono", Menlo, Consolas, monospace;
+  font-size: 11px;
+  max-height: 200px; overflow-y: auto;
+  color: #8b949e;
+}
+.log-line { padding: 2px 0; display: flex; gap: 8px; }
+.log-ts { color: #484f58; flex-shrink: 0; }
+.log-ok   { color: #3fb950; }
+.log-err  { color: #f85149; }
+.log-info { color: #58a6ff; }
+
+/* ─── Footer ───────────────────────────────────────────────────── */
+.page-footer {
+  border-top: 1px solid var(--border);
+  padding-top: 20px;
+  display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 10px;
+  font-size: 11px; color: var(--muted);
+}
+.footer-links { display: flex; gap: 16px; }
+.footer-links a { color: var(--muted); text-decoration: none; }
+.footer-links a:hover { color: var(--text); }
+
+/* ─── Toast ────────────────────────────────────────────────────── */
+#toast {
+  position: fixed; bottom: 24px; right: 24px;
+  padding: 12px 18px; border-radius: 10px;
+  font-size: 13px; font-weight: 500;
+  box-shadow: 0 8px 32px rgba(0,0,0,.5);
+  display: none; z-index: 999;
+  max-width: 380px;
+  border: 1px solid transparent;
+}
+#toast.ok   { background: #0f2a1c; color: #3fb950; border-color: #2ea043; display: block; }
+#toast.err  { background: #2a0f0f; color: #f85149; border-color: #da3633; display: block; }
+#toast.info { background: #0d1f38; color: #58a6ff; border-color: #1f6feb; display: block; }
+
+/* ─── Modal ────────────────────────────────────────────────────── */
+.modal-overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,.7); z-index: 100;
+  align-items: center; justify-content: center; padding: 20px;
+}
+.modal-overlay.open { display: flex; }
+.modal-panel {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 16px; padding: 24px;
+  width: 480px; max-width: 100%;
+  max-height: 90vh; overflow-y: auto;
+}
+.modal-panel h2 { font-size: 16px; margin-bottom: 16px; }
+.modal-close {
+  float: right; cursor: pointer;
+  color: var(--muted); background: none; border: none;
+  font-size: 20px; line-height: 1; padding: 0;
+}
+.modal-close:hover { color: var(--text); }
+.modal-row { display: flex; gap: 8px; justify-content: flex-end; margin-top: 18px; }
+
+/* ─── Scrollbar ────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #444c56; }
+</style>
+</head>
+<body>
+
+<!-- Floating background orbs -->
+<div class="bg-orb bg-orb-1"></div>
+<div class="bg-orb bg-orb-2"></div>
+<div class="bg-orb bg-orb-3"></div>
+<div class="bg-orb bg-orb-4"></div>
+
+<div class="wrap">
+
+  <!-- ═══ HEADER ═══════════════════════════════════════════════ -->
+  <header class="page-header">
+    <div class="brand">
+      <a href="startseite.html" title="Startseite" style="display:block;line-height:0">
+        <img src="YCONN-logo_Web.png" width="156" height="156" alt="YCONN Logo" style="display:block;"/>
+      </a>
+    </div>
+    <div class="header-right" id="headerRight"></div>
+  </header>
+
+  <!-- ═══ KPI BAR ═══════════════════════════════════════════════ -->
+  <div class="kpi-bar">
+    <div class="kpi-card">
+      <div class="kpi-label">Robots gesamt</div>
+      <div class="kpi-value" id="kpiRobots">4</div>
+      <div class="kpi-sub">AP · AR · GL · AA</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Aufgaben gesamt</div>
+      <div class="kpi-value" id="kpiTasks">0</div>
+      <div class="kpi-sub">Konfiguriert</div>
+    </div>
+    <div class="kpi-card green">
+      <div class="kpi-label">Zuletzt OK</div>
+      <div class="kpi-value" id="kpiOk" style="color:var(--ok)">0</div>
+      <div class="kpi-sub">Letzte 24 Stunden</div>
+    </div>
+    <div class="kpi-card red">
+      <div class="kpi-label">Fehler</div>
+      <div class="kpi-value" id="kpiErr" style="color:var(--err)">0</div>
+      <div class="kpi-sub">Letzte 24 Stunden</div>
+    </div>
+  </div>
+
+  <!-- ═══ AUFGABEN-KACHELN ════════════════════════════════════════ -->
+  <div class="section-title">Aufgaben</div>
+  <div class="aufgaben-grid">
+
+    <!-- a) Darlehen -->
+    <a class="aufg-tile" href="zinsen.html"
+       style="--at-color:#3b82f6;--at-dark:#1d4ed8;--at-bg1:#1a2f5e;--at-bg2:#0e1d3f;--at-border:rgba(59,130,246,.55)">
+      <div class="at-icon">💶</div>
+      <div>
+        <div class="at-name">Darlehen</div>
+        <div class="at-desc">IC-Zinsbuchungen, Zinsplan, Buchungshistorie</div>
+      </div>
+      <span class="at-badge ok">● Verfügbar</span>
+    </a>
+
+    <!-- b) SAP-Stammdaten -->
+    <a class="aufg-tile" href="stammdaten.html"
+       style="--at-color:#a78bfa;--at-dark:#7c3aed;--at-bg1:#2a1a55;--at-bg2:#1a1038;--at-border:rgba(167,139,250,.55)">
+      <div class="at-icon">🗄</div>
+      <div>
+        <div class="at-name">SAP-Stammdaten</div>
+        <div class="at-desc">Debitoren, Kreditoren, Konten, Kostenstellen</div>
+      </div>
+      <span class="at-badge ok">● Verfügbar</span>
+    </a>
+
+    <!-- c) Kundenstamm / Zahlungsbedingungen -->
+    <a class="aufg-tile" href="kundenstamm.html"
+       style="--at-color:#f97316;--at-dark:#c2410c;--at-bg1:#3a1a08;--at-bg2:#261005;--at-border:rgba(249,115,22,.45)">
+      <div class="at-icon">🗃</div>
+      <div>
+        <div class="at-name">SAP Kundenstamm</div>
+        <div class="at-desc">Zahlungsbedingungen prüfen und korrigieren (XD02 / VK12)</div>
+      </div>
+      <span class="at-badge ok">● Verfügbar</span>
+    </a>
+
+    <!-- d) Rechnungserstellung -->
+    <a class="aufg-tile" href="rechnung.html"
+       style="--at-color:#fbbf24;--at-dark:#d97706;--at-bg1:#3a2a08;--at-bg2:#261c04;--at-border:rgba(251,191,36,.45)">
+      <div class="at-icon">🧾</div>
+      <div>
+        <div class="at-name">Rechnungserstellung</div>
+        <div class="at-desc">Ausgangsrechnungen automatisch erstellen</div>
+      </div>
+      <span class="at-badge ok">● Verfügbar</span>
+    </a>
+
+    <!-- d) PayRoll-Buchungen -->
+    <a class="aufg-tile" href="payroll.html"
+       style="--at-color:#34d399;--at-dark:#059669;--at-bg1:#0a3028;--at-bg2:#051e19;--at-border:rgba(52,211,153,.45)">
+      <div class="at-icon">💼</div>
+      <div>
+        <div class="at-name">PayRoll-Buchungen</div>
+        <div class="at-desc">Lohn- und Gehaltsabrechnungen buchen</div>
+      </div>
+      <span class="at-badge ok">● Verfügbar</span>
+    </a>
+
+    <!-- e) ARAP-Buchungen -->
+    <a class="aufg-tile" href="cockpit.html"
+       style="--at-color:#22d3ee;--at-dark:#0891b2;--at-bg1:#082d3a;--at-bg2:#041d26;--at-border:rgba(34,211,238,.5)">
+      <div class="at-icon">↔️</div>
+      <div>
+        <div class="at-name">ARAP-Buchungen</div>
+        <div class="at-desc">Abgrenzungen, AP/AR-Buchungen verarbeiten</div>
+      </div>
+      <span class="at-badge ok">● Verfügbar</span>
+    </a>
+
+    <!-- f) Rückstellungsbuchungen -->
+    <div class="aufg-tile disabled"
+         style="--at-color:#fb7185;--at-dark:#e11d48;--at-bg1:#3a0d1a;--at-bg2:#250810;--at-border:rgba(251,113,133,.45)">
+      <div class="at-icon">📌</div>
+      <div>
+        <div class="at-name">Rückstellungsbuchungen</div>
+        <div class="at-desc">Rückstellungen planen und buchen</div>
+      </div>
+      <span class="at-badge dev">⚙ In Entwicklung</span>
+    </div>
+
+    <!-- g) Afa-Lauf -->
+    <div class="aufg-tile disabled"
+         style="--at-color:#c4b5fd;--at-dark:#7c3aed;--at-bg1:#251545;--at-bg2:#170d30;--at-border:rgba(196,181,253,.45)">
+      <div class="at-icon">📉</div>
+      <div>
+        <div class="at-name">Afa-Lauf</div>
+        <div class="at-desc">Abschreibungslauf ausführen und buchen</div>
+      </div>
+      <span class="at-badge dev">⚙ In Entwicklung</span>
+    </div>
+
+  </div>
+
+  <!-- ═══ ROBOT TILES ═══════════════════════════════════════════ -->
+  <div class="section-title">Robots</div>
+  <div class="robot-grid" id="robotGrid"></div>
+
+  <!-- ═══ BOTTOM GRID ══════════════════════════════════════════ -->
+  <div class="bottom-grid">
+
+    <!-- Verbindungen -->
+    <div class="info-card">
+      <h3>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+        SAP-Verbindungen
+      </h3>
+      <div class="conn-list" id="connList"></div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="info-card">
+      <h3>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
+        Schnellzugriff
+      </h3>
+      <div class="qa-grid">
+        <a href="cockpit.html#aufgaben" class="qa-btn">
+          <div class="qa-icon" style="background:rgba(59,130,246,.12)">📋</div>
+          <div>Alle Aufgaben</div>
+        </a>
+        <a href="cockpit-v2.html" class="qa-btn">
+          <div class="qa-icon" style="background:rgba(139,92,246,.12)">📅</div>
+          <div>Zeitpläne</div>
+        </a>
+        <a href="cockpit.html#verbindungen" class="qa-btn">
+          <div class="qa-icon" style="background:rgba(16,185,129,.12)">🔌</div>
+          <div>Verbindungen</div>
+        </a>
+        <a href="cockpit.html#reports" class="qa-btn">
+          <div class="qa-icon" style="background:rgba(245,158,11,.12)">📊</div>
+          <div>Reports</div>
+        </a>
+        <a href="zinsen.html" class="qa-btn">
+          <div class="qa-icon" style="background:rgba(239,68,68,.12)">💶</div>
+          <div>Buchung Zinsen</div>
+        </a>
+        <a href="verbindungen.html" class="qa-btn">
+          <div class="qa-icon" style="background:rgba(96,165,250,.12)">🛠️</div>
+          <div>Verbindungs-<br>editor</div>
+        </a>
+        <a href="benutzer.html" class="qa-btn">
+          <div class="qa-icon" style="background:rgba(139,92,246,.12)">👤</div>
+          <div>Benutzer-<br>verwaltung</div>
+        </a>
+        <a href="regeln.html" class="qa-btn">
+          <div class="qa-icon" style="background:rgba(245,158,11,.12)">📋</div>
+          <div>App-Regeln</div>
+        </a>
+        <a href="brain.html" class="qa-btn">
+          <div class="qa-icon" style="background:rgba(99,102,241,.15)">🧠</div>
+          <div>Digitales<br>Gehirn</div>
+        </a>
+        <a href="db-kontrollzentrum.html" class="qa-btn">
+          <div class="qa-icon" style="background:rgba(139,92,246,.12)">⬡</div>
+          <div>3W Kontroll-<br>zentrum</div>
+        </a>
+        <a href="db-admin.html" class="qa-btn">
+          <div class="qa-icon" style="background:rgba(31,111,235,.12)">🗄️</div>
+          <div>3W DB<br>Details</div>
+        </a>
+        <div class="qa-btn" style="cursor:pointer" onclick="checkBridge()">
+          <div class="qa-icon" style="background:rgba(52,211,153,.12)">🔍</div>
+          <div>Bridge prüfen</div>
+        </div>
+        <div class="qa-btn" style="cursor:pointer" onclick="clearLogs()">
+          <div class="qa-icon" style="background:rgba(248,81,73,.12)">🗑️</div>
+          <div>Logs leeren</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ ACTIVITY LOG ══════════════════════════════════════════ -->
+  <div class="section-title">Aktivitätslog</div>
+  <div class="info-card" style="margin-bottom:28px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <h3 style="margin-bottom:0">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        Letzte Ereignisse
+      </h3>
+      <button class="btn-nav" onclick="clearLogs()" style="padding:4px 10px;font-size:11px">Leeren</button>
+    </div>
+    <div class="log-box" id="logBox">Keine Logs.</div>
+  </div>
+
+  <!-- ═══ FOOTER ════════════════════════════════════════════════ -->
+  <footer class="page-footer">
+    <div>YCONN &mdash; Catensys &copy; 2026</div>
+    <div class="footer-links">
+      <a href="cockpit.html">Cockpit v1</a>
+      <a href="cockpit-v2.html">Cockpit v2</a>
+      <a href="verbindungen.html">Verbindungen</a>
+      <a href="benutzer.html">Benutzer</a>
+      <a href="brain.html">Digitales Gehirn</a>
+      <a href="db-kontrollzentrum.html">3W-Kontrollzentrum</a>
+      <a href="db-admin.html">3W-Details</a>
+      <a href="cockpit-bridge.html">Bridge</a>
+      <a href="http://localhost:8000/docs" target="_blank">API Docs</a>
+    </div>
+  </footer>
+</div>
+
+<div id="toast"></div>
+
+<!-- ═══ RUN MODAL ══════════════════════════════════════════════ -->
+<div class="modal-overlay" id="runModal">
+  <div class="modal-panel">
+    <button class="modal-close" onclick="closeModal()">&times;</button>
+    <h2 id="modalTitle">Robot starten</h2>
+    <div id="modalBody" style="color:var(--muted);font-size:13px"></div>
+    <div class="modal-row">
+      <button class="btn-nav" onclick="closeModal()">Abbrechen</button>
+      <button class="btn-nav primary" id="modalConfirm">Starten</button>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+// ─── Config ────────────────────────────────────────────────────────
+var BRIDGE_URL = "http://localhost:8765";
+var STORE_KEY  = "sap-cockpit-real-v4";
+
+var ROBOTS = [
+  { id:"AP", name:"Robot-AP", domain:"Accounts Payable",    icon:"📄", cls:"AP" },
+  { id:"AR", name:"Robot-AR", domain:"Accounts Receivable", icon:"📬", cls:"AR" },
+  { id:"GL", name:"Robot-GL", domain:"General Ledger",      icon:"📒", cls:"GL" },
+  { id:"AA", name:"Robot-AA", domain:"Asset Accounting",    icon:"🏗️", cls:"AA" }
+];
+
+var CONNS = [
+  { id:"dev",   name:"SAP-DEV",         env:"DEV", type:"RFC" },
+  { id:"qas",   name:"SAP-QAS",         env:"QAS", type:"RFC" },
+  { id:"prd",   name:"SAP-PRD",         env:"PRD", type:"RFC",  robots:["AP","AR","GL","AA"] },
+  { id:"gui",   name:"SAP-GUI-PRD",     env:"PRD", type:"GUI",  robots:["AP","AR","GL","AA"] },
+  { id:"odata", name:"S4HANA-OData-PRD",env:"PRD", type:"OData" }
+];
+
+// ─── State ─────────────────────────────────────────────────────────
+var state = (function(){
+  try { var s = localStorage.getItem(STORE_KEY); return s ? JSON.parse(s) : null; } catch(e){ return null; }
+})();
+if (!state || !state.tasks) {
+  state = { tasks: [], logs: [] };
+}
+
+function save(){ try{ localStorage.setItem(STORE_KEY, JSON.stringify(state)); }catch(e){} }
+function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c];}); }
+
+// ─── Logging ───────────────────────────────────────────────────────
+function log(level, msg){
+  if (!state.logs) state.logs = [];
+  state.logs.unshift({ ts: new Date().toLocaleString("de-DE"), level: level, msg: msg });
+  if (state.logs.length > 100) state.logs.length = 100;
+  save();
+  renderLogs();
+}
+
+function renderLogs(){
+  var box = document.getElementById("logBox");
+  if (!state.logs || !state.logs.length){ box.textContent = "Keine Logs."; return; }
+  box.innerHTML = state.logs.slice(0,30).map(function(l){
+    return "<div class=\"log-line\">" +
+      "<span class=\"log-ts\">" + esc(l.ts) + "</span>" +
+      "<span class=\"log-" + esc(l.level) + "\">" + esc(l.msg) + "</span>" +
+    "</div>";
+  }).join("");
+}
+
+function clearLogs(){
+  state.logs = []; save(); renderLogs();
+  toast("Logs geleert", "info");
+}
+
+// ─── Toast ─────────────────────────────────────────────────────────
+var _toastTimer;
+function toast(msg, level){
+  var el = document.getElementById("toast");
+  el.className = level || "info"; el.textContent = msg;
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(function(){ el.className = ""; el.style.display = "none"; }, 4000);
+}
+
+// ─── Bridge Check ──────────────────────────────────────────────────
+var REAL_MODE = false;
+function checkBridge(){
+  var dot   = document.getElementById("bridgeDot");
+  var label = document.getElementById("bridgeLabel");
+  dot.className = "status-dot checking";
+  label.textContent = "Prüfe…";
+  fetch(BRIDGE_URL + "/health", { method:"GET" })
+    .then(function(r){ return r.ok ? r.json() : Promise.reject(r.statusText); })
+    .then(function(d){
+      REAL_MODE = true;
+      dot.className = "status-dot connected";
+      label.textContent = "Bridge verbunden";
+      log("ok", "Bridge OK · " + (d.sap_host||"") + " · " + (d.handlers||[]).length + " Handler");
+      renderOverview();
+    })
+    .catch(function(){
+      REAL_MODE = false;
+      dot.className = "status-dot";
+      label.textContent = "SIM-Modus (Bridge offline)";
+    });
+}
+
+// ─── KPI ───────────────────────────────────────────────────────────
+function renderKPI(){
+  var tasks  = state.tasks || [];
+  var cutoff = Date.now() - 86400000;
+  var ok24   = tasks.filter(function(t){ return t.lastStatus==="ok"    && t.lastRun && new Date(t.lastRun)>cutoff; }).length;
+  var err24  = tasks.filter(function(t){ return t.lastStatus==="error" && t.lastRun && new Date(t.lastRun)>cutoff; }).length;
+  document.getElementById("kpiTasks").textContent = tasks.length;
+  document.getElementById("kpiOk").textContent    = ok24;
+  document.getElementById("kpiErr").textContent   = err24;
+}
+
+// ─── Overview ──────────────────────────────────────────────────────
+function renderOverview(){
+  renderKPI();
+  renderRobots();
+  renderConns();
+}
+
+function renderRobots(){
+  var grid = document.getElementById("robotGrid");
+  grid.innerHTML = "";
+  ROBOTS.forEach(function(r){
+    var tasks   = (state.tasks||[]).filter(function(t){ return t.robot===r.id; });
+    var running = tasks.some(function(t){ return t.running; });
+    var anyErr  = tasks.some(function(t){ return t.lastStatus==="error"; });
+    var okCnt   = tasks.filter(function(t){ return t.lastStatus==="ok"; }).length;
+    var errCnt  = tasks.filter(function(t){ return t.lastStatus==="error"; }).length;
+    var scheds  = (state.schedules||[]).filter(function(s){
+      var t = (state.tasks||[]).find(function(x){ return x.id===s.taskId; });
+      return t && t.robot===r.id && s.active;
+    }).length;
+    var dotClass = running ? "running" : (anyErr ? "error" : "idle");
+    var statusLabel = running ? "Läuft" : anyErr ? "Fehler" : "Bereit";
+
+    // Top 4 tasks preview
+    var taskRows = tasks.slice(0,4).map(function(t){
+      return "<div class=\"rc-task-row\">" +
+        "<span class=\"rc-task-name\">" + esc(t.name) + "</span>" +
+        "<div class=\"rc-task-meta\">" +
+          "<span class=\"method-pill " + esc(t.method||"") + "\">" + esc(t.method||"") + "</span>" +
+        "</div>" +
+      "</div>";
+    }).join("");
+    if (tasks.length > 4){
+      taskRows += "<div style=\"font-size:11px;color:var(--muted);text-align:center;padding:4px\">+ " + (tasks.length-4) + " weitere Aufgaben</div>";
+    }
+
+    var card = document.createElement("div");
+    card.className = "robot-card " + r.cls;
+    card.innerHTML =
+      "<div class=\"rc-header\">" +
+        "<div class=\"rc-left\">" +
+          "<div class=\"rc-icon\">" + r.icon + "</div>" +
+          "<div>" +
+            "<div class=\"rc-name\">" + esc(r.name) + "</div>" +
+            "<div class=\"rc-domain\">" + esc(r.domain) + "</div>" +
+          "</div>" +
+        "</div>" +
+        "<div class=\"rc-right\">" +
+          "<span class=\"rc-id-badge\">" + esc(r.id) + "</span>" +
+          "<div class=\"rc-status-indicator\">" +
+            "<div class=\"rc-dot " + dotClass + "\"></div>" +
+            "<span>" + statusLabel + "</span>" +
+          "</div>" +
+        "</div>" +
+      "</div>" +
+      "<div class=\"rc-body\">" +
+        "<div class=\"rc-stats\">" +
+          "<div class=\"rc-stat\"><div class=\"rc-stat-val\">" + tasks.length + "</div><div class=\"rc-stat-lbl\">Aufgaben</div></div>" +
+          "<div class=\"rc-stat\"><div class=\"rc-stat-val\">" + scheds + "</div><div class=\"rc-stat-lbl\">Geplant</div></div>" +
+          "<div class=\"rc-stat\"><div class=\"rc-stat-val\" style=\"color:var(--ok)\">" + okCnt + "</div><div class=\"rc-stat-lbl\">OK</div></div>" +
+          "<div class=\"rc-stat\"><div class=\"rc-stat-val\" style=\"color:var(--err)\">" + errCnt + "</div><div class=\"rc-stat-lbl\">Fehler</div></div>" +
+        "</div>" +
+        "<div class=\"rc-tasks\">" + (taskRows || "<div style=\"color:var(--muted);font-size:12px;padding:8px 0\">Keine Aufgaben konfiguriert.</div>") + "</div>" +
+        "<div class=\"rc-actions\">" +
+          "<button class=\"rc-btn primary\" onclick=\"event.stopPropagation();openRunModal('" + r.id + "')\">▶ Alle starten</button>" +
+          "<button class=\"rc-btn\" onclick=\"event.stopPropagation();location.href='cockpit.html'\" style=\"flex:0;padding:9px 14px\">Aufgaben</button>" +
+          "<button class=\"rc-btn\" onclick=\"event.stopPropagation();location.href='cockpit-v2.html'\" style=\"flex:0;padding:9px 14px\">Zeitplan</button>" +
+        "</div>" +
+      "</div>";
+    grid.appendChild(card);
+  });
+}
+
+function renderConns(){
+  var list = document.getElementById("connList");
+  list.innerHTML = CONNS.map(function(c){
+    var typeLabel = { RFC:"RFC / BAPI", GUI:"GUI Scripting", OData:"OData / REST" }[c.type] || c.type;
+    var robots = c.robots && c.robots.length
+      ? c.robots.map(function(r){ return "<span style=\"font-size:10px;color:var(--muted)\">" + r + "</span>"; }).join(" ")
+      : "<span style=\"font-size:10px;color:var(--muted)\">—</span>";
+    return "<div class=\"conn-row\">" +
+      "<div class=\"conn-row-left\">" +
+        "<span class=\"env-badge env-" + c.env + "\">" + c.env + "</span>" +
+        "<div><div class=\"conn-name\">" + esc(c.name) + "</div>" +
+        "<div class=\"conn-type\">" + typeLabel + "</div></div>" +
+      "</div>" +
+      "<div style=\"display:flex;align-items:center;gap:4px\">" + robots + "</div>" +
+    "</div>";
+  }).join("");
+}
+
+// ─── Run Modal ─────────────────────────────────────────────────────
+var _pendingRobotId = null;
+function openRunModal(robotId){
+  var r = ROBOTS.find(function(x){ return x.id===robotId; });
+  if (!r) return;
+  var tasks = (state.tasks||[]).filter(function(t){ return t.robot===robotId; });
+  _pendingRobotId = robotId;
+  document.getElementById("modalTitle").textContent = r.name + " starten";
+  document.getElementById("modalBody").innerHTML =
+    "<p style=\"margin-bottom:12px\">Es werden <b>" + tasks.length + " Aufgaben</b> gestartet:</p>" +
+    "<ul style=\"color:var(--muted);font-size:12px;padding-left:18px;line-height:2\">" +
+    tasks.map(function(t){ return "<li>" + esc(t.name) + " <span style=\"opacity:.6\">(" + esc(t.method) + ")</span></li>"; }).join("") +
+    "</ul>" +
+    (!REAL_MODE ? "<div style=\"margin-top:14px;padding:10px 12px;background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.3);border-radius:8px;color:#f59e0b;font-size:12px\">⚠ Bridge nicht aktiv — Läufe werden simuliert.</div>" : "");
+  document.getElementById("modalConfirm").onclick = function(){ runRobot(robotId); closeModal(); };
+  document.getElementById("runModal").classList.add("open");
+}
+
+function closeModal(){
+  document.getElementById("runModal").classList.remove("open");
+  _pendingRobotId = null;
+}
+
+function runRobot(robotId){
+  var tasks = (state.tasks||[]).filter(function(t){ return t.robot===robotId; });
+  if (!tasks.length){ toast("Keine Aufgaben für Robot-" + robotId, "info"); return; }
+  tasks.forEach(function(t, i){
+    setTimeout(function(){
+      if (!REAL_MODE){
+        log("info", "[SIM] " + t.robot + " / " + t.name);
+        t.lastRun = new Date().toISOString();
+        t.lastStatus = Math.random() > 0.15 ? "ok" : "error";
+        save(); renderOverview();
+      } else {
+        fetch(BRIDGE_URL + "/run", {
+          method:"POST", headers:{"Content-Type":"application/json"},
+          body: JSON.stringify({ method:t.method, tcode:t.tcode, payload: {} })
+        })
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+          t.lastRun = new Date().toISOString();
+          t.lastStatus = d.status === "ok" ? "ok" : "error";
+          log(d.status==="ok"?"ok":"err", t.robot + " / " + t.name + ": " + (d.message||""));
+          save(); renderOverview();
+        })
+        .catch(function(e){ log("err", t.name + ": " + e); });
+      }
+    }, i * 300);
+  });
+  toast("Robot-" + robotId + " gestartet (" + tasks.length + " Aufgaben)", "info");
+  log("info", "Robot-" + robotId + " gestartet");
+}
+
+function runAllRobots(){
+  ROBOTS.forEach(function(r, i){
+    setTimeout(function(){ runRobot(r.id); }, i * 800);
+  });
+  toast("Alle 4 Robots gestartet", "ok");
+}
+
+// ─── Init ───────────
+</script>
+<script src="auth.js"></script>
+<script>
+  AUTH.renderHeader("headerRight");
+
+  // Hinweis wenn von gesperrter Seite weitergeleitet
+  const _denied = sessionStorage.getItem('yconn_access_denied');
+  if (_denied) {
+    sessionStorage.removeItem('yconn_access_denied');
+    const _note = document.createElement('div');
+    _note.style.cssText = 'position:fixed;top:16px;right:20px;z-index:9999;' +
+      'background:#7f1d1d;border:1px solid #ef4444;color:#fca5a5;' +
+      'padding:12px 18px;border-radius:10px;font-size:13px;max-width:360px;' +
+      'box-shadow:0 4px 20px rgba(0,0,0,.5);';
+    _note.textContent = '🔒 ' + _denied;
+    document.body.appendChild(_note);
+    setTimeout(() => _note.remove(), 5000);
+  }
+</script>

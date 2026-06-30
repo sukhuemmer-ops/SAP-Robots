@@ -1,0 +1,734 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>YCONN Cockpit</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+*,*::before,*::after{box-sizing:border-box;}
+:root{
+  --bg:#0d1117;--bg2:#161b22;--bg3:#21262d;
+  --border:#30363d;--text:#e6edf3;--muted:#8b949e;
+  --accent:#1f6feb;--ok:#10b981;--warn:#f59e0b;--err:#ef4444;
+}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  font-size:14px;line-height:1.5;min-height:100vh;}
+.wrap{max-width:1280px;margin:0 auto;padding:20px 24px;}
+/* Header */
+.page-header{display:flex;align-items:center;justify-content:space-between;gap:12px;
+  flex-wrap:wrap;margin-bottom:24px;padding-bottom:18px;border-bottom:1px solid var(--border);}
+.brand{display:flex;align-items:center;gap:12px;}
+.brand-icon{width:40px;height:40px;border-radius:10px;
+  background:linear-gradient(135deg,#1f6feb,#8b5cf6);
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.brand-title{font-size:18px;font-weight:800;letter-spacing:-.4px;}
+.brand-sub{font-size:11px;color:var(--muted);}
+.header-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.btn-nav{padding:6px 14px;border-radius:7px;border:1px solid var(--border);
+  background:var(--bg2);color:var(--text);font-size:12px;font-weight:500;
+  cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:5px;
+  transition:background .15s;}
+.btn-nav:hover{background:var(--bg3);}
+.btn-nav.primary{background:var(--accent);border-color:var(--accent);color:#fff;}
+.btn-nav.danger{background:rgba(239,68,68,.08);border-color:rgba(239,68,68,.3);color:var(--err);}
+.status-chip{display:flex;align-items:center;gap:7px;padding:5px 12px;
+  border-radius:999px;border:1px solid var(--border);background:var(--bg2);
+  font-size:12px;font-weight:600;cursor:pointer;}
+.status-dot{width:7px;height:7px;border-radius:50%;background:var(--err);}
+.status-dot.connected{background:var(--ok);box-shadow:0 0 0 3px rgba(16,185,129,.2);animation:pulse 2s infinite;}
+.status-dot.checking{background:var(--warn);}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+/* Mode bar */
+.modebar{display:flex;align-items:center;gap:10px;padding:10px 14px;
+  border-radius:10px;margin-bottom:16px;font-size:13px;border:1px solid;}
+.modebar.real{background:rgba(16,185,129,.08);color:#10b981;border-color:rgba(16,185,129,.25);}
+.modebar.sim{background:rgba(245,158,11,.08);color:#f59e0b;border-color:rgba(245,158,11,.25);}
+/* Tabs */
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--border);margin-bottom:20px;flex-wrap:wrap;}
+.tab{padding:8px 16px;background:none;border:0;border-bottom:2px solid transparent;
+  cursor:pointer;font-size:13px;color:var(--muted);font-weight:500;font-family:inherit;}
+.tab:hover{color:var(--text);}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent);}
+section{display:none;}
+section.active{display:block;}
+/* Cards & Grid */
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;}
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:16px;}
+.card h3{margin:0 0 4px 0;font-size:15px;color:var(--text);}
+/* KPI */
+.kpi{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px;}
+.kpi .card{padding:12px 14px;}
+.kpi .card .v{font-size:22px;font-weight:700;color:var(--text);}
+.kpi .card .l{color:var(--muted);font-size:12px;}
+/* Badges */
+.badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;}
+.badge.ap,.badge.AP{background:rgba(59,130,246,.15);color:#3b82f6;}
+.badge.ar,.badge.AR{background:rgba(16,185,129,.15);color:#10b981;}
+.badge.gl,.badge.GL{background:rgba(245,158,11,.15);color:#f59e0b;}
+.badge.aa,.badge.AA{background:rgba(139,92,246,.15);color:#8b5cf6;}
+.badge.ok{background:rgba(16,185,129,.15);color:#10b981;}
+.badge.fail{background:rgba(239,68,68,.15);color:#ef4444;}
+.badge.warn{background:rgba(245,158,11,.15);color:#f59e0b;}
+.badge.run{background:rgba(96,165,250,.15);color:#60a5fa;}
+.badge.pend{background:rgba(255,255,255,.06);color:var(--muted);}
+.badge.real{background:rgba(16,185,129,.15);color:#10b981;}
+.badge.sim{background:rgba(245,158,11,.15);color:#f59e0b;}
+/* ENV */
+.env,.env-pill{color:#fff;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;display:inline-block;}
+.env.DEV,.env-DEV{background:#16a34a;}
+.env.QAS,.env-QAS{background:#b45309;}
+.env.PRD,.env-PRD{background:#b91c1c;}
+/* Dot */
+.dot{width:10px;height:10px;border-radius:50%;display:inline-block;}
+.dot.idle{background:#4b5563;}
+.dot.running{background:var(--ok);box-shadow:0 0 0 3px rgba(16,185,129,.2);animation:pulse 1.5s infinite;}
+.dot.error{background:var(--err);}
+/* Buttons */
+button{padding:6px 14px;border-radius:7px;border:1px solid var(--border);
+  background:var(--bg3);cursor:pointer;font-size:13px;color:var(--text);font-family:inherit;}
+button.primary,.btn.primary{background:var(--accent);color:#fff;border-color:var(--accent);}
+button.danger,.btn.danger{color:var(--err);border-color:rgba(239,68,68,.3);background:rgba(239,68,68,.06);}
+button.small,.btn.small{padding:3px 8px;font-size:12px;}
+button:hover,.btn:hover{opacity:.85;}
+.btn{padding:6px 12px;border-radius:7px;border:1px solid var(--border);
+  background:var(--bg3);cursor:pointer;font-size:13px;color:var(--text);font-family:inherit;}
+/* Inputs */
+.field{margin:10px 0;}
+.field label{display:block;font-size:11px;color:var(--muted);margin-bottom:3px;font-weight:500;}
+input[type=text],input[type=number],input[type=date],input[type=time],
+input[type=password],select,textarea,.field input,.field select{
+  background:var(--bg3);border:1px solid var(--border);border-radius:6px;
+  color:var(--text);padding:6px 9px;font:inherit;width:100%;box-sizing:border-box;}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent);}
+label{display:block;font-size:12px;color:var(--muted);margin:8px 0 3px;font-weight:500;}
+/* Tables */
+table{width:100%;border-collapse:collapse;font-size:13px;}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--border);vertical-align:top;}
+th{background:var(--bg3);font-size:11px;text-transform:uppercase;color:var(--muted);font-weight:600;letter-spacing:.03em;}
+tr:last-child td{border-bottom:none;}
+tr:hover td{background:rgba(255,255,255,.015);}
+/* Details */
+details{margin-top:10px;}
+summary{cursor:pointer;padding:6px 0;font-weight:600;color:#58a6ff;font-size:13px;user-select:none;}
+/* Code */
+code{background:var(--bg3);padding:1px 6px;border-radius:4px;font-size:12px;color:#e6edf3;}
+/* Row */
+.row{display:flex;gap:6px;flex-wrap:wrap;align-items:center;}
+/* Warn */
+.warn{background:rgba(245,158,11,.08);color:#f59e0b;padding:12px 14px;
+  border-radius:8px;border:1px solid rgba(245,158,11,.25);margin-bottom:14px;font-size:13px;}
+/* Results */
+.result{margin-top:10px;padding:10px 12px;border-radius:7px;font-size:12px;}
+.result.ok{background:rgba(16,185,129,.1);color:#10b981;}
+.result.err{background:rgba(239,68,68,.1);color:#ef4444;}
+.result.sim{background:rgba(245,158,11,.1);color:#f59e0b;}
+.result a{color:#58a6ff;font-weight:600;}
+/* Stats */
+.stats{display:flex;gap:14px;color:var(--muted);font-size:12px;margin:8px 0 12px;}
+.stats b{display:block;color:var(--text);font-size:15px;}
+/* Muted */
+.muted{color:var(--muted);font-size:12px;}
+/* Log */
+.log{background:#070d14;color:#8b949e;font-family:"SF Mono",Menlo,Consolas,monospace;
+  font-size:12px;padding:12px;border-radius:8px;max-height:350px;overflow:auto;
+  white-space:pre-wrap;border:1px solid var(--border);}
+.log .ts{color:#484f58;}
+.log .ok{color:#3fb950;}
+.log .err{color:#f85149;}
+.log .info{color:#58a6ff;}
+/* Check */
+.check{display:flex;align-items:center;gap:8px;padding:3px 0;font-size:12px;}
+.check-ok{color:var(--ok);}
+.check-bad{color:var(--err);}
+/* Toast */
+#toast{position:fixed;bottom:20px;right:20px;padding:10px 16px;border-radius:9px;
+  display:none;box-shadow:0 4px 24px rgba(0,0,0,.5);z-index:100;font-size:13px;
+  font-weight:500;max-width:400px;border:1px solid transparent;}
+#toast.ok{background:#0f2a1c;color:#3fb950;border-color:#2ea043;display:block;}
+#toast.err{background:#2a0f0f;color:#f85149;border-color:#da3633;display:block;}
+#toast.info{background:#0d1f38;color:#58a6ff;border-color:#1f6feb;display:block;}
+/* Credential Modal */
+#credModal>div{background:var(--bg2);border:1px solid var(--border);border-radius:12px;
+  padding:22px;width:380px;max-width:92vw;box-shadow:0 12px 40px rgba(0,0,0,.5);color:var(--text);}
+/* Subtabs */
+.subtabs{display:flex;gap:2px;margin-bottom:14px;background:var(--bg3);
+  padding:3px;border-radius:8px;width:fit-content;flex-wrap:wrap;}
+.subtab{padding:6px 14px;cursor:pointer;border:none;background:transparent;
+  color:var(--muted);font-size:13px;font-weight:500;border-radius:6px;font-family:inherit;}
+.subtab.active{background:var(--bg2);color:var(--accent);box-shadow:0 1px 2px rgba(0,0,0,.3);}
+/* Grid helpers */
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;}
+@media(max-width:720px){.grid2,.grid3{grid-template-columns:1fr;}}
+/* Steps */
+.step{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:10px;}
+.step .step-head{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+.step .step-num{background:var(--accent);color:#fff;width:22px;height:22px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;}
+.step .step-meta{display:grid;grid-template-columns:2fr 1fr 1fr;gap:8px;align-items:end;}
+@media(max-width:720px){.step .step-meta{grid-template-columns:1fr;}}
+.param-row{display:grid;grid-template-columns:1.5fr 2fr auto;gap:8px;align-items:center;margin-bottom:6px;}
+/* Pill */
+.pill{display:inline-block;padding:1px 8px;border-radius:999px;font-size:11px;font-weight:500;margin-right:4px;}
+.pill.err{background:rgba(239,68,68,.15);color:#ef4444;}
+.pill.warn{background:rgba(245,158,11,.15);color:#f59e0b;}
+.pill.ok{background:rgba(16,185,129,.15);color:#10b981;}
+/* Modal */
+.modal{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.65);
+  display:none;align-items:center;justify-content:center;padding:16px;z-index:20;}
+.modal.open{display:flex;}
+.modal .panel{background:var(--bg2);border:1px solid var(--border);border-radius:12px;
+  width:560px;max-width:100%;max-height:90vh;overflow:auto;padding:18px;}
+.modal h2{margin-top:0;font-size:17px;color:var(--text);}
+/* Reports */
+.reports-list{list-style:none;padding:0;margin:0;}
+.reports-list li{padding:8px 10px;border-bottom:1px solid var(--border);
+  display:flex;justify-content:space-between;align-items:center;}
+.reports-list a{color:#58a6ff;}
+/* Error box */
+#errBox{display:none;background:rgba(239,68,68,.08);color:#f85149;
+  border:1px solid rgba(239,68,68,.25);padding:12px 14px;border-radius:8px;
+  margin-bottom:14px;font-family:"SF Mono",Menlo,monospace;white-space:pre-wrap;font-size:12px;}
+#loadingBox{padding:24px;text-align:center;color:var(--muted);}
+/* Detail head */
+.detail-head{display:flex;justify-content:space-between;align-items:flex-start;
+  gap:10px;flex-wrap:wrap;margin-bottom:14px;}
+.detail-head h2{margin:0;font-size:18px;}
+.detail-head .meta{color:var(--muted);font-size:12px;margin-top:4px;}
+/* Toolbar */
+.toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;}
+/* Scrollbar */
+::-webkit-scrollbar{width:6px;height:6px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+/* Darlehen */
+#loansTable td{font-size:12px;}
+/* Check list */
+.check-list{margin:8px 0;}
+.check-item{display:flex;align-items:center;gap:8px;padding:3px 0;font-size:12px;}
+.typ,.sub{color:var(--muted);font-size:12px;}
+.actions{display:flex;gap:6px;margin-top:12px;flex-wrap:wrap;}
+/* Nav footer */
+.page-footer{border-top:1px solid var(--border);padding-top:20px;margin-top:32px;
+  display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;
+  font-size:11px;color:var(--muted);}
+.footer-links{display:flex;gap:16px;}
+.footer-links a{color:var(--muted);text-decoration:none;}
+.footer-links a:hover{color:var(--text);}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+<header class="page-header">
+  <div class="brand">
+    <img src="YCONN-logo_Web.png" width="156" height="156" alt="YCONN Logo" style="display:block;"/>
+  </div>
+  <div class="header-right">
+    <div class="status-chip" id="modeChip" onclick="checkBridge()">
+      <div class="status-dot" id="modeDot"></div>
+      <span id="modeChipText">Pruefe...</span>
+    </div>
+    <a class="btn-nav" href="startseite.html">&#8592; Startseite</a>
+    <a class="btn-nav" href="cockpit-v2.html">Cockpit v2</a>
+  </div>
+</header>
+
+<div class="modebar sim" id="modebar">
+  <span id="modeIcon">SIM</span>
+  <span id="modeText">Pruefe Bridge-Verbindung...</span>
+  <button class="small" onclick="checkBridge()" style="margin-left:auto">Erneut pruefen</button>
+</div>
+
+<div class="tabs">
+  <button class="tab active" onclick="show('uebersicht', this)">Uebersicht</button>
+  <button class="tab" onclick="show('aufgaben', this)">Aufgaben</button>
+  <button class="tab" onclick="show('verbindungen', this)">Verbindungen</button>
+  <button class="tab" onclick="show('reports', this)">Reports</button>
+  <button class="tab" onclick="show('logs', this)">Logs</button>
+</div>
+
+<section id="uebersicht" class="active">
+  <div class="grid" id="robotsGrid"></div>
+</section>
+
+<section id="aufgaben">
+  <div class="row" style="margin-bottom:10px">
+    <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text)">Robot:
+      <select id="taskFilter" onchange="renderTasks()" style="width:auto;padding:5px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text)">
+        <option value="all">Alle</option>
+        <option value="AP">Robot-AP</option><option value="AR">Robot-AR</option>
+        <option value="GL">Robot-GL</option><option value="AA">Robot-AA</option>
+      </select>
+    </label>
+  </div>
+  <div id="tasksList" class="grid"></div>
+</section>
+
+<section id="verbindungen">
+  <div class="warn">
+    <b>Sicherheitshinweis:</b> Hier nur die Vault-Referenz eintragen (z. B. <code>env://SAP_PASSWORD</code> oder <code>azure-kv://...</code>).
+    Echte Passwoerter gehoeren in die <code>.env</code> auf der Worker-VM oder in einen Secret-Store.
+  </div>
+  <div class="grid" id="connsGrid"></div>
+</section>
+
+<section id="reports">
+  <p class="sub">Vom Worker erzeugte Reports. Klick auf den Namen zum Herunterladen. Funktioniert nur im Echt-Modus.</p>
+  <div class="row" style="margin-bottom:10px">
+    <button onclick="refreshReports()">Aktualisieren</button>
+  </div>
+  <div class="card"><ul id="reportsList" class="reports-list"></ul></div>
+</section>
+
+<section id="logs">
+  <div class="row" style="margin-bottom:10px">
+    <button onclick="clearLogs()">Logs leeren</button>
+  </div>
+  <div class="log" id="logBox">Keine Logs.</div>
+</section>
+
+<footer class="page-footer">
+  <div>YCONN &mdash; SAP Automation Platform &copy; 2026</div>
+  <div class="footer-links">
+    <a href="startseite.html">Startseite</a>
+    <a href="cockpit.html">Cockpit v1</a>
+    <a href="cockpit-v2.html">Cockpit v2</a>
+    <a href="verbindungen.html">Verbindungen</a>
+  </div>
+</footer>
+</div>
+
+<div id="toast"></div>
+
+<script>
+var BRIDGE_URL = "http://localhost:8765";
+var REAL_MODE = false;
+
+var ROBOTS = [
+  { id:"AP", name:"Robot-AP", domain:"Accounts Payable" },
+  { id:"AR", name:"Robot-AR", domain:"Accounts Receivable" },
+  { id:"GL", name:"Robot-GL", domain:"General Ledger" },
+  { id:"AA", name:"Robot-AA", domain:"Asset Accounting" }
+];
+
+var DEFAULT_TASKS = [
+  { robot:"AP", name:"Rechnungseingang buchen", tcode:"BAPI_ACC_DOCUMENT_POST", method:"BAPI",
+    params:{ "company_code":"1000", "doc_type":"KR", "default_gl":"0000400000", "tax_code":"V1", "approval_threshold":"5000", "approver":"fi-lead@firma.de" } },
+  { robot:"AP", name:"Zahllauf F110", tcode:"F110", method:"GUI",
+    params:{ "company_code":"1000", "payment_method":"U", "vendor_from":"0000100000", "vendor_to":"0000999999", "house_bank":"DEUTS", "due_until":"7", "approver":"fi-lead@firma.de" } },
+  { robot:"AP", name:"Lieferantenabstimmung", tcode:"FBL1N", method:"BAPI",
+    params:{ "comp_code":"1000", "keydate":"today", "tolerance":"0.05" } },
+  { robot:"AP", name:"Skontoanalyse", tcode:"S_ALR_87012103", method:"BAPI",
+    params:{ "company_code":"1000", "horizon_days":"7", "min_skonto_pct":"2" } },
+
+  { robot:"AR", name:"Mahnlauf F150", tcode:"F150", method:"GUI",
+    params:{ "company_code":"1000", "dunning_procedure":"0001", "min_stage":"1", "output_mode":"Beides", "approver":"fi-lead@firma.de" } },
+  { robot:"AR", name:"Offene-Posten Kunden", tcode:"FBL5N", method:"BAPI",
+    params:{ "comp_code":"1000", "customer_from":"", "customer_to":"9999999999", "keydate":"today", "aging_buckets":"30,60,90", "currency":"EUR" } },
+  { robot:"AR", name:"Zahlungseingang verbuchen", tcode:"F-28", method:"BAPI",
+    params:{ "bank_account":"DEUTS-EUR-1", "camt_path":"\\\\srv\\fi\\bank\\in", "tolerance":"0.05", "clearing_account":"0000131000" } },
+  { robot:"AR", name:"DSO-Reporting", tcode:"S_ALR_87012168", method:"BAPI",
+    params:{ "company_code":"1000", "period_months":"3", "recipients":"cfo@firma.de" } },
+
+  { robot:"GL", name:"Periodenwechsel OB52", tcode:"OB52", method:"GUI",
+    params:{ "company_code":"1000", "variant":"INT", "new_period":"12", "fiscal_year":"2026", "approver":"gl-lead@firma.de" } },
+  { robot:"GL", name:"Umbuchungen", tcode:"BAPI_ACC_GL_POSTING_POST", method:"BAPI",
+    params:{ "company_code":"1000", "template_path":"\\\\srv\\fi\\gl\\template.xlsx", "doc_type":"SA" } },
+  { robot:"GL", name:"Saldenliste FAGLB03", tcode:"FAGLB03", method:"BAPI",
+    params:{ "company_code":"1000", "ledger":"0L", "period_from":"1", "period_to":"12", "format":"XLSX" } },
+  { robot:"GL", name:"FX-Bewertung F.05", tcode:"F.05", method:"Batch",
+    params:{ "company_code":"1000", "key_date":"eom", "method":"M2", "variant":"STD_FX", "test_run":"Ja" } },
+
+  { robot:"AA", name:"Anlagenzugang", tcode:"BAPI_FIXEDASSET_CREATE1", method:"BAPI",
+    params:{ "company_code":"1000", "asset_class":"1000", "cost_center":"K0000100", "useful_life":"5" } },
+  { robot:"AA", name:"Abschreibungslauf AFAB", tcode:"AFAB", method:"Batch",
+    params:{ "company_code":"1000", "run_type":"Planlauf", "test_run":"Ja", "approver":"aa-lead@firma.de" } },
+  { robot:"AA", name:"Anlagengitter AR01", tcode:"AR01", method:"BAPI",
+    params:{ "company_code":"1000", "dep_area":"01", "period":"12", "sort_variant":"0001" } },
+  { robot:"AA", name:"Periodenverschiebung AJRW", tcode:"AJRW", method:"GUI",
+    params:{ "company_code":"1000", "new_fiscal_year":"2027", "test_run":"Ja", "approver":"aa-lead@firma.de" } }
+];
+
+var DEFAULT_WORKFLOWS = {
+  "BAPI_ACC_DOCUMENT_POST": ["E-Mails abrufen","Anhang extrahieren","Duplikatpruefung","Beleg aufbauen","Vier-Augen","Buchung","Bestaetigung","Archivierung"],
+  "F110": ["Praemissen pruefen","F110 oeffnen","Parameter setzen","Vorschlag erzeugen","Vorschlag exportieren","Freigabe abwarten","Durchfuehrung","DTA generieren","Reporting"],
+  "FBL1N": ["OP-Liste ziehen","Saldenmeldung","Abgleich","Excel-Report","Eskalation"],
+  "F150": ["Vorschlag","Pruefung","Freigabe","Mahnungen","Versand","Stufen aktualisieren","Statusbericht"],
+  "FBL5N": ["Kunden ermitteln","OP je Kunde ziehen","Altersanalyse","Excel-Pivot","Versand"],
+  "F-28": ["camt.053 einlesen","Position pruefen","Buchung","Klaerung","Tagesabschluss"],
+  "OB52": ["Praecheck","Freigabe","OB52 oeffnen","Periode setzen","Pruefen","Bestaetigung"],
+  "BAPI_ACC_GL_POSTING_POST": ["Excel einlesen","Validierung","Belege buchen","Nr. zurueckschreiben","Bestaetigung"],
+  "FAGLB03": ["Salden lesen","Hierarchie","Format","Ablage","Notification"],
+  "F.05": ["Variante","Testlauf","Job pollen","Spool auswerten","Echtlauf","Reporting"],
+  "BAPI_FIXEDASSET_CREATE1": ["Excel einlesen","Anlage anlegen","Zugangsbuchung","Nr. zurueckschreiben","Bestaetigung"],
+  "AFAB": ["Praemissen","Testlauf","Spool pruefen","Freigabe","Echtlauf","Reporting"],
+  "AR01": ["Anlagen ziehen","Werte berechnen","Excel + PDF","Ablage","Notification"],
+  "AJRW": ["Praemissen","Testlauf","Pruefung","Freigabe","Echtlauf","Bestaetigung"],
+  "S_ALR_87012103": ["Faelligkeiten","Skonto-Filter","Empfehlung","Versand"],
+  "S_ALR_87012168": ["Umsatzdaten","OP-Bestaende","DSO berechnen","Report","Versand"]
+};
+
+var DEFAULT_CONNECTIONS = [
+  { id:"dev", name:"SAP-DEV", env:"DEV", typ:"RFC", robots:[],
+    fields:{ "ASHOST":"sapdev01.intern.firma.de", "SYSNR":"00", "CLIENT":"100", "LANG":"DE",
+             "Service-User":"RPA_DEV_SERVICE", "Passwort-Vault-Ref":"env://SAP_PASSWORD" } },
+  { id:"qas", name:"SAP-QAS", env:"QAS", typ:"RFC", robots:[],
+    fields:{ "ASHOST":"sapqas01.intern.firma.de", "SYSNR":"00", "CLIENT":"200", "LANG":"DE",
+             "Service-User":"RPA_QAS_SERVICE", "Passwort-Vault-Ref":"env://SAP_PASSWORD",
+             "SNC aktiviert":"Ja", "SNC_LIB":"%SECUDIR%/libsapcrypto.dll" } },
+  { id:"prd", name:"SAP-PRD", env:"PRD", typ:"RFC", robots:["AP","AR","GL","AA"],
+    fields:{ "ASHOST":"172.28.189.8", "SYSNR":"06", "CLIENT":"600", "LANG":"DE",
+             "Service-User":"RFC_COFACE", "Passwort-Vault-Ref":"env://SAP_PASSWORD",
+             "SNC aktiviert":"Ja" } },
+  { id:"gui", name:"SAP-GUI-PRD", env:"PRD", typ:"GUI", robots:["AP","AR","GL","AA"],
+    fields:{ "SAPLogon-Verbindung":"PRD [public]", "Sprache":"DE",
+             "Service-User":"RFC_COFACE", "Passwort-Vault-Ref":"env://SAP_PASSWORD",
+             "Auto-Login":"Ja", "Scripting auf Client":"Aktiviert" } },
+  { id:"odata", name:"S4HANA-OData-PRD", env:"PRD", typ:"OData", robots:[],
+    fields:{ "Basis-URL":"https://s4-api.firma.de/sap/opu/odata/sap/",
+             "Auth-Methode":"OAuth2", "Client-ID":"rpa-finance-client",
+             "Secret-Vault-Ref":"azure-kv://sap-prd/S4_OAUTH_SECRET",
+             "TLS-Validierung":"Ja" } }
+];
+
+var STORE_KEY = "sap-cockpit-real-v1";
+var state = JSON.parse(localStorage.getItem(STORE_KEY) || "null") || {
+  tasks: DEFAULT_TASKS.map(function(t,i){ return Object.assign({ id:"t"+i }, t); }),
+  connections: DEFAULT_CONNECTIONS.slice(),
+  logs: []
+};
+function save(){ try{ localStorage.setItem(STORE_KEY, JSON.stringify(state)); }catch(e){} }
+function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]; }); }
+
+function show(name, btn){
+  ["uebersicht","aufgaben","verbindungen","reports","logs"].forEach(function(n){
+    document.getElementById(n).classList.toggle("active", n===name);
+  });
+  document.querySelectorAll(".tab").forEach(function(t){ t.classList.toggle("active", t===btn); });
+  if (name==="aufgaben") renderTasks();
+  if (name==="verbindungen") renderConns();
+  if (name==="logs") renderLogs();
+  if (name==="uebersicht") renderOverview();
+  if (name==="reports") refreshReports();
+}
+
+function toast(msg, level){
+  var t = document.getElementById("toast");
+  t.className = level || "info"; t.textContent = msg;
+  setTimeout(function(){ t.style.display = "none"; t.className = ""; }, 4000);
+}
+
+function log(level, msg){
+  state.logs.unshift({ ts:new Date().toLocaleString("de-DE"), level:level, msg:msg });
+  if (state.logs.length>200) state.logs.length = 200;
+  save();
+}
+
+// ---------- Bridge ----------
+function checkBridge(){
+  var bar = document.getElementById("modebar");
+  var icon = document.getElementById("modeIcon");
+  var text = document.getElementById("modeText");
+  var dot = document.getElementById("modeDot");
+  var chipText = document.getElementById("modeChipText");
+  bar.className = "modebar sim"; icon.textContent = "..."; text.textContent = "Pruefe Bridge...";
+  if (dot) { dot.className = "status-dot checking"; }
+  if (chipText) chipText.textContent = "Pruefe...";
+  fetch(BRIDGE_URL + "/health", { method:"GET" })
+    .then(function(r){ return r.ok ? r.json() : Promise.reject(r.statusText); })
+    .then(function(data){
+      REAL_MODE = true;
+      bar.className = "modebar real";
+      icon.textContent = "ECHT-MODUS";
+      text.innerHTML = "Bridge auf <code>" + BRIDGE_URL + "</code> - SAP: <code>" + esc(data.sap_host||"?") + "</code>, User: <code>" + esc(data.sap_user||"?") + "</code>, Mandant: <code>" + esc(data.sap_client||"?") + "</code> &middot; " + data.handlers.length + " Handler verfuegbar";
+      log("ok", "Bridge verbunden. Handler: " + data.handlers.join(", "));
+      if (dot) { dot.className = "status-dot connected"; }
+      if (chipText) chipText.textContent = "Verbunden";
+    })
+    .catch(function(err){
+      REAL_MODE = false;
+      bar.className = "modebar sim";
+      icon.textContent = "SIM-MODUS";
+      text.innerHTML = "Bridge nicht erreichbar. Starte <code>Bridge starten.bat</code> fuer echte SAP-Calls. Klicks simulieren bis dahin.";
+      if (dot) { dot.className = "status-dot"; }
+      if (chipText) chipText.textContent = "SIM-Modus";
+    });
+}
+
+function hasHandler(method, tcode){
+  // Bekannte Handler aus handlers.py (Stand jetzt). Wird beim Bridge-Connect ueberschrieben.
+  return ["BAPI/BAPI_ACC_DOCUMENT_POST","BAPI/FBL1N","BAPI/FBL5N","BAPI/RFC_PING","GUI/F110","Batch/AFAB"].indexOf(method+"/"+tcode) >= 0;
+}
+
+// ---------- Uebersicht ----------
+function renderOverview(){
+  var g = document.getElementById("robotsGrid"); g.innerHTML = "";
+  ROBOTS.forEach(function(r){
+    var ts = state.tasks.filter(function(t){ return t.robot===r.id; });
+    var conns = state.connections.filter(function(c){ return c.robots.indexOf(r.id)>=0; });
+    var connsHtml = conns.length ? conns.map(function(c){ return "<span class=\"env " + c.env + "\">" + esc(c.name) + "</span>"; }).join(" ") : "<span style=\"color:#8b949e\">keine</span>";
+    var div = document.createElement("div");
+    div.className = "card";
+    div.innerHTML =
+      "<h3><span class=\"badge " + r.id + "\">" + r.id + "</span> " + esc(r.name) + "</h3>" +
+      "<div style=\"color:#8b949e;font-size:12px;margin-bottom:8px\">" + esc(r.domain) + "</div>" +
+      "<div class=\"stats\"><div><b>" + ts.length + "</b>Aufgaben</div><div><b>" + conns.length + "</b>Verbindungen</div></div>" +
+      "<div style=\"font-size:12px;margin-bottom:10px\">Verbindungen: " + connsHtml + "</div>" +
+      "<button class=\"primary small\" onclick=\"runRobot('" + r.id + "')\">Alle starten</button>";
+    g.appendChild(div);
+  });
+}
+
+function runRobot(rid){
+  var ts = state.tasks.filter(function(t){ return t.robot===rid; });
+  ts.forEach(function(t, i){
+    setTimeout(function(){ runTaskById(t.id, true); }, i*500);
+  });
+  toast("Robot-" + rid + " gestartet: " + ts.length + " Aufgaben", "info");
+}
+
+// ---------- Aufgaben ----------
+function renderTasks(){
+  var filter = document.getElementById("taskFilter").value;
+  var box = document.getElementById("tasksList"); box.innerHTML = "";
+  state.tasks.filter(function(t){ return filter==="all" || t.robot===filter; }).forEach(function(t){
+    var realIdx = state.tasks.indexOf(t);
+    var workflow = DEFAULT_WORKFLOWS[t.tcode.split(" ")[0]] || [];
+    var paramsHtml = "";
+    Object.keys(t.params||{}).forEach(function(k){
+      paramsHtml += "<div class=\"field\"><label>" + esc(k) + "</label>" +
+        "<input type=\"text\" value=\"" + esc(t.params[k]) + "\" onchange=\"updateParam(" + realIdx + ", '" + esc(k).replace(/'/g,"\\'") + "', this.value)\"></div>";
+    });
+    var wfHtml = workflow.length ? "<ol style=\"margin:6px 0;padding-left:20px;font-size:12px;color:#8b949e\">" +
+      workflow.map(function(s){ return "<li>" + esc(s) + "</li>"; }).join("") + "</ol>" : "";
+    var implBadge = hasHandler(t.method, t.tcode)
+      ? "<span class=\"badge real\">implementiert</span>"
+      : "<span class=\"badge sim\">nur Simulation</span>";
+    var div = document.createElement("div");
+    div.className = "card";
+    div.innerHTML =
+      "<div style=\"display:flex;justify-content:space-between;align-items:flex-start\">" +
+        "<div><h3>" + esc(t.name) + "</h3>" +
+        "<div style=\"font-size:12px;color:#8b949e\"><code>" + esc(t.tcode) + "</code> &middot; " + esc(t.method) + " &middot; " + implBadge + "</div></div>" +
+        "<span class=\"badge " + t.robot + "\">" + t.robot + "</span>" +
+      "</div>" +
+      "<details><summary>Parameter (" + Object.keys(t.params||{}).length + ")</summary>" + paramsHtml + "</details>" +
+      "<details><summary>Workflow (" + workflow.length + " Schritte)</summary>" + wfHtml + "</details>" +
+      "<div id=\"result-" + t.id + "\"></div>" +
+      "<div class=\"row\" style=\"margin-top:10px\">" +
+        "<button class=\"primary small\" onclick=\"runTaskById('" + t.id + "')\">Start</button>" +
+      "</div>";
+    box.appendChild(div);
+  });
+}
+
+function updateParam(idx, key, val){
+  state.tasks[idx].params[key] = val; save();
+}
+
+function runTaskById(id, batch){
+  var t = state.tasks.filter(function(x){ return x.id===id; })[0]; if (!t) return;
+  var resultBox = document.getElementById("result-" + t.id);
+  if (resultBox) resultBox.innerHTML = "<div class=\"result sim\">Laeuft...</div>";
+  log("info", "Start: " + t.robot + " / " + t.name + " (" + t.tcode + ", " + t.method + ")");
+
+  if (!REAL_MODE){
+    // Simulation
+    setTimeout(function(){
+      log("info", "Simulation abgeschlossen: " + t.name);
+      if (resultBox) resultBox.innerHTML = "<div class=\"result sim\">Simulation (Bridge nicht aktiv). Starte Bridge starten.bat fuer echten Lauf.</div>";
+      if (!batch) toast("Simulation: " + t.name, "info");
+    }, 800);
+    return;
+  }
+
+  // Echter Modus -> Bridge
+  fetch(BRIDGE_URL + "/run", {
+    method:"POST", headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({ method: t.method, tcode: t.tcode, payload: t.params })
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(data){
+    log(data.status==="ok"?"ok":"err", t.name + ": " + (data.message||""));
+    if (resultBox){
+      if (data.status === "ok"){
+        var msg = esc(data.message||"OK");
+        // Extrahiere Dateinamen falls Report erwaehnt
+        var fileMatch = (data.message||"").match(/[A-Za-z0-9_\-\.]+\.xlsx/);
+        if (fileMatch){
+          msg = msg.replace(fileMatch[0],
+            "<a href=\"" + BRIDGE_URL + "/reports/" + fileMatch[0] + "\" target=\"_blank\">" + fileMatch[0] + "</a>");
+        }
+        resultBox.innerHTML = "<div class=\"result ok\"><b>OK</b> " + msg + "</div>";
+        if (!batch) toast(t.name + " erfolgreich", "ok");
+      } else if (data.status === "not-implemented"){
+        resultBox.innerHTML = "<div class=\"result sim\"><b>Nicht implementiert</b> " + esc(data.message||"") + "</div>";
+        if (!batch) toast(t.name + ": Handler fehlt", "info");
+      } else {
+        resultBox.innerHTML = "<div class=\"result err\"><b>FEHLER</b> " + esc(data.message||"") + "</div>";
+        if (!batch) toast(t.name + " fehlgeschlagen", "err");
+      }
+    }
+  })
+  .catch(function(err){
+    log("err", t.name + ": Bridge-Fehler: " + err);
+    if (resultBox) resultBox.innerHTML = "<div class=\"result err\">Bridge-Fehler: " + esc(String(err)) + "</div>";
+    if (!batch) toast("Bridge-Fehler", "err");
+  });
+}
+
+// ---------- Verbindungen ----------
+function renderConns(){
+  var g = document.getElementById("connsGrid"); g.innerHTML = "";
+  state.connections.forEach(function(c, idx){
+    var fieldsHtml = "";
+    Object.keys(c.fields).forEach(function(k){
+      fieldsHtml += "<div class=\"field\"><label>" + esc(k) + "</label>" +
+        "<input type=\"text\" value=\"" + esc(c.fields[k]) + "\" onchange=\"updateConn(" + idx + ", '" + esc(k).replace(/'/g,"\\'") + "', this.value)\"></div>";
+    });
+    var robotsHtml = "";
+    ROBOTS.forEach(function(r){
+      var ck = c.robots.indexOf(r.id)>=0 ? "checked" : "";
+      robotsHtml += "<label style=\"display:inline-flex;align-items:center;gap:4px;margin-right:10px;font-size:12px;color:#e6edf3\">" +
+        "<input type=\"checkbox\" " + ck + " onchange=\"toggleConnRobot(" + idx + ", '" + r.id + "', this.checked)\"> " + r.id + "</label>";
+    });
+    var typLabel = { RFC:"RFC / BAPI", GUI:"SAP GUI Scripting", OData:"OData / REST" }[c.typ] || c.typ;
+    var div = document.createElement("div");
+    div.className = "card";
+    div.innerHTML =
+      "<div style=\"display:flex;justify-content:space-between;align-items:flex-start\">" +
+        "<div><h3>" + esc(c.name) + "</h3>" +
+        "<div style=\"font-size:12px;color:#8b949e\">" + esc(typLabel) + "</div></div>" +
+        "<span class=\"env " + c.env + "\">" + c.env + "</span>" +
+      "</div>" +
+      "<details><summary>Konfigurationsfelder (" + Object.keys(c.fields).length + ")</summary>" + fieldsHtml + "</details>" +
+      "<details><summary>Zuordnung Robots</summary><div style=\"padding:6px 0\">" + robotsHtml + "</div></details>" +
+      "<div id=\"check-" + c.id + "\"></div>" +
+      "<div class=\"row\" style=\"margin-top:10px\">" +
+        "<button class=\"primary small\" onclick=\"testConn(" + idx + ")\">Verbindung pruefen</button>" +
+      "</div>";
+    g.appendChild(div);
+  });
+}
+
+function updateConn(idx, key, val){ state.connections[idx].fields[key] = val; save(); }
+function toggleConnRobot(idx, rid, checked){
+  var c = state.connections[idx];
+  if (checked) { if (c.robots.indexOf(rid)<0) c.robots.push(rid); }
+  else c.robots = c.robots.filter(function(x){ return x!==rid; });
+  save(); renderOverview();
+}
+
+function testConn(idx){
+  var c = state.connections[idx];
+  var box = document.getElementById("check-" + c.id);
+  // 1. Lokale Konfig-Checks
+  var checks = [];
+  if (c.typ === "RFC"){
+    checks.push(["Host gesetzt", !!(c.fields["ASHOST"] || c.fields["MSHOST"])]);
+    checks.push(["Mandant gesetzt", !!c.fields["CLIENT"]]);
+    checks.push(["Service-User", !!c.fields["Service-User"]]);
+    checks.push(["Vault-Referenz", c.fields["Passwort-Vault-Ref"] && c.fields["Passwort-Vault-Ref"].indexOf("://")>0]);
+    if (c.env==="PRD") checks.push(["SNC in PRD", c.fields["SNC aktiviert"]==="Ja"]);
+  } else if (c.typ === "GUI"){
+    checks.push(["SAPLogon-Verbindung", !!c.fields["SAPLogon-Verbindung"]]);
+    checks.push(["Scripting Client", c.fields["Scripting auf Client"]==="Aktiviert"]);
+    checks.push(["Service-User", !!c.fields["Service-User"]]);
+    checks.push(["Vault-Referenz", c.fields["Passwort-Vault-Ref"] && c.fields["Passwort-Vault-Ref"].indexOf("://")>0]);
+  } else if (c.typ === "OData"){
+    checks.push(["Basis-URL https", c.fields["Basis-URL"] && c.fields["Basis-URL"].indexOf("https")===0]);
+    checks.push(["Auth-Methode", !!c.fields["Auth-Methode"]]);
+    checks.push(["Secret-Ref", c.fields["Secret-Vault-Ref"] && c.fields["Secret-Vault-Ref"].indexOf("://")>0]);
+    if (c.env==="PRD") checks.push(["TLS PRD", c.fields["TLS-Validierung"]==="Ja"]);
+  }
+  var allOk = true;
+  var html = "<div style=\"margin-top:10px\">" + checks.map(function(ch){
+    if (!ch[1]) allOk = false;
+    return "<div class=\"check " + (ch[1]?"check-ok":"check-bad") + "\">" + (ch[1]?"OK":"FEHLER") + " - " + esc(ch[0]) + "</div>";
+  }).join("") + "</div>";
+  box.innerHTML = html;
+  log(allOk?"ok":"err", c.name + ": " + (allOk?"Konfig-Checks OK":"Konfig-Check fehlgeschlagen"));
+
+  // 2. Echter RFC-Ping wenn Bridge da
+  if (REAL_MODE && c.typ === "RFC"){
+    box.innerHTML += "<div class=\"result sim\">Sende RFC_PING ueber Bridge...</div>";
+    fetch(BRIDGE_URL + "/test_rfc", { method:"POST" })
+      .then(function(r){ return r.json(); })
+      .then(function(data){
+        var cls = data.status==="ok" ? "ok" : "err";
+        box.innerHTML = html + "<div class=\"result " + cls + "\"><b>" + (data.status==="ok"?"RFC OK":"RFC FEHLER") + "</b> " + esc(data.message||"") + "</div>";
+        log(data.status==="ok"?"ok":"err", c.name + " RFC_PING: " + (data.message||""));
+        toast(c.name + ": " + (data.status==="ok"?"RFC OK":"RFC FEHLER"), data.status==="ok"?"ok":"err");
+      })
+      .catch(function(err){
+        box.innerHTML = html + "<div class=\"result err\">Bridge-Fehler: " + esc(String(err)) + "</div>";
+      });
+  } else {
+    toast(c.name + ": " + (allOk?"Konfig OK":"Konfig-Fehler") + (REAL_MODE?"":" (Bridge nicht aktiv)"), allOk?"ok":"err");
+  }
+}
+
+// ---------- Reports ----------
+function refreshReports(){
+  var ul = document.getElementById("reportsList");
+  if (!REAL_MODE){
+    ul.innerHTML = "<li>Bridge nicht aktiv. Starte 'Bridge starten.bat' und klicke 'Aktualisieren'.</li>";
+    return;
+  }
+  ul.innerHTML = "<li>Lade...</li>";
+  fetch(BRIDGE_URL + "/reports")
+    .then(function(r){ return r.json(); })
+    .then(function(data){
+      if (!data.files.length){ ul.innerHTML = "<li>Noch keine Reports.</li>"; return; }
+      ul.innerHTML = data.files.map(function(f){
+        var dt = new Date(f.mtime).toLocaleString("de-DE");
+        var kb = Math.round(f.size/1024);
+        return "<li><a href=\"" + BRIDGE_URL + "/reports/" + encodeURIComponent(f.name) + "\" target=\"_blank\">" + esc(f.name) + "</a><span style=\"color:#8b949e;font-size:11px\">" + dt + " &middot; " + kb + " KB</span></li>";
+      }).join("");
+    })
+    .catch(function(err){
+      ul.innerHTML = "<li>Fehler: " + esc(String(err)) + "</li>";
+    });
+}
+
+// ---------- Logs ----------
+function renderLogs(){
+  var box = document.getElementById("logBox");
+  if (!state.logs.length){ box.textContent = "Keine Logs."; return; }
+  box.innerHTML = state.logs.map(function(l){
+    var color = l.level==="ok"?"#4ade80":l.level==="err"?"#f87171":"#60a5fa";
+    return "<span style=\"color:#94a3b8\">[" + l.ts + "]</span> <span style=\"color:" + color + "\">" + esc(l.msg) + "</span>";
+  }).join("\n");
+}
+
+function clearLogs(){ if (!confirm("Logs leeren?")) return; state.logs = []; save(); renderLogs(); }
+
+// init
+renderOverview();
+checkBridge();
+setInterval(checkBridge, 30000);  // alle 30s erneut pruefen
+</script>
+
+<script>
+(function(){
+  var _origCheck = typeof checkBridge !== 'undefined' ? checkBridge : null;
+  function syncDot(){
+    var dot = document.getElementById('bridgeDotMain');
+    var lbl = document.getElementById('bridgeLabelMain');
+    if(!dot||!lbl) return;
+    // try to read REAL_MODE from page scope
+    try {
+      if(typeof REAL_MODE !== 'undefined'){
+        dot.className = 'status-dot ' + (REAL_MODE ? 'connected' : '');
+        lbl.textContent = REAL_MODE ? 'Bridge verbunden' : 'SIM-Modus';
+      }
+    } catch(e){}
+  }
+  setInterval(syncDot, 1500);
+})();
+</script>
+</body>
+</html>

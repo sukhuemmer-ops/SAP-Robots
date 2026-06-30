@@ -1,0 +1,36 @@
+SAP Finance Robots - Schnellstart
+==================================
+
+Diese Anwendung besteht aus DREI Teilen. Es gibt KEIN package.json und
+KEIN "npm start" - das ist eine Python + HTML Anwendung, kein Node.js.
+
+1) COCKPIT  (Web-Oberflaeche)
+   ---> Doppelklick auf:  Cockpit oeffnen.bat
+   Oder direkt:           cockpit\sap-robot-cockpit.html
+
+2) ORCHESTRATOR  (FastAPI-Backend, Python)
+   ---> Doppelklick auf:  Orchestrator starten.bat
+   Voraussetzung: Python 3.10+ installiert (https://www.python.org/downloads/)
+                  Beim Setup unbedingt "Add Python to PATH" anhaken.
+   Laeuft danach auf:     http://localhost:8000
+   API-Doku:              http://localhost:8000/docs
+
+3) WORKER  (laeuft pro Robot auf einer Windows-VM mit SAP GUI)
+   ---> Doppelklick auf:  Worker-AP starten.bat
+   Fuer AR / GL / AA: die Datei kopieren und ROBOT_ID anpassen.
+   Voraussetzungen fuer ECHTE SAP-Calls:
+       - SAP GUI installiert
+       - SAP NW RFC SDK installiert
+       - pip install pywin32 pyrfc
+   Ohne diese Komponenten laeuft der Worker im Skelett-Modus
+   (kann Jobs annehmen, aber keine SAP-Calls ausfuehren).
+
+REIHENFOLGE FUER DEN ERSTEN TEST:
+  1. "Orchestrator starten.bat" doppelklicken -> warten bis Meldung kommt
+  2. "Cockpit oeffnen.bat" doppelklicken -> Browser oeffnet sich
+  3. Im Cockpit auf "Start" klicken -> Run wird im Orchestrator angelegt
+  4. "Worker-AP starten.bat" doppelklicken -> Worker uebernimmt Jobs
+
+WICHTIG: Das Cockpit funktioniert auch OHNE Orchestrator (Simulationsmodus).
+         Erst wenn du es an den Orchestrator anbinden willst, brauchst du
+         den Python-Teil. Siehe README.md fuer Details.

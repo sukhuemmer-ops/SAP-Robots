@@ -1,0 +1,45 @@
+# Virtuelle Umgebungen
+worker/.venv/
+orchestrator/.venv/
+
+# Python Cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Sensible Konfiguration
+worker/.env
+orchestrator/.env
+*.env
+
+# Logs
+*.log
+worker/dev_rfc.log
+
+# Datenbank
+orchestrator/*.db
+orchestrator/*.sqlite3
+
+# Reports / Ausgaben
+worker/reports/
+invoices/
+rechnungen/
+
+# Temporäre Dateien
+*.tmp
+*.bak
+~$*
+
+# Windows
+Thumbs.db
+Desktop.ini
+
+# IDE
+.vscode/
+.idea/
+
+# Test/Diagnose Batch
+Bridge Test.bat
+update_invoice_319.bat

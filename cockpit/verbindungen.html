@@ -1,0 +1,441 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>SAP Verbindungen Konfiguration</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+*,*::before,*::after{box-sizing:border-box;}
+:root{
+  --bg:#0d1117;--bg2:#161b22;--bg3:#21262d;
+  --border:#30363d;--text:#e6edf3;--muted:#8b949e;
+  --accent:#1f6feb;--ok:#10b981;--warn:#f59e0b;--err:#ef4444;
+}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  font-size:14px;line-height:1.5;min-height:100vh;}
+.wrap{max-width:1280px;margin:0 auto;padding:20px 24px;}
+/* Header */
+.page-header{display:flex;align-items:center;justify-content:space-between;gap:12px;
+  flex-wrap:wrap;margin-bottom:24px;padding-bottom:18px;border-bottom:1px solid var(--border);}
+.brand{display:flex;align-items:center;gap:12px;}
+.brand-icon{width:40px;height:40px;border-radius:10px;
+  background:linear-gradient(135deg,#1f6feb,#8b5cf6);
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.brand-title{font-size:18px;font-weight:800;letter-spacing:-.4px;}
+.brand-sub{font-size:11px;color:var(--muted);}
+.header-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.btn-nav{padding:6px 14px;border-radius:7px;border:1px solid var(--border);
+  background:var(--bg2);color:var(--text);font-size:12px;font-weight:500;
+  cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:5px;
+  transition:background .15s;}
+.btn-nav:hover{background:var(--bg3);}
+.btn-nav.primary{background:var(--accent);border-color:var(--accent);color:#fff;}
+.btn-nav.danger{background:rgba(239,68,68,.08);border-color:rgba(239,68,68,.3);color:var(--err);}
+.status-chip{display:flex;align-items:center;gap:7px;padding:5px 12px;
+  border-radius:999px;border:1px solid var(--border);background:var(--bg2);
+  font-size:12px;font-weight:600;cursor:pointer;}
+.status-dot{width:7px;height:7px;border-radius:50%;background:var(--err);}
+.status-dot.connected{background:var(--ok);box-shadow:0 0 0 3px rgba(16,185,129,.2);animation:pulse 2s infinite;}
+.status-dot.checking{background:var(--warn);}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+/* Mode bar */
+.modebar{display:flex;align-items:center;gap:10px;padding:10px 14px;
+  border-radius:10px;margin-bottom:16px;font-size:13px;border:1px solid;}
+.modebar.real{background:rgba(16,185,129,.08);color:#10b981;border-color:rgba(16,185,129,.25);}
+.modebar.sim{background:rgba(245,158,11,.08);color:#f59e0b;border-color:rgba(245,158,11,.25);}
+/* Tabs */
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--border);margin-bottom:20px;flex-wrap:wrap;}
+.tab{padding:8px 16px;background:none;border:0;border-bottom:2px solid transparent;
+  cursor:pointer;font-size:13px;color:var(--muted);font-weight:500;font-family:inherit;}
+.tab:hover{color:var(--text);}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent);}
+section{display:none;}
+section.active{display:block;}
+/* Cards & Grid */
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;}
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:16px;}
+.card h3{margin:0 0 4px 0;font-size:15px;color:var(--text);}
+/* KPI */
+.kpi{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px;}
+.kpi .card{padding:12px 14px;}
+.kpi .card .v{font-size:22px;font-weight:700;color:var(--text);}
+.kpi .card .l{color:var(--muted);font-size:12px;}
+/* Badges */
+.badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;}
+.badge.ap,.badge.AP{background:rgba(59,130,246,.15);color:#3b82f6;}
+.badge.ar,.badge.AR{background:rgba(16,185,129,.15);color:#10b981;}
+.badge.gl,.badge.GL{background:rgba(245,158,11,.15);color:#f59e0b;}
+.badge.aa,.badge.AA{background:rgba(139,92,246,.15);color:#8b5cf6;}
+.badge.ok{background:rgba(16,185,129,.15);color:#10b981;}
+.badge.fail{background:rgba(239,68,68,.15);color:#ef4444;}
+.badge.warn{background:rgba(245,158,11,.15);color:#f59e0b;}
+.badge.run{background:rgba(96,165,250,.15);color:#60a5fa;}
+.badge.pend{background:rgba(255,255,255,.06);color:var(--muted);}
+.badge.real{background:rgba(16,185,129,.15);color:#10b981;}
+.badge.sim{background:rgba(245,158,11,.15);color:#f59e0b;}
+/* ENV */
+.env,.env-pill{color:#fff;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;display:inline-block;}
+.env.DEV,.env-DEV{background:#16a34a;}
+.env.QAS,.env-QAS{background:#b45309;}
+.env.PRD,.env-PRD{background:#b91c1c;}
+/* Dot */
+.dot{width:10px;height:10px;border-radius:50%;display:inline-block;}
+.dot.idle{background:#4b5563;}
+.dot.running{background:var(--ok);box-shadow:0 0 0 3px rgba(16,185,129,.2);animation:pulse 1.5s infinite;}
+.dot.error{background:var(--err);}
+/* Buttons */
+button{padding:6px 14px;border-radius:7px;border:1px solid var(--border);
+  background:var(--bg3);cursor:pointer;font-size:13px;color:var(--text);font-family:inherit;}
+button.primary,.btn.primary{background:var(--accent);color:#fff;border-color:var(--accent);}
+button.danger,.btn.danger{color:var(--err);border-color:rgba(239,68,68,.3);background:rgba(239,68,68,.06);}
+button.small,.btn.small{padding:3px 8px;font-size:12px;}
+button:hover,.btn:hover{opacity:.85;}
+.btn{padding:6px 12px;border-radius:7px;border:1px solid var(--border);
+  background:var(--bg3);cursor:pointer;font-size:13px;color:var(--text);font-family:inherit;}
+/* Inputs */
+.field{margin:10px 0;}
+.field label{display:block;font-size:11px;color:var(--muted);margin-bottom:3px;font-weight:500;}
+input[type=text],input[type=number],input[type=date],input[type=time],
+input[type=password],select,textarea,.field input,.field select{
+  background:var(--bg3);border:1px solid var(--border);border-radius:6px;
+  color:var(--text);padding:6px 9px;font:inherit;width:100%;box-sizing:border-box;}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent);}
+label{display:block;font-size:12px;color:var(--muted);margin:8px 0 3px;font-weight:500;}
+/* Tables */
+table{width:100%;border-collapse:collapse;font-size:13px;}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--border);vertical-align:top;}
+th{background:var(--bg3);font-size:11px;text-transform:uppercase;color:var(--muted);font-weight:600;letter-spacing:.03em;}
+tr:last-child td{border-bottom:none;}
+tr:hover td{background:rgba(255,255,255,.015);}
+/* Details */
+details{margin-top:10px;}
+summary{cursor:pointer;padding:6px 0;font-weight:600;color:#58a6ff;font-size:13px;user-select:none;}
+/* Code */
+code{background:var(--bg3);padding:1px 6px;border-radius:4px;font-size:12px;color:#e6edf3;}
+/* Row */
+.row{display:flex;gap:6px;flex-wrap:wrap;align-items:center;}
+/* Warn */
+.warn{background:rgba(245,158,11,.08);color:#f59e0b;padding:12px 14px;
+  border-radius:8px;border:1px solid rgba(245,158,11,.25);margin-bottom:14px;font-size:13px;}
+/* Results */
+.result{margin-top:10px;padding:10px 12px;border-radius:7px;font-size:12px;}
+.result.ok{background:rgba(16,185,129,.1);color:#10b981;}
+.result.err{background:rgba(239,68,68,.1);color:#ef4444;}
+.result.sim{background:rgba(245,158,11,.1);color:#f59e0b;}
+.result a{color:#58a6ff;font-weight:600;}
+/* Stats */
+.stats{display:flex;gap:14px;color:var(--muted);font-size:12px;margin:8px 0 12px;}
+.stats b{display:block;color:var(--text);font-size:15px;}
+/* Muted */
+.muted{color:var(--muted);font-size:12px;}
+/* Log */
+.log{background:#070d14;color:#8b949e;font-family:"SF Mono",Menlo,Consolas,monospace;
+  font-size:12px;padding:12px;border-radius:8px;max-height:350px;overflow:auto;
+  white-space:pre-wrap;border:1px solid var(--border);}
+.log .ts{color:#484f58;}
+.log .ok{color:#3fb950;}
+.log .err{color:#f85149;}
+.log .info{color:#58a6ff;}
+/* Check */
+.check{display:flex;align-items:center;gap:8px;padding:3px 0;font-size:12px;}
+.check-ok{color:var(--ok);}
+.check-bad{color:var(--err);}
+/* Toast */
+#toast{position:fixed;bottom:20px;right:20px;padding:10px 16px;border-radius:9px;
+  display:none;box-shadow:0 4px 24px rgba(0,0,0,.5);z-index:100;font-size:13px;
+  font-weight:500;max-width:400px;border:1px solid transparent;}
+#toast.ok{background:#0f2a1c;color:#3fb950;border-color:#2ea043;display:block;}
+#toast.err{background:#2a0f0f;color:#f85149;border-color:#da3633;display:block;}
+#toast.info{background:#0d1f38;color:#58a6ff;border-color:#1f6feb;display:block;}
+/* Credential Modal */
+#credModal>div{background:var(--bg2);border:1px solid var(--border);border-radius:12px;
+  padding:22px;width:380px;max-width:92vw;box-shadow:0 12px 40px rgba(0,0,0,.5);color:var(--text);}
+/* Subtabs */
+.subtabs{display:flex;gap:2px;margin-bottom:14px;background:var(--bg3);
+  padding:3px;border-radius:8px;width:fit-content;flex-wrap:wrap;}
+.subtab{padding:6px 14px;cursor:pointer;border:none;background:transparent;
+  color:var(--muted);font-size:13px;font-weight:500;border-radius:6px;font-family:inherit;}
+.subtab.active{background:var(--bg2);color:var(--accent);box-shadow:0 1px 2px rgba(0,0,0,.3);}
+/* Grid helpers */
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;}
+@media(max-width:720px){.grid2,.grid3{grid-template-columns:1fr;}}
+/* Steps */
+.step{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:10px;}
+.step .step-head{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+.step .step-num{background:var(--accent);color:#fff;width:22px;height:22px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;}
+.step .step-meta{display:grid;grid-template-columns:2fr 1fr 1fr;gap:8px;align-items:end;}
+@media(max-width:720px){.step .step-meta{grid-template-columns:1fr;}}
+.param-row{display:grid;grid-template-columns:1.5fr 2fr auto;gap:8px;align-items:center;margin-bottom:6px;}
+/* Pill */
+.pill{display:inline-block;padding:1px 8px;border-radius:999px;font-size:11px;font-weight:500;margin-right:4px;}
+.pill.err{background:rgba(239,68,68,.15);color:#ef4444;}
+.pill.warn{background:rgba(245,158,11,.15);color:#f59e0b;}
+.pill.ok{background:rgba(16,185,129,.15);color:#10b981;}
+/* Modal */
+.modal{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.65);
+  display:none;align-items:center;justify-content:center;padding:16px;z-index:20;}
+.modal.open{display:flex;}
+.modal .panel{background:var(--bg2);border:1px solid var(--border);border-radius:12px;
+  width:560px;max-width:100%;max-height:90vh;overflow:auto;padding:18px;}
+.modal h2{margin-top:0;font-size:17px;color:var(--text);}
+/* Reports */
+.reports-list{list-style:none;padding:0;margin:0;}
+.reports-list li{padding:8px 10px;border-bottom:1px solid var(--border);
+  display:flex;justify-content:space-between;align-items:center;}
+.reports-list a{color:#58a6ff;}
+/* Error box */
+#errBox{display:none;background:rgba(239,68,68,.08);color:#f85149;
+  border:1px solid rgba(239,68,68,.25);padding:12px 14px;border-radius:8px;
+  margin-bottom:14px;font-family:"SF Mono",Menlo,monospace;white-space:pre-wrap;font-size:12px;}
+#loadingBox{padding:24px;text-align:center;color:var(--muted);}
+/* Detail head */
+.detail-head{display:flex;justify-content:space-between;align-items:flex-start;
+  gap:10px;flex-wrap:wrap;margin-bottom:14px;}
+.detail-head h2{margin:0;font-size:18px;}
+.detail-head .meta{color:var(--muted);font-size:12px;margin-top:4px;}
+/* Toolbar */
+.toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;}
+/* Scrollbar */
+::-webkit-scrollbar{width:6px;height:6px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+/* Darlehen */
+#loansTable td{font-size:12px;}
+/* Check list */
+.check-list{margin:8px 0;}
+.check-item{display:flex;align-items:center;gap:8px;padding:3px 0;font-size:12px;}
+.typ,.sub{color:var(--muted);font-size:12px;}
+.actions{display:flex;gap:6px;margin-top:12px;flex-wrap:wrap;}
+/* Nav footer */
+.page-footer{border-top:1px solid var(--border);padding-top:20px;margin-top:32px;
+  display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;
+  font-size:11px;color:var(--muted);}
+.footer-links{display:flex;gap:16px;}
+.footer-links a{color:var(--muted);text-decoration:none;}
+.footer-links a:hover{color:var(--text);}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="page-header">
+  <div class="brand">
+    <img src="YCONN-logo_Web.png" width="156" height="156" alt="YCONN Logo" style="display:block;"/>
+  </div>
+  <div class="header-right" id="headerRight">
+    <a class="btn-nav" href="startseite.html">&#8592; Startseite</a>
+    <a class="btn-nav" href="cockpit-v2.html">Cockpit v2</a>
+  </div>
+</header>
+
+<div class="sub">Fuenf vorbereitete Profile fuer DEV / QAS / PRD. Daten werden lokal im Browser gespeichert.</div>
+
+<div class="warn">
+<b>Sicherheitshinweis:</b> Passwoerter, Client-Secrets und Zertifikate werden <b>nicht</b> im Browser gespeichert.
+Hier nur die Vault-Referenz eintragen (z. B. <code>azure-kv://sap-prd/RPA_AP_SERVICE</code>).
+Der Worker loest die Referenz zur Laufzeit gegen Azure Key Vault, HashiCorp Vault oder Windows DPAPI auf.
+</div>
+
+<div id="status"></div>
+
+<div class="grid" id="grid"></div>
+
+</div>
+
+<script>
+var CONNS = [
+  {
+    id: "dev", name: "SAP-DEV", env: "DEV", typ: "RFC / BAPI",
+    fields: {
+      "ASHOST (Application Server)": "sapdev01.intern.firma.de",
+      "SYSNR (System-Nummer)": "00",
+      "CLIENT (Mandant)": "100",
+      "LANG (Sprache)": "DE",
+      "Service-User": "RPA_DEV_SERVICE",
+      "Passwort-Vault-Ref": "azure-kv://sap-dev/RPA_DEV_SERVICE",
+      "SNC aktiviert": "Nein"
+    }
+  },
+  {
+    id: "qas", name: "SAP-QAS", env: "QAS", typ: "RFC / BAPI",
+    fields: {
+      "ASHOST": "sapqas01.intern.firma.de",
+      "SYSNR": "00",
+      "CLIENT": "200",
+      "LANG": "DE",
+      "Service-User": "RPA_QAS_SERVICE",
+      "Passwort-Vault-Ref": "azure-kv://sap-qas/RPA_QAS_SERVICE",
+      "SNC aktiviert": "Ja",
+      "SNC_LIB": "%SECUDIR%/libsapcrypto.dll",
+      "SNC_MYNAME": "p:CN=RPA_QAS,O=Firma,C=DE",
+      "SNC_PARTNERNAME": "p:CN=SAPQAS,O=Firma,C=DE",
+      "SNC_QOP": "8 = Max verfuegbar"
+    }
+  },
+  {
+    id: "prd", name: "SAP-PRD", env: "PRD", typ: "RFC / BAPI",
+    fields: {
+      "MSHOST (Message-Server)": "sapprd-ms.intern.firma.de",
+      "GROUP (Anmeldegruppe)": "PUBLIC",
+      "SYSNR": "00",
+      "CLIENT": "300",
+      "LANG": "DE",
+      "SAProuter": "/H/sapgw.firma.de/S/3299",
+      "Service-User": "RPA_PRD_SERVICE",
+      "Passwort-Vault-Ref": "azure-kv://sap-prd/RPA_PRD_SERVICE",
+      "SNC aktiviert": "Ja (PFLICHT)",
+      "SNC_LIB": "%SECUDIR%/libsapcrypto.dll",
+      "SNC_MYNAME": "p:CN=RPA_PRD,O=Firma,C=DE",
+      "SNC_PARTNERNAME": "p:CN=SAPPRD,O=Firma,C=DE",
+      "SNC_QOP": "9 = Max lt. Server"
+    }
+  },
+  {
+    id: "gui", name: "SAP-GUI-PRD", env: "PRD", typ: "SAP GUI Scripting",
+    fields: {
+      "SAPLogon-Verbindung": "PRD [public]",
+      "Sprache": "DE",
+      "Service-User": "RPA_PRD_SERVICE",
+      "Passwort-Vault-Ref": "azure-kv://sap-prd/RPA_PRD_SERVICE",
+      "Auto-Login": "Ja",
+      "Scripting auf Client": "Aktiviert",
+      "Scripting auf Server (RZ11)": "sapgui/user_scripting = TRUE",
+      "Wartezeit bis ready (Sek)": "5"
+    }
+  },
+  {
+    id: "odata", name: "S4HANA-OData-PRD", env: "PRD", typ: "OData / REST",
+    fields: {
+      "Basis-URL": "https://s4-api.firma.de/sap/opu/odata/sap/",
+      "Auth-Methode": "OAuth2",
+      "Client-ID": "rpa-finance-client",
+      "Secret-Vault-Ref": "azure-kv://sap-prd/S4_OAUTH_SECRET",
+      "Token-URL": "https://auth.firma.de/oauth/token",
+      "Scopes": "FI.Read FI.Write",
+      "TLS-Validierung": "Ja (PFLICHT)"
+    }
+  }
+];
+
+var state = JSON.parse(localStorage.getItem("sap-conn-v1") || "null") || CONNS;
+
+function showStatus(msg, ok) {
+  var s = document.getElementById("status");
+  s.innerHTML = "<div class=\"" + (ok ? "ok" : "err") + "\">" + msg + "</div>";
+  setTimeout(function(){ s.innerHTML = ""; }, 4000);
+}
+
+function render() {
+  var grid = document.getElementById("grid");
+  grid.innerHTML = "";
+  state.forEach(function(c, idx) {
+    var card = document.createElement("div");
+    card.className = "card";
+    var fieldsHtml = "";
+    Object.keys(c.fields).forEach(function(k) {
+      fieldsHtml += "<div class=\"field\"><label>" + escapeHtml(k) + "</label>" +
+        "<input type=\"text\" value=\"" + escapeHtml(c.fields[k]) + "\" " +
+        "onchange=\"updateField(" + idx + ", '" + escapeAttr(k) + "', this.value)\"></div>";
+    });
+    card.innerHTML =
+      "<div style=\"display:flex;justify-content:space-between;align-items:flex-start\">" +
+        "<div><h3>" + escapeHtml(c.name) + "</h3>" +
+        "<div class=\"typ\">" + escapeHtml(c.typ) + "</div></div>" +
+        "<span class=\"env env-" + c.env + "\">" + c.env + "</span>" +
+      "</div>" +
+      "<details><summary>Felder anzeigen / bearbeiten (" + Object.keys(c.fields).length + ")</summary>" +
+        fieldsHtml +
+      "</details>" +
+      "<div id=\"check-" + c.id + "\"></div>" +
+      "<div class=\"actions\">" +
+        "<button class=\"primary\" onclick=\"testConn(" + idx + ")\">Verbindung pruefen</button>" +
+        "<button onclick=\"exportOne(" + idx + ")\">Als JSON</button>" +
+      "</div>";
+    grid.appendChild(card);
+  });
+}
+
+function updateField(idx, key, value) {
+  state[idx].fields[key] = value;
+  localStorage.setItem("sap-conn-v1", JSON.stringify(state));
+}
+
+function testConn(idx) {
+  var c = state[idx];
+  var box = document.getElementById("check-" + c.id);
+  var checks = [];
+  // Universelle Checks
+  if (c.typ.indexOf("RFC") >= 0) {
+    checks.push(["Host gesetzt", !!(c.fields["ASHOST (Application Server)"] || c.fields["ASHOST"] || c.fields["MSHOST (Message-Server)"])]);
+    checks.push(["Mandant gesetzt", !!(c.fields["CLIENT (Mandant)"] || c.fields["CLIENT"])]);
+    checks.push(["Service-User", !!c.fields["Service-User"]]);
+    checks.push(["Vault-Referenz", !!c.fields["Passwort-Vault-Ref"] && c.fields["Passwort-Vault-Ref"].indexOf("://") > 0]);
+    if (c.env === "PRD") checks.push(["SNC in PRD", c.fields["SNC aktiviert"] && c.fields["SNC aktiviert"].indexOf("Ja") === 0]);
+  } else if (c.typ.indexOf("GUI") >= 0) {
+    checks.push(["SAPLogon-Verbindung", !!c.fields["SAPLogon-Verbindung"]]);
+    checks.push(["Scripting Client", c.fields["Scripting auf Client"] === "Aktiviert"]);
+    checks.push(["Service-User", !!c.fields["Service-User"]]);
+    checks.push(["Vault-Referenz", !!c.fields["Passwort-Vault-Ref"] && c.fields["Passwort-Vault-Ref"].indexOf("://") > 0]);
+  } else if (c.typ.indexOf("OData") >= 0) {
+    checks.push(["Basis-URL https://", c.fields["Basis-URL"] && c.fields["Basis-URL"].indexOf("https") === 0]);
+    checks.push(["Auth-Methode", !!c.fields["Auth-Methode"]]);
+    checks.push(["Secret-Ref", !!c.fields["Secret-Vault-Ref"] && c.fields["Secret-Vault-Ref"].indexOf("://") > 0]);
+    if (c.env === "PRD") checks.push(["TLS PRD", (c.fields["TLS-Validierung"]||"").indexOf("Ja") === 0]);
+  }
+  var html = "<div class=\"check-list\">";
+  var allOk = true;
+  checks.forEach(function(ch) {
+    if (!ch[1]) allOk = false;
+    html += "<div class=\"check-item " + (ch[1] ? "check-ok" : "check-bad") + "\">" +
+      (ch[1] ? "OK" : "FEHLER") + " - " + escapeHtml(ch[0]) +
+    "</div>";
+  });
+  html += "</div>";
+  box.innerHTML = html;
+  showStatus(c.name + ": " + (allOk ? "Alle Checks bestanden" : "Mind. ein Check fehlgeschlagen"), allOk);
+}
+
+function exportOne(idx) {
+  var c = state[idx];
+  var blob = new Blob([JSON.stringify(c, null, 2)], { type: "application/json" });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement("a");
+  a.href = url; a.download = c.id + ".json"; a.click();
+  URL.revokeObjectURL(url);
+}
+
+function escapeHtml(s) {
+  return String(s == null ? "" : s).replace(/[&<>"']/g, function(c) {
+    return { "&":"&amp;", "<":"&lt;", ">":"&gt;", "\"":"&quot;", "'":"&#39;" }[c];
+  });
+}
+function escapeAttr(s) {
+  return String(s).replace(/'/g, "\\'");
+}
+
+render();
+</script>
+
+<script>
+(function(){
+  var _origCheck = typeof checkBridge !== 'undefined' ? checkBridge : null;
+  function syncDot(){
+    var dot = document.getElementById('bridgeDotMain');
+    var lbl = document.getElementById('bridgeLabelMain');
+    if(!dot||!lbl) return;
+    // try to read REAL_MODE from page scope
+    try {
+      if(typeof REAL_MODE !== 'undefined'){
+        dot.className = 'status-dot ' + (REAL_MODE ? 'connected' : '');
+        lbl.textContent = REAL_MODE ? 'Bridge verbunden' : 'SIM-Modus';
+      }
+    } catch(e){}
+  }
+  setInterval(syncDot, 1500);
+})();
+</script>
+<script src="auth.js"></script>
+<script>AUTH.renderHeader("headerRight");</script>

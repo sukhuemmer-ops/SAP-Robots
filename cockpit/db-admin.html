@@ -1,0 +1,659 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>YCONN — 3W Smart Database</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg:     #0d1117; --bg2: #161b22; --bg3: #21262d;
+  --border: #30363d; --text: #e6edf3; --muted: #8b949e;
+  --accent: #1f6feb; --ok: #10b981; --warn: #f59e0b; --err: #ef4444;
+}
+html, body {
+  background: #0a1628; color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 14px; min-height: 100vh;
+}
+/* Header */
+.hdr {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:12px 20px; background:rgba(13,17,23,.95);
+  border-bottom:1px solid var(--border); position:sticky; top:0; z-index:50;
+}
+.hdr-left { display:flex; align-items:center; gap:14px; }
+.logo { font-size:18px; font-weight:700; color:#e6edf3; letter-spacing:-.3px; }
+.logo span { color:var(--accent); }
+.page-badge {
+  background:rgba(139,92,246,.15); color:#a78bfa;
+  border:1px solid rgba(139,92,246,.3);
+  border-radius:6px; padding:3px 10px; font-size:11px; font-weight:600;
+}
+/* Nav */
+.nav { display:flex; gap:2px; padding:0 20px 0;
+       border-bottom:1px solid var(--border); background:var(--bg); }
+.nav a {
+  padding:10px 16px; font-size:13px; font-weight:500; color:var(--muted);
+  text-decoration:none; border-bottom:2px solid transparent;
+  transition:color .15s, border-color .15s;
+}
+.nav a:hover { color:var(--text); }
+.nav a.active { color:var(--accent); border-bottom-color:var(--accent); }
+/* Main */
+.main { padding:20px; max-width:1200px; }
+/* Tabs */
+.tabs { display:flex; gap:4px; margin-bottom:20px; flex-wrap:wrap; }
+.tab-btn {
+  padding:7px 16px; border-radius:8px; border:1px solid var(--border);
+  background:var(--bg2); color:var(--muted); font-size:13px; cursor:pointer;
+  font-family:inherit; transition:all .15s;
+}
+.tab-btn:hover { color:var(--text); border-color:#58a6ff; }
+.tab-btn.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+.tab-panel { display:none; }
+.tab-panel.active { display:block; }
+/* Cards */
+.card {
+  background:var(--bg2); border:1px solid var(--border);
+  border-radius:10px; padding:18px 20px; margin-bottom:16px;
+}
+.card-title { font-size:13px; font-weight:600; color:var(--muted); margin-bottom:12px; letter-spacing:.5px; text-transform:uppercase; }
+/* Stats grid */
+.stats-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:12px; }
+.stat-box {
+  background:var(--bg3); border:1px solid var(--border);
+  border-radius:8px; padding:14px 16px; text-align:center;
+}
+.stat-val { font-size:28px; font-weight:700; color:var(--accent); }
+.stat-label { font-size:11px; color:var(--muted); margin-top:4px; }
+/* Table */
+.tbl { width:100%; border-collapse:collapse; font-size:13px; }
+.tbl th {
+  text-align:left; padding:8px 12px; color:var(--muted); font-size:11px;
+  font-weight:600; text-transform:uppercase; letter-spacing:.4px;
+  border-bottom:1px solid var(--border); white-space:nowrap;
+}
+.tbl td {
+  padding:9px 12px; border-bottom:1px solid rgba(48,54,61,.5);
+  color:var(--text); vertical-align:top;
+}
+.tbl tr:hover td { background:rgba(88,166,255,.04); }
+.tbl-wrap { overflow-x:auto; }
+/* Badges */
+.badge {
+  display:inline-block; border-radius:4px; padding:2px 7px;
+  font-size:11px; font-weight:600; white-space:nowrap;
+}
+.badge-ok   { background:rgba(16,185,129,.15); color:#10b981; }
+.badge-err  { background:rgba(239,68,68,.15);  color:#ef4444; }
+.badge-warn { background:rgba(245,158,11,.15); color:#f59e0b; }
+.badge-info { background:rgba(31,111,235,.15); color:#79b8ff; }
+.badge-purple { background:rgba(139,92,246,.15); color:#a78bfa; }
+.badge-muted  { background:rgba(139,148,158,.12); color:#8b949e; }
+/* Priority dots */
+.prio { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:5px; }
+.prio-5 { background:#ef4444; }
+.prio-4 { background:#f59e0b; }
+.prio-3 { background:#3b82f6; }
+.prio-2 { background:#10b981; }
+.prio-1 { background:#6b7280; }
+/* Filter bar */
+.filter-bar { display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap; }
+.filter-bar select, .filter-bar input {
+  background:var(--bg3); border:1px solid var(--border); color:var(--text);
+  border-radius:6px; padding:6px 10px; font-size:12px; font-family:inherit;
+}
+.filter-bar button {
+  background:var(--accent); color:#fff; border:none; border-radius:6px;
+  padding:6px 14px; font-size:12px; cursor:pointer; font-family:inherit;
+}
+/* Empty state */
+.empty { text-align:center; padding:40px; color:var(--muted); font-size:13px; }
+/* Toggle switch */
+.toggle { position:relative; display:inline-block; width:34px; height:18px; }
+.toggle input { opacity:0; width:0; height:0; }
+.toggle-slider {
+  position:absolute; cursor:pointer; inset:0; background:#30363d;
+  border-radius:18px; transition:.2s;
+}
+.toggle-slider:before {
+  content:""; position:absolute; width:12px; height:12px;
+  left:3px; top:3px; background:#e6edf3; border-radius:50%; transition:.2s;
+}
+.toggle input:checked + .toggle-slider { background:var(--ok); }
+.toggle input:checked + .toggle-slider:before { transform:translateX(16px); }
+/* Header user styles (G-9) */
+.hdr-user { display:flex;align-items:center;gap:7px;padding:4px 12px 4px 6px;
+  border-radius:20px;border:1px solid rgba(88,166,255,.2);
+  background:rgba(88,166,255,.08);font-size:12px;white-space:nowrap; }
+.hdr-user-avatar { width:26px;height:26px;border-radius:50%;flex-shrink:0;
+  background:#1f6feb;display:flex;align-items:center;
+  justify-content:center;font-size:12px;font-weight:700;color:#fff; }
+.hdr-user-sys { border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700;letter-spacing:.5px; }
+.badge-sap { background:rgba(31,111,235,.15);color:#79b8ff;border:1px solid rgba(31,111,235,.3);
+  border-radius:999px;padding:3px 10px;font-size:11px;font-weight:600;white-space:nowrap; }
+.btn-logout { padding:4px 10px;border-radius:6px;border:1px solid rgba(239,68,68,.2);
+  background:rgba(239,68,68,.1);color:#ef4444;font-size:11px;font-weight:600;
+  cursor:pointer;font-family:inherit;white-space:nowrap; }
+</style>
+</head>
+<body>
+
+<!-- App-Regel G-9: Benutzer/SAP-System wird von auth.js via AUTH.renderHeader() eingefügt -->
+<header class="hdr">
+  <div class="hdr-left">
+    <div class="logo"><span>Y</span>CONN</div>
+    <span class="page-badge">⬡ 3W Smart Database</span>
+  </div>
+  <div id="headerRight" style="display:flex;align-items:center;gap:8px;"></div>
+</header>
+
+<nav class="nav">
+  <a href="startseite.html">Übersicht</a>
+  <a href="zinsen.html">Zinsen</a>
+  <a href="payroll.html">Payroll</a>
+  <a href="rechnung.html">Rechnungen</a>
+  <a href="regeln.html">App-Regeln</a>
+  <a href="benutzer.html">Benutzer</a>
+  <a href="brain.html">🧠 Digitales Gehirn</a>
+  <a href="db-kontrollzentrum.html">3W-Kontrollzentrum</a>
+  <a href="db-admin.html" class="active">3W-Details</a>
+</nav>
+
+<div class="main">
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('overview')">📊 Übersicht</button>
+    <button class="tab-btn" onclick="switchTab('audit')">📋 Buchungs-Audit (WHO/WHAT/WHY)</button>
+    <button class="tab-btn" onclick="switchTab('knowledge')">📚 Wissensbasis</button>
+    <button class="tab-btn" onclick="switchTab('rules')">⚖️ App-Regeln</button>
+    <button class="tab-btn" onclick="switchTab('suggestions')">💡 Verbesserungsvorschläge</button>
+    <button class="tab-btn" onclick="switchTab('patterns')">🔍 Lernmuster</button>
+  </div>
+
+  <!-- ── Tab: Übersicht ── -->
+  <div id="tab-overview" class="tab-panel active">
+    <div class="card">
+      <div class="card-title">3W Smart Database Engine — Schichtenübersicht</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+        <div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:10px;font-weight:600;">LAYER 1: CORE DATABASE</div>
+          <div class="stats-grid" id="stats-core"></div>
+        </div>
+        <div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:10px;font-weight:600;">LAYER 2–6: 3W ENGINE</div>
+          <div class="stats-grid" id="stats-3w"></div>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Architektur</div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;font-size:12px;">
+        <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px;">
+          <div style="color:#79b8ff;font-weight:700;margin-bottom:4px;">🗄️ Layer 1: Core DB</div>
+          <div style="color:var(--muted);">robots, tasks, runs, sap_users, payroll_imports, invoice_records</div>
+        </div>
+        <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px;">
+          <div style="color:#a78bfa;font-weight:700;margin-bottom:4px;">🔍 Layer 2: 3W Audit</div>
+          <div style="color:var(--muted);">WHO did WHAT and WHY — vollständiger Buchungs-Audit-Trail</div>
+        </div>
+        <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px;">
+          <div style="color:#f59e0b;font-weight:700;margin-bottom:4px;">📚 Layer 3: Knowledge</div>
+          <div style="color:var(--muted);">Strukturiertes Domänenwissen: BAPI-Muster, Fehlerlösungen, Regeln</div>
+        </div>
+        <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px;">
+          <div style="color:#10b981;font-weight:700;margin-bottom:4px;">🧠 Layer 4: Learning</div>
+          <div style="color:var(--muted);">Automatisch erkannte Buchungsmuster und Statistiken</div>
+        </div>
+        <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px;">
+          <div style="color:#ef4444;font-weight:700;margin-bottom:4px;">💡 Layer 5: Reorg</div>
+          <div style="color:var(--muted);">Verbesserungsvorschläge — niemals automatisch umgesetzt</div>
+        </div>
+        <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px;">
+          <div style="color:#fb923c;font-weight:700;margin-bottom:4px;">⚖️ Layer 6: Governance</div>
+          <div style="color:var(--muted);">App-Regeln persistent in DB — Single Source of Truth</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Tab: Audit (3W) ── -->
+  <div id="tab-audit" class="tab-panel">
+    <div class="card">
+      <div class="card-title">WHO did WHAT and WHY — Buchungs-Audit-Trail</div>
+      <div class="filter-bar">
+        <select id="audit-module" onchange="loadAudit()">
+          <option value="">Alle Module</option>
+          <option value="zinsen">Zinsen</option>
+          <option value="payroll">Payroll</option>
+          <option value="rechnung">Rechnung</option>
+        </select>
+        <select id="audit-system" onchange="loadAudit()">
+          <option value="">SEP + SEQ</option>
+          <option value="SEP">SEP</option>
+          <option value="SEQ">SEQ</option>
+        </select>
+        <input type="text" id="audit-periode" placeholder="Periode z.B. 06/2026" onchange="loadAudit()" style="width:140px;">
+        <button onclick="loadAudit()">↻ Aktualisieren</button>
+      </div>
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead>
+            <tr>
+              <th>Wann</th><th>WER</th><th>WAS</th><th>WARUM</th>
+              <th>Objekt</th><th>System</th><th>Periode</th><th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="audit-body">
+            <tr><td colspan="8" class="empty">Wird geladen…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Tab: Knowledge ── -->
+  <div id="tab-knowledge" class="tab-panel">
+    <div class="card">
+      <div class="card-title">Wissensbasis — Buchungsregeln, BAPI-Muster, Fehlerlösungen</div>
+      <div class="filter-bar">
+        <select id="know-category" onchange="loadKnowledge()">
+          <option value="">Alle Kategorien</option>
+          <option value="rule">Regel</option>
+          <option value="bapi">BAPI</option>
+          <option value="error">Fehler</option>
+          <option value="pattern">Muster</option>
+          <option value="note">Notiz</option>
+        </select>
+        <select id="know-module" onchange="loadKnowledge()">
+          <option value="">Alle Module</option>
+          <option value="zinsen">Zinsen</option>
+          <option value="payroll">Payroll</option>
+          <option value="rechnung">Rechnung</option>
+        </select>
+        <button onclick="loadKnowledge()">↻ Aktualisieren</button>
+      </div>
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead>
+            <tr><th>Kategorie</th><th>Schlüssel</th><th>Titel</th><th>Modul</th><th>Vertrauen</th><th>Erstellt</th></tr>
+          </thead>
+          <tbody id="know-body">
+            <tr><td colspan="6" class="empty">Wird geladen…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Tab: App-Regeln ── -->
+  <div id="tab-rules" class="tab-panel">
+    <div class="card">
+      <div class="card-title">App-Regeln (Governance Layer 6) — Single Source of Truth</div>
+      <div class="filter-bar">
+        <select id="rules-module" onchange="loadRules()">
+          <option value="">Alle Module</option>
+          <option value="global">Global</option>
+          <option value="zinsen">Zinsen</option>
+          <option value="payroll">Payroll</option>
+          <option value="rechnung">Rechnung</option>
+        </select>
+        <button onclick="loadRules()">↻ Aktualisieren</button>
+      </div>
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead>
+            <tr><th>Regel-ID</th><th>Titel</th><th>Beschreibung</th><th>Modul</th><th>Priorität</th><th>Aktiv</th></tr>
+          </thead>
+          <tbody id="rules-body">
+            <tr><td colspan="6" class="empty">Wird geladen…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Tab: Vorschläge ── -->
+  <div id="tab-suggestions" class="tab-panel">
+    <div class="card">
+      <div class="card-title">Verbesserungsvorschläge — niemals automatisch umgesetzt</div>
+      <div class="filter-bar">
+        <select id="sug-status" onchange="loadSuggestions()">
+          <option value="">Alle</option>
+          <option value="open">Offen</option>
+          <option value="accepted">Akzeptiert</option>
+          <option value="rejected">Abgelehnt</option>
+          <option value="done">Erledigt</option>
+        </select>
+        <button onclick="loadSuggestions()">↻ Aktualisieren</button>
+        <button onclick="showNewSuggestionForm()" style="background:rgba(16,185,129,.2);color:#10b981;border:1px solid rgba(16,185,129,.3);">+ Neuer Vorschlag</button>
+      </div>
+      <!-- Formular neuer Vorschlag -->
+      <div id="sug-form" style="display:none;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:14px;">
+        <div style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:10px;">NEUER VERBESSERUNGSVORSCHLAG</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+          <div>
+            <label style="font-size:11px;color:var(--muted);">Typ</label>
+            <select id="sug-stype" style="width:100%;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:7px 10px;margin-top:3px;font-family:inherit;">
+              <option value="db_schema">DB-Schema</option>
+              <option value="workflow">Workflow</option>
+              <option value="ui">Benutzeroberfläche</option>
+              <option value="data_quality">Datenqualität</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:11px;color:var(--muted);">Priorität (1–5)</label>
+            <select id="sug-priority" style="width:100%;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:7px 10px;margin-top:3px;font-family:inherit;">
+              <option value="5">5 – Kritisch</option>
+              <option value="4">4 – Hoch</option>
+              <option value="3" selected>3 – Mittel</option>
+              <option value="2">2 – Niedrig</option>
+              <option value="1">1 – Info</option>
+            </select>
+          </div>
+        </div>
+        <div style="margin-bottom:10px;">
+          <label style="font-size:11px;color:var(--muted);">Titel</label>
+          <input id="sug-title" type="text" placeholder="Kurze Beschreibung des Vorschlags"
+            style="width:100%;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:7px 10px;margin-top:3px;font-family:inherit;">
+        </div>
+        <div style="margin-bottom:14px;">
+          <label style="font-size:11px;color:var(--muted);">Beschreibung</label>
+          <textarea id="sug-desc" rows="3" placeholder="Detaillierte Beschreibung und Begründung"
+            style="width:100%;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:7px 10px;margin-top:3px;font-family:inherit;resize:vertical;"></textarea>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button onclick="submitSuggestion()" style="background:var(--accent);color:#fff;border:none;border-radius:6px;padding:7px 16px;font-size:12px;cursor:pointer;font-family:inherit;">Einreichen</button>
+          <button onclick="document.getElementById('sug-form').style.display='none'" style="background:var(--bg3);color:var(--muted);border:1px solid var(--border);border-radius:6px;padding:7px 16px;font-size:12px;cursor:pointer;font-family:inherit;">Abbrechen</button>
+        </div>
+      </div>
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead>
+            <tr><th>Typ</th><th>Titel</th><th>Priorität</th><th>Status</th><th>Eingereicht</th><th>Aktion</th></tr>
+          </thead>
+          <tbody id="sug-body">
+            <tr><td colspan="6" class="empty">Wird geladen…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Tab: Lernmuster ── -->
+  <div id="tab-patterns" class="tab-panel">
+    <div class="card">
+      <div class="card-title">Lernmuster (Layer 4) — automatisch erkannte Muster aus dem Buchungsbetrieb</div>
+      <div class="filter-bar">
+        <select id="pat-type" onchange="loadPatterns()">
+          <option value="">Alle Typen</option>
+          <option value="booking_frequency">Buchungsfrequenz</option>
+          <option value="amount_drift">Betragsabweichung</option>
+          <option value="error_rate">Fehlerquote</option>
+        </select>
+        <button onclick="loadPatterns()">↻ Aktualisieren</button>
+      </div>
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead>
+            <tr><th>Typ</th><th>Schlüssel</th><th>Beschreibung</th><th>Häufigkeit</th><th>Zuletzt gesehen</th></tr>
+          </thead>
+          <tbody id="pat-body">
+            <tr><td colspan="5" class="empty">Wird geladen…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div><!-- .main -->
+
+<script src="auth.js"></script>
+<script>
+const API = 'http://localhost:8000';
+
+function switchTab(name) {
+  document.querySelectorAll('.tab-btn').forEach((b, i) => {
+    b.classList.toggle('active', b.getAttribute('onclick').includes(`'${name}'`));
+  });
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  // Lazy load
+  if (name === 'overview')     loadStats();
+  if (name === 'audit')        loadAudit();
+  if (name === 'knowledge')    loadKnowledge();
+  if (name === 'rules')        loadRules();
+  if (name === 'suggestions')  loadSuggestions();
+  if (name === 'patterns')     loadPatterns();
+}
+
+// ── Stats ──────────────────────────────────────────────────────────────────
+async function loadStats() {
+  const r = await fetch(`${API}/3w/stats`).then(r => r.json()).catch(() => ({}));
+  const CORE = [
+    ['Robots',          r.core_robots],
+    ['Tasks',           r.core_tasks],
+    ['Runs',            r.core_runs],
+    ['SAP-Benutzer',    r.core_sap_users],
+    ['Payroll-Importe', r.core_payroll_imports],
+    ['Rechnungen',      r.core_invoice_records],
+  ];
+  document.getElementById('stats-core').innerHTML = CORE.map(([l, v]) =>
+    `<div class="stat-box"><div class="stat-val">${v ?? '–'}</div><div class="stat-label">${l}</div></div>`
+  ).join('');
+  const W3 = [
+    ['Buchungs-Audits', r.three_w_answers],
+    ['Wissensbasis',    r.knowledge_items],
+    ['Lernmuster',      r.learning_patterns],
+    ['Vorschläge',      r.structure_suggestions],
+    ['App-Regeln (DB)', r.governance_rules],
+  ];
+  document.getElementById('stats-3w').innerHTML = W3.map(([l, v]) =>
+    `<div class="stat-box"><div class="stat-val" style="color:#a78bfa;">${v ?? '–'}</div><div class="stat-label">${l}</div></div>`
+  ).join('');
+}
+
+// ── Audit ─────────────────────────────────────────────────────────────────
+async function loadAudit() {
+  const module   = document.getElementById('audit-module').value;
+  const system   = document.getElementById('audit-system').value;
+  const periode  = document.getElementById('audit-periode').value.trim();
+  let url = `${API}/3w/answers?limit=200`;
+  if (module)  url += `&module=${encodeURIComponent(module)}`;
+  if (system)  url += `&sap_system=${encodeURIComponent(system)}`;
+  if (periode) url += `&periode=${encodeURIComponent(periode)}`;
+  const rows = await fetch(url).then(r => r.json()).catch(() => []);
+  const tbody = document.getElementById('audit-body');
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="8" class="empty">Keine Einträge vorhanden.<br>Einträge entstehen automatisch nach SAP-Buchungen.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = rows.map(r => `
+    <tr>
+      <td style="white-space:nowrap;font-size:11px;">${fmtDt(r.when_ts)}</td>
+      <td><span class="badge badge-info">${esc(r.who)}</span></td>
+      <td>${esc(r.action_type)}<br><span style="color:var(--muted);font-size:11px;">${esc(r.action_desc)}</span></td>
+      <td>${r.business_rule ? `<span class="badge badge-purple">${esc(r.business_rule)}</span>` : ''}
+          <span style="color:var(--muted);font-size:11px;display:block;">${esc(r.why_desc)}</span></td>
+      <td style="font-size:11px;font-family:monospace;">${esc(r.object_ref)}</td>
+      <td>${sysBadge(r.sap_system)}</td>
+      <td style="font-size:11px;">${esc(r.periode)}</td>
+      <td>${statusBadge(r.status)}</td>
+    </tr>
+  `).join('');
+}
+
+// ── Knowledge ─────────────────────────────────────────────────────────────
+async function loadKnowledge() {
+  const category = document.getElementById('know-category').value;
+  const module   = document.getElementById('know-module').value;
+  let url = `${API}/3w/knowledge`;
+  const params = [];
+  if (category) params.push(`category=${encodeURIComponent(category)}`);
+  if (module)   params.push(`source_module=${encodeURIComponent(module)}`);
+  if (params.length) url += '?' + params.join('&');
+  const rows = await fetch(url).then(r => r.json()).catch(() => []);
+  const tbody = document.getElementById('know-body');
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="6" class="empty">Keine Einträge. Wissensbasis wird durch Buchungsvorgänge automatisch befüllt.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = rows.map(r => `
+    <tr>
+      <td>${catBadge(r.category)}</td>
+      <td style="font-family:monospace;font-size:11px;">${esc(r.key)}</td>
+      <td><strong>${esc(r.title)}</strong><br><span style="color:var(--muted);font-size:11px;">${esc(r.body).slice(0,80)}${r.body.length > 80 ? '…' : ''}</span></td>
+      <td><span class="badge badge-muted">${esc(r.source_module || '–')}</span></td>
+      <td>${confidenceDots(r.confidence)}</td>
+      <td style="font-size:11px;">${fmtDt(r.created_at)}</td>
+    </tr>
+  `).join('');
+}
+
+// ── App-Regeln ────────────────────────────────────────────────────────────
+async function loadRules() {
+  const module = document.getElementById('rules-module').value;
+  let url = `${API}/3w/rules`;
+  if (module) url += `?module=${encodeURIComponent(module)}`;
+  const rows = await fetch(url).then(r => r.json()).catch(() => []);
+  const tbody = document.getElementById('rules-body');
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="6" class="empty">Keine Regeln geladen. Orchestrator prüfen.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = rows.map(r => `
+    <tr>
+      <td><span class="badge badge-purple">${esc(r.rule_id)}</span></td>
+      <td><strong>${esc(r.title)}</strong></td>
+      <td style="color:var(--muted);font-size:12px;max-width:360px;">${esc(r.description)}</td>
+      <td><span class="badge badge-muted">${esc(r.module)}</span></td>
+      <td><span class="prio prio-${r.priority}"></span>${r.priority}</td>
+      <td>
+        <label class="toggle">
+          <input type="checkbox" ${r.active ? 'checked' : ''} onchange="toggleRule('${esc(r.rule_id)}',this.checked)">
+          <span class="toggle-slider"></span>
+        </label>
+      </td>
+    </tr>
+  `).join('');
+}
+
+async function toggleRule(ruleId, active) {
+  await fetch(`${API}/3w/rules/${encodeURIComponent(ruleId)}?active=${active ? 1 : 0}`, {method:'PATCH'});
+}
+
+// ── Vorschläge ────────────────────────────────────────────────────────────
+async function loadSuggestions() {
+  const status = document.getElementById('sug-status').value;
+  let url = `${API}/3w/suggestions`;
+  if (status) url += `?status=${encodeURIComponent(status)}`;
+  const rows = await fetch(url).then(r => r.json()).catch(() => []);
+  const tbody = document.getElementById('sug-body');
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="6" class="empty">Keine Vorschläge.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = rows.map(r => `
+    <tr>
+      <td><span class="badge badge-muted">${esc(r.stype)}</span></td>
+      <td><strong>${esc(r.title)}</strong><br><span style="color:var(--muted);font-size:11px;">${esc(r.description).slice(0,80)}</span></td>
+      <td><span class="prio prio-${r.priority}"></span>${r.priority}</td>
+      <td>${sugStatusBadge(r.status)}</td>
+      <td style="font-size:11px;white-space:nowrap;">${fmtDt(r.proposed_at)}</td>
+      <td style="white-space:nowrap;">
+        ${r.status === 'open' ? `
+          <button onclick="decideSuggestion(${r.id},'accepted')" style="background:rgba(16,185,129,.15);color:#10b981;border:1px solid rgba(16,185,129,.3);border-radius:5px;padding:3px 8px;font-size:11px;cursor:pointer;font-family:inherit;">✓ Akzeptieren</button>
+          <button onclick="decideSuggestion(${r.id},'rejected')" style="background:rgba(239,68,68,.1);color:#ef4444;border:1px solid rgba(239,68,68,.2);border-radius:5px;padding:3px 8px;font-size:11px;cursor:pointer;font-family:inherit;">✗ Ablehnen</button>
+        ` : '–'}
+        ${r.status === 'accepted' ? `<button onclick="decideSuggestion(${r.id},'done')" style="background:rgba(31,111,235,.15);color:#79b8ff;border:1px solid rgba(31,111,235,.3);border-radius:5px;padding:3px 8px;font-size:11px;cursor:pointer;font-family:inherit;">✓ Erledigt</button>` : ''}
+      </td>
+    </tr>
+  `).join('');
+}
+
+function showNewSuggestionForm() {
+  document.getElementById('sug-form').style.display = 'block';
+}
+
+async function submitSuggestion() {
+  const body = {
+    stype: document.getElementById('sug-stype').value,
+    title: document.getElementById('sug-title').value.trim(),
+    description: document.getElementById('sug-desc').value.trim(),
+    priority: parseInt(document.getElementById('sug-priority').value),
+    proposed_by: AUTH.user?.sap_username || 'user',
+  };
+  if (!body.title) { alert('Bitte einen Titel eingeben.'); return; }
+  await fetch(`${API}/3w/suggestions`, {
+    method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)
+  });
+  document.getElementById('sug-form').style.display = 'none';
+  document.getElementById('sug-title').value = '';
+  document.getElementById('sug-desc').value = '';
+  loadSuggestions();
+}
+
+async function decideSuggestion(id, status) {
+  await fetch(`${API}/3w/suggestions/${id}?status=${status}`, {method:'PATCH'});
+  loadSuggestions();
+}
+
+// ── Muster ────────────────────────────────────────────────────────────────
+async function loadPatterns() {
+  const ptype = document.getElementById('pat-type').value;
+  let url = `${API}/3w/patterns`;
+  if (ptype) url += `?pattern_type=${encodeURIComponent(ptype)}`;
+  const rows = await fetch(url).then(r => r.json()).catch(() => []);
+  const tbody = document.getElementById('pat-body');
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="5" class="empty">Noch keine Lernmuster erkannt.<br>Entsteht automatisch nach mehreren Buchungszyklen.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = rows.map(r => `
+    <tr>
+      <td><span class="badge badge-info">${esc(r.pattern_type)}</span></td>
+      <td style="font-family:monospace;font-size:11px;">${esc(r.pattern_key)}</td>
+      <td style="color:var(--muted);font-size:12px;">${esc(r.description)}</td>
+      <td><strong>${r.occurrence_count}</strong></td>
+      <td style="font-size:11px;">${fmtDt(r.last_seen)}</td>
+    </tr>
+  `).join('');
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────
+function esc(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function fmtDt(iso) {
+  if (!iso) return '–';
+  try { return new Date(iso).toLocaleString('de-DE',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}); }
+  catch { return iso; }
+}
+function sysBadge(sys) {
+  if (!sys) return '–';
+  const isSeq = sys === 'SEQ';
+  return `<span class="badge" style="background:${isSeq ? 'rgba(16,185,129,.15)' : 'rgba(245,158,11,.15)'};color:${isSeq ? '#10b981' : '#f59e0b'};">${esc(sys)}</span>`;
+}
+function statusBadge(s) {
+  const map = {ok:'badge-ok',error:'badge-err',storno:'badge-warn'};
+  return `<span class="badge ${map[s] || 'badge-muted'}">${esc(s)}</span>`;
+}
+function sugStatusBadge(s) {
+  const map = {open:'badge-info',accepted:'badge-ok',rejected:'badge-err',done:'badge-muted'};
+  const lbl = {open:'Offen',accepted:'Akzeptiert',rejected:'Abgelehnt',done:'Erledigt'};
+  return `<span class="badge ${map[s] || 'badge-muted'}">${lbl[s] || esc(s)}</span>`;
+}
+function catBadge(cat) {
+  const map = {rule:'badge-purple',bapi:'badge-info',error:'badge-err',pattern:'badge-warn',note:'badge-muted'};
+  return `<span class="badge ${map[cat] || 'badge-muted'}">${esc(cat)}</span>`;
+}
+function confidenceDots(n) {
+  return '●'.repeat(n || 0) + '○'.repeat(5 - (n || 0));
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────
+AUTH.renderHeader('headerRight');
+loadStats();
+</script>
+</body>
+</html>

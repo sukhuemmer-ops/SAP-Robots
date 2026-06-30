@@ -1,0 +1,1505 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>YCONN Cockpit</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+*,*::before,*::after{box-sizing:border-box;}
+:root{
+  --bg:#0d1117;--bg2:#161b22;--bg3:#21262d;
+  --border:#30363d;--text:#e6edf3;--muted:#8b949e;
+  --accent:#1f6feb;--ok:#10b981;--warn:#f59e0b;--err:#ef4444;
+}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  font-size:14px;line-height:1.5;min-height:100vh;}
+.wrap{max-width:1280px;margin:0 auto;padding:20px 24px;}
+/* Header */
+.page-header{display:flex;align-items:center;justify-content:space-between;gap:12px;
+  flex-wrap:wrap;margin-bottom:24px;padding-bottom:18px;border-bottom:1px solid var(--border);}
+.brand{display:flex;align-items:center;gap:12px;}
+.brand-icon{width:40px;height:40px;border-radius:10px;
+  background:linear-gradient(135deg,#1f6feb,#8b5cf6);
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.brand-title{font-size:18px;font-weight:800;letter-spacing:-.4px;}
+.brand-sub{font-size:11px;color:var(--muted);}
+.header-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.btn-nav{padding:6px 14px;border-radius:7px;border:1px solid var(--border);
+  background:var(--bg2);color:var(--text);font-size:12px;font-weight:500;
+  cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:5px;
+  transition:background .15s;}
+.btn-nav:hover{background:var(--bg3);}
+.btn-nav.primary{background:var(--accent);border-color:var(--accent);color:#fff;}
+.btn-nav.danger{background:rgba(239,68,68,.08);border-color:rgba(239,68,68,.3);color:var(--err);}
+.status-chip{display:flex;align-items:center;gap:7px;padding:5px 12px;
+  border-radius:999px;border:1px solid var(--border);background:var(--bg2);
+  font-size:12px;font-weight:600;cursor:pointer;}
+.status-dot{width:7px;height:7px;border-radius:50%;background:var(--err);}
+.status-dot.connected{background:var(--ok);box-shadow:0 0 0 3px rgba(16,185,129,.2);animation:pulse 2s infinite;}
+.status-dot.checking{background:var(--warn);}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+/* Mode bar */
+.modebar{display:flex;align-items:center;gap:10px;padding:10px 14px;
+  border-radius:10px;margin-bottom:16px;font-size:13px;border:1px solid;}
+.modebar.real{background:rgba(16,185,129,.08);color:#10b981;border-color:rgba(16,185,129,.25);}
+.modebar.sim{background:rgba(245,158,11,.08);color:#f59e0b;border-color:rgba(245,158,11,.25);}
+/* Tabs */
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--border);margin-bottom:20px;flex-wrap:wrap;}
+.tab{padding:8px 16px;background:none;border:0;border-bottom:2px solid transparent;
+  cursor:pointer;font-size:13px;color:var(--muted);font-weight:500;font-family:inherit;}
+.tab:hover{color:var(--text);}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent);}
+section{display:none;}
+section.active{display:block;}
+/* Cards & Grid */
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;}
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:16px;}
+.card h3{margin:0 0 4px 0;font-size:15px;color:var(--text);}
+/* KPI */
+.kpi{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px;}
+.kpi .card{padding:12px 14px;}
+.kpi .card .v{font-size:22px;font-weight:700;color:var(--text);}
+.kpi .card .l{color:var(--muted);font-size:12px;}
+/* Badges */
+.badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;}
+.badge.ap,.badge.AP{background:rgba(59,130,246,.15);color:#3b82f6;}
+.badge.ar,.badge.AR{background:rgba(16,185,129,.15);color:#10b981;}
+.badge.gl,.badge.GL{background:rgba(245,158,11,.15);color:#f59e0b;}
+.badge.aa,.badge.AA{background:rgba(139,92,246,.15);color:#8b5cf6;}
+.badge.ok{background:rgba(16,185,129,.15);color:#10b981;}
+.badge.fail{background:rgba(239,68,68,.15);color:#ef4444;}
+.badge.warn{background:rgba(245,158,11,.15);color:#f59e0b;}
+.badge.run{background:rgba(96,165,250,.15);color:#60a5fa;}
+.badge.pend{background:rgba(255,255,255,.06);color:var(--muted);}
+.badge.real{background:rgba(16,185,129,.15);color:#10b981;}
+.badge.sim{background:rgba(245,158,11,.15);color:#f59e0b;}
+/* ENV */
+.env,.env-pill{color:#fff;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;display:inline-block;}
+.env.DEV,.env-DEV{background:#16a34a;}
+.env.QAS,.env-QAS{background:#b45309;}
+.env.PRD,.env-PRD{background:#b91c1c;}
+/* Dot */
+.dot{width:10px;height:10px;border-radius:50%;display:inline-block;}
+.dot.idle{background:#4b5563;}
+.dot.running{background:var(--ok);box-shadow:0 0 0 3px rgba(16,185,129,.2);animation:pulse 1.5s infinite;}
+.dot.error{background:var(--err);}
+/* Buttons */
+button{padding:6px 14px;border-radius:7px;border:1px solid var(--border);
+  background:var(--bg3);cursor:pointer;font-size:13px;color:var(--text);font-family:inherit;}
+button.primary,.btn.primary{background:var(--accent);color:#fff;border-color:var(--accent);}
+button.danger,.btn.danger{color:var(--err);border-color:rgba(239,68,68,.3);background:rgba(239,68,68,.06);}
+button.small,.btn.small{padding:3px 8px;font-size:12px;}
+button:hover,.btn:hover{opacity:.85;}
+.btn{padding:6px 12px;border-radius:7px;border:1px solid var(--border);
+  background:var(--bg3);cursor:pointer;font-size:13px;color:var(--text);font-family:inherit;}
+/* Inputs */
+.field{margin:10px 0;}
+.field label{display:block;font-size:11px;color:var(--muted);margin-bottom:3px;font-weight:500;}
+input[type=text],input[type=number],input[type=date],input[type=time],
+input[type=password],select,textarea,.field input,.field select{
+  background:var(--bg3);border:1px solid var(--border);border-radius:6px;
+  color:var(--text);padding:6px 9px;font:inherit;width:100%;box-sizing:border-box;}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent);}
+label{display:block;font-size:12px;color:var(--muted);margin:8px 0 3px;font-weight:500;}
+/* Tables */
+table{width:100%;border-collapse:collapse;font-size:13px;}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--border);vertical-align:top;}
+th{background:var(--bg3);font-size:11px;text-transform:uppercase;color:var(--muted);font-weight:600;letter-spacing:.03em;}
+tr:last-child td{border-bottom:none;}
+tr:hover td{background:rgba(255,255,255,.015);}
+/* Details */
+details{margin-top:10px;}
+summary{cursor:pointer;padding:6px 0;font-weight:600;color:#58a6ff;font-size:13px;user-select:none;}
+/* Code */
+code{background:var(--bg3);padding:1px 6px;border-radius:4px;font-size:12px;color:#e6edf3;}
+/* Row */
+.row{display:flex;gap:6px;flex-wrap:wrap;align-items:center;}
+/* Warn */
+.warn{background:rgba(245,158,11,.08);color:#f59e0b;padding:12px 14px;
+  border-radius:8px;border:1px solid rgba(245,158,11,.25);margin-bottom:14px;font-size:13px;}
+/* Results */
+.result{margin-top:10px;padding:10px 12px;border-radius:7px;font-size:12px;}
+.result.ok{background:rgba(16,185,129,.1);color:#10b981;}
+.result.err{background:rgba(239,68,68,.1);color:#ef4444;}
+.result.sim{background:rgba(245,158,11,.1);color:#f59e0b;}
+.result a{color:#58a6ff;font-weight:600;}
+/* Stats */
+.stats{display:flex;gap:14px;color:var(--muted);font-size:12px;margin:8px 0 12px;}
+.stats b{display:block;color:var(--text);font-size:15px;}
+/* Muted */
+.muted{color:var(--muted);font-size:12px;}
+/* Log */
+.log{background:#070d14;color:#8b949e;font-family:"SF Mono",Menlo,Consolas,monospace;
+  font-size:12px;padding:12px;border-radius:8px;max-height:350px;overflow:auto;
+  white-space:pre-wrap;border:1px solid var(--border);}
+.log .ts{color:#484f58;}
+.log .ok{color:#3fb950;}
+.log .err{color:#f85149;}
+.log .info{color:#58a6ff;}
+/* Check */
+.check{display:flex;align-items:center;gap:8px;padding:3px 0;font-size:12px;}
+.check-ok{color:var(--ok);}
+.check-bad{color:var(--err);}
+/* Toast */
+#toast{position:fixed;bottom:20px;right:20px;padding:10px 16px;border-radius:9px;
+  display:none;box-shadow:0 4px 24px rgba(0,0,0,.5);z-index:100;font-size:13px;
+  font-weight:500;max-width:400px;border:1px solid transparent;}
+#toast.ok{background:#0f2a1c;color:#3fb950;border-color:#2ea043;display:block;}
+#toast.err{background:#2a0f0f;color:#f85149;border-color:#da3633;display:block;}
+#toast.info{background:#0d1f38;color:#58a6ff;border-color:#1f6feb;display:block;}
+/* Credential Modal */
+#credModal>div{background:var(--bg2);border:1px solid var(--border);border-radius:12px;
+  padding:22px;width:380px;max-width:92vw;box-shadow:0 12px 40px rgba(0,0,0,.5);color:var(--text);}
+/* Subtabs */
+.subtabs{display:flex;gap:2px;margin-bottom:14px;background:var(--bg3);
+  padding:3px;border-radius:8px;width:fit-content;flex-wrap:wrap;}
+.subtab{padding:6px 14px;cursor:pointer;border:none;background:transparent;
+  color:var(--muted);font-size:13px;font-weight:500;border-radius:6px;font-family:inherit;}
+.subtab.active{background:var(--bg2);color:var(--accent);box-shadow:0 1px 2px rgba(0,0,0,.3);}
+/* Grid helpers */
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;}
+@media(max-width:720px){.grid2,.grid3{grid-template-columns:1fr;}}
+/* Steps */
+.step{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:10px;}
+.step .step-head{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+.step .step-num{background:var(--accent);color:#fff;width:22px;height:22px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;}
+.step .step-meta{display:grid;grid-template-columns:2fr 1fr 1fr;gap:8px;align-items:end;}
+@media(max-width:720px){.step .step-meta{grid-template-columns:1fr;}}
+.param-row{display:grid;grid-template-columns:1.5fr 2fr auto;gap:8px;align-items:center;margin-bottom:6px;}
+/* Pill */
+.pill{display:inline-block;padding:1px 8px;border-radius:999px;font-size:11px;font-weight:500;margin-right:4px;}
+.pill.err{background:rgba(239,68,68,.15);color:#ef4444;}
+.pill.warn{background:rgba(245,158,11,.15);color:#f59e0b;}
+.pill.ok{background:rgba(16,185,129,.15);color:#10b981;}
+/* Modal */
+.modal{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.65);
+  display:none;align-items:center;justify-content:center;padding:16px;z-index:20;}
+.modal.open{display:flex;}
+.modal .panel{background:var(--bg2);border:1px solid var(--border);border-radius:12px;
+  width:560px;max-width:100%;max-height:90vh;overflow:auto;padding:18px;}
+.modal h2{margin-top:0;font-size:17px;color:var(--text);}
+/* Reports */
+.reports-list{list-style:none;padding:0;margin:0;}
+.reports-list li{padding:8px 10px;border-bottom:1px solid var(--border);
+  display:flex;justify-content:space-between;align-items:center;}
+.reports-list a{color:#58a6ff;}
+/* Error box */
+#errBox{display:none;background:rgba(239,68,68,.08);color:#f85149;
+  border:1px solid rgba(239,68,68,.25);padding:12px 14px;border-radius:8px;
+  margin-bottom:14px;font-family:"SF Mono",Menlo,monospace;white-space:pre-wrap;font-size:12px;}
+#loadingBox{padding:24px;text-align:center;color:var(--muted);}
+/* Detail head */
+.detail-head{display:flex;justify-content:space-between;align-items:flex-start;
+  gap:10px;flex-wrap:wrap;margin-bottom:14px;}
+.detail-head h2{margin:0;font-size:18px;}
+.detail-head .meta{color:var(--muted);font-size:12px;margin-top:4px;}
+/* Toolbar */
+.toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;}
+/* Scrollbar */
+::-webkit-scrollbar{width:6px;height:6px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+/* Darlehen */
+#loansTable td{font-size:12px;}
+/* Check list */
+.check-list{margin:8px 0;}
+.check-item{display:flex;align-items:center;gap:8px;padding:3px 0;font-size:12px;}
+.typ,.sub{color:var(--muted);font-size:12px;}
+.actions{display:flex;gap:6px;margin-top:12px;flex-wrap:wrap;}
+/* Nav footer */
+.page-footer{border-top:1px solid var(--border);padding-top:20px;margin-top:32px;
+  display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;
+  font-size:11px;color:var(--muted);}
+.footer-links{display:flex;gap:16px;}
+.footer-links a{color:var(--muted);text-decoration:none;}
+.footer-links a:hover{color:var(--text);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div id="loadingBox">Lade Cockpit...</div>
+  <div id="errBox"></div>
+  <div id="appRoot" style="display:none">
+    <header class="page-header">
+  <div class="brand">
+    <a href="startseite.html" title="Startseite" style="display:block;line-height:0">
+      <img src="YCONN-logo_Web.png" width="156" height="156" alt="YCONN Logo" style="display:block;"/>
+    </a>
+  </div>
+  <div class="header-right">
+    <div class="status-chip" id="bridgeStatusChip" onclick="checkBridge ? checkBridge() : null" title="Bridge prüfen">
+      <div class="status-dot" id="bridgeDotMain"></div>
+      <span id="bridgeLabelMain">Bridge...</span>
+    </div>
+    <a class="btn-nav" href="startseite.html">← Startseite</a>
+    <a class="btn-nav" href="cockpit.html">Cockpit v1</a>
+    <a class="btn-nav" href="verbindungen.html">Verbindungen</a>
+    <button class="btn-nav danger" id="btnReset">Reset</button>
+    <!-- App-Regel G-9: Benutzer/SAP-System wird von auth.js via AUTH.renderHeader() eingefügt -->
+  </div>
+</header>
+
+    <div class="tabs" id="tabs">
+      <button class="tab active" data-tab="overview">Uebersicht</button>
+      <button class="tab" data-tab="tasks">Aufgaben</button>
+      <button class="tab" data-tab="schedule">Zeitplaene</button>
+      <button class="tab" data-tab="connections">Verbindungen</button>
+      <button class="tab" data-tab="logs">Logs</button>
+      <button class="tab" data-tab="arch">Architektur</button>
+    </div>
+
+    <section id="tab-overview">
+      <div class="kpi">
+        <div class="card"><div class="v" id="kpi-tasks">0</div><div class="l">Aufgaben gesamt</div></div>
+        <div class="card"><div class="v" id="kpi-running">0</div><div class="l">Aktuell laufend</div></div>
+        <div class="card"><div class="v" id="kpi-ok">0</div><div class="l">Erfolgreich (24h)</div></div>
+        <div class="card"><div class="v" id="kpi-err">0</div><div class="l">Fehler (24h)</div></div>
+      </div>
+      <div class="grid" id="robotsGrid"></div>
+    </section>
+
+    <section id="tab-tasks" style="display:none">
+      <div id="taskListView">
+        <div class="toolbar">
+          <label style="margin:0;display:flex;align-items:center;gap:6px;font-weight:normal">Robot:
+            <select id="taskFilter" style="width:auto">
+              <option value="all">Alle</option>
+              <option value="AP">Robot-AP</option><option value="AR">Robot-AR</option>
+              <option value="GL">Robot-GL</option><option value="AA">Robot-AA</option>
+            </select>
+          </label>
+          <button class="btn primary" id="btnAddTask">+ Aufgabe hinzufuegen</button>
+        </div>
+        <div class="card" style="padding:0;overflow:hidden">
+          <table id="taskTable">
+            <thead><tr><th>Robot</th><th>Aufgabe</th><th>SAP Tcode/BAPI</th><th>Methode</th><th>Letzter Lauf</th><th>Status</th><th></th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+      <div id="taskDetailView" style="display:none"></div>
+    </section>
+
+    <section id="tab-schedule" style="display:none">
+      <p class="muted">Wiederkehrende Laeufe pro Aufgabe.</p>
+      <div class="card" style="padding:0;overflow:hidden">
+        <table id="schedTable">
+          <thead><tr><th>Robot</th><th>Aufgabe</th><th>Haeufigkeit</th><th>Uhrzeit</th><th>Naechster Lauf</th><th>Aktiv</th><th></th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="tab-connections" style="display:none">
+      <div id="connListView">
+        <p class="muted">Verbindungsprofile zu SAP-Systemen (DEV / QAS / PRD). Passwoerter und Secrets gehoeren NICHT ins Cockpit &mdash; nur die Vault-Referenz.</p>
+        <div class="toolbar">
+          <button class="btn primary" id="btnAddConn">+ Neue Verbindung</button>
+          <button class="btn" id="btnTestAllConns">Alle testen</button>
+        </div>
+        <div class="grid" id="connGrid"></div>
+        <div class="card" style="margin-top:18px;background:#fef3c7;border-color:#fcd34d;color:#78350f">
+          <b>Sicherheitshinweis:</b> Dieses Cockpit speichert Verbindungsdaten lokal im Browser (localStorage).
+          Passwoerter, Client-Secrets und Zertifikate gehoeren <b>nicht</b> in dieses Feld &mdash; setze stattdessen die Vault-Referenz
+          (z. B. <code>azure-kv://sap-prd/RPA_AP_SERVICE</code>) und loese sie im Worker zur Laufzeit auf.
+        </div>
+      </div>
+      <div id="connDetailView" style="display:none"></div>
+    </section>
+
+    <section id="tab-logs" style="display:none">
+      <div class="toolbar">
+        <label style="margin:0;display:flex;align-items:center;gap:6px;font-weight:normal">Robot:
+          <select id="logFilter" style="width:auto">
+            <option value="all">Alle</option>
+            <option value="AP">Robot-AP</option><option value="AR">Robot-AR</option>
+            <option value="GL">Robot-GL</option><option value="AA">Robot-AA</option>
+          </select>
+        </label>
+        <button class="btn" id="btnClearLogs">Logs leeren</button>
+      </div>
+      <div class="log" id="logBox">Noch keine Logs.</div>
+    </section>
+
+    <section id="tab-arch" style="display:none">
+      <div class="card">
+        <h3 style="margin-top:0">Empfohlene Architektur</h3>
+        <p>Eine reine Web-App kann SAP nicht direkt steuern. Dieses Cockpit ist das Frontend &mdash; die Automatisierung uebernimmt ein lokaler Worker (Windows-VM mit SAP GUI und RFC-Bibliotheken).</p>
+        <pre style="background:#0f172a;color:#e2e8f0;padding:14px;border-radius:8px;overflow:auto;font-size:12px">Cockpit (Web)  &lt;--HTTPS--&gt;  Orchestrator (FastAPI + DB)  &lt;--Job-Queue--&gt;  Worker (Windows VM, pro Robot)  --RFC/GUI/OData--&gt;  SAP</pre>
+      </div>
+    </section>
+  </div>
+
+  <div class="modal" id="taskModal">
+    <div class="panel">
+      <h2>Aufgabe hinzufuegen</h2>
+      <label>Robot</label>
+      <select id="f-robot"><option value="AP">Robot-AP</option><option value="AR">Robot-AR</option><option value="GL">Robot-GL</option><option value="AA">Robot-AA</option></select>
+      <label>Aufgabenname</label>
+      <input type="text" id="f-name" placeholder="z. B. Zahllauf F110">
+      <label>SAP Transaktion / BAPI</label>
+      <input type="text" id="f-tcode" placeholder="z. B. F110">
+      <label>Methode</label>
+      <select id="f-method"><option value="GUI">SAP GUI Scripting</option><option value="BAPI">RFC / BAPI</option><option value="OData">OData (S/4HANA)</option><option value="Batch">Hintergrund-Job (SM36)</option></select>
+      <label>Beschreibung</label>
+      <textarea id="f-desc" rows="3"></textarea>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">
+        <button class="btn" id="btnTaskCancel">Abbrechen</button>
+        <button class="btn primary" id="btnTaskSave">Anlegen</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="schedModal">
+    <div class="panel">
+      <h2>Zeitplan</h2>
+      <input type="hidden" id="s-id">
+      <div id="s-context" class="muted"></div>
+      <label>Haeufigkeit</label>
+      <select id="s-freq">
+        <option value="daily">Taeglich</option><option value="weekly">Woechentlich (Mo)</option>
+        <option value="monthly">Monatlich (1.)</option><option value="period_end">Periodenende</option>
+      </select>
+      <label>Uhrzeit</label>
+      <input type="time" id="s-time" value="07:00">
+      <label style="display:flex;align-items:center;gap:6px;margin-top:10px">
+        <input type="checkbox" id="s-active" checked> Aktiv
+      </label>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">
+        <button class="btn" id="btnSchedCancel">Abbrechen</button>
+        <button class="btn primary" id="btnSchedSave">Speichern</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  function showError(msg){
+    var box = document.getElementById("errBox");
+    box.style.display = "block";
+    box.textContent = "Fehler beim Initialisieren:\n\n" + msg;
+    var loading = document.getElementById("loadingBox");
+    if (loading) loading.style.display = "none";
+  }
+  window.addEventListener("error", function(ev){
+    showError((ev.error && ev.error.stack) || ev.message || String(ev));
+  });
+
+  try {
+
+  var STORE_KEY = "sap-robot-cockpit-v4";
+  var ROBOTS = [
+    { id:"AP", name:"Robot-AP", domain:"Accounts Payable",    cls:"ap" },
+    { id:"AR", name:"Robot-AR", domain:"Accounts Receivable", cls:"ar" },
+    { id:"GL", name:"Robot-GL", domain:"General Ledger",      cls:"gl" },
+    { id:"AA", name:"Robot-AA", domain:"Asset Accounting",    cls:"aa" }
+  ];
+  function P(key,label,type,value,opts){ return { key:key,label:label,type:type,value:value,opts:opts||null }; }
+
+  var DEFAULT_TASKS = [
+    { robot:"AP", name:"Rechnungseingang buchen", tcode:"BAPI_ACC_DOCUMENT_POST", method:"BAPI",
+      desc:"Lieferantenrechnungen aus E-Mail-Inbox/EDI lesen, Duplikate pruefen, ab Schwellwert Vier-Augen, dann buchen.",
+      params:[ P("company_code","Buchungskreis","text","1000"), P("doc_type","Belegart","select","KR",["KR","KG","KZ"]),
+        P("default_gl","Standard-Aufwandskonto","text","0000400000"), P("tax_code","Steuerschluessel","select","V1",["V0","V1","V2"]),
+        P("currency","Waehrung","select","EUR",["EUR","USD","CHF","GBP"]), P("inbox_url","E-Mail-Inbox (IMAP)","text","imap://rpa-ap@firma.de/INBOX"),
+        P("subject_filter","Subject-Filter (Regex)","text","Rechnung|Invoice"), P("approval_threshold","Schwellwert Vier-Augen (EUR)","number","5000"),
+        P("approver_mail","Approver E-Mail","text","fi-lead@firma.de") ],
+      workflow:[ {step:1,name:"E-Mails abrufen",action:"IMAP-Inbox lesen",on_error:"retry"},
+        {step:2,name:"Anhang extrahieren",action:"PDF/XML parsen, OCR falls noetig",on_error:"skip"},
+        {step:3,name:"Duplikatpruefung",action:"Gegen MIR4N / Hash-DB",on_error:"stop"},
+        {step:4,name:"Beleg aufbauen",action:"DOCUMENTHEADER + ACCOUNTPAYABLE + ACCOUNTGL + CURRENCYAMOUNT",on_error:"stop"},
+        {step:5,name:"Vier-Augen",action:"Wenn Betrag > Schwellwert: Approval-Mail, Wait",on_error:"hold"},
+        {step:6,name:"Buchung",action:"BAPI_ACC_DOCUMENT_POST + COMMIT",on_error:"rollback"},
+        {step:7,name:"Bestaetigung",action:"Mail an Lieferant mit Belegnummer",on_error:"log"},
+        {step:8,name:"Archivierung",action:"E-Mail markieren, in DMS ablegen",on_error:"log"} ],
+      notify:{ on_success:["fi-team@firma.de"], on_error:["rpa-ops@firma.de","fi-lead@firma.de"], on_warning:["fi-team@firma.de"] },
+      sla:{ max_duration_min:15, retry_count:3, timeout_sec:600 } },
+    { robot:"AP", name:"Zahllauf F110", tcode:"F110", method:"GUI",
+      desc:"Automatischer Zahllauf: Vorschlag, Freigabe-Mail, Durchfuehrung, DTA/SEPA-Erzeugung.",
+      params:[ P("company_code","Buchungskreis","text","1000"), P("run_id_prefix","Lauf-Ident Praefix","text","R"),
+        P("payment_method","Zahlweg","select","U",["U","S","L"]), P("vendor_from","Lieferant von","text","0000100000"),
+        P("vendor_to","Lieferant bis","text","0000999999"), P("house_bank","Hausbank","text","DEUTS"),
+        P("due_until","Faelligkeit bis (Tage)","number","7"), P("posting_date","Buchungsdatum","date","today"),
+        P("proposal_wait_sec","Wartezeit Vorschlag (Sek)","number","60"), P("approver_mail","Approver","text","fi-lead@firma.de") ],
+      workflow:[ {step:1,name:"Praemissen pruefen",action:"Periode offen, Hausbank verfuegbar, kein laufender F110",on_error:"stop"},
+        {step:2,name:"F110 oeffnen",action:"GUI Session, /nF110",on_error:"retry"},
+        {step:3,name:"Parameter setzen",action:"LAUFD, LAUFI, ZAHLT, Vendor-Range, Hausbank",on_error:"stop"},
+        {step:4,name:"Vorschlag erzeugen",action:"Vorschlag-Button, warte auf FERTIG",on_error:"retry"},
+        {step:5,name:"Vorschlag exportieren",action:"XLSX an Approver",on_error:"log"},
+        {step:6,name:"Freigabe abwarten",action:"Wait-State auf Approval-Mail",on_error:"hold"},
+        {step:7,name:"Durchfuehrung",action:"Durchfuehrung-Button",on_error:"stop"},
+        {step:8,name:"DTA/SEPA generieren",action:"Datentraeger erzeugen, FT-Upload",on_error:"retry"},
+        {step:9,name:"Reporting",action:"Mail mit Anzahl, Summe, DTA-Hash",on_error:"log"} ],
+      notify:{ on_success:["fi-lead@firma.de","treasury@firma.de"], on_error:["rpa-ops@firma.de","fi-lead@firma.de"], on_warning:["fi-lead@firma.de"] },
+      sla:{ max_duration_min:60, retry_count:1, timeout_sec:3600 } },
+    { robot:"AP", name:"Lieferantenabstimmung", tcode:"BAPI_AP_ACC_GETOPENITEMS", method:"BAPI",
+      desc:"Offene Posten je Lieferant ziehen, mit Saldenmeldung abgleichen.",
+      params:[ P("company_code","Buchungskreis","text","1000"), P("vendor_from","Lieferant von","text","0000100000"),
+        P("vendor_to","Lieferant bis","text","0000999999"), P("keydate","Stichtag","date","today"),
+        P("tolerance_eur","Toleranz EUR","number","0.05"), P("export_path","Export-Pfad","text","\\\\srv\\fi\\AP\\Abstimmung\\") ],
+      workflow:[ {step:1,name:"OP-Liste ziehen",action:"BAPI_AP_ACC_GETOPENITEMS",on_error:"retry"},
+        {step:2,name:"Saldenmeldung lesen",action:"Inbox/SFTP",on_error:"skip"},
+        {step:3,name:"Abgleich",action:"OP vs. Saldenmeldung, Toleranz",on_error:"log"},
+        {step:4,name:"Excel-Report",action:"Pivot Abweichungen",on_error:"log"},
+        {step:5,name:"Eskalation",action:"Mail bei Abweichung > Toleranz",on_error:"log"} ],
+      notify:{ on_success:["fi-team@firma.de"], on_error:["rpa-ops@firma.de"], on_warning:["fi-team@firma.de"] },
+      sla:{ max_duration_min:30, retry_count:2, timeout_sec:1800 } },
+    { robot:"AP", name:"Skontoanalyse", tcode:"S_ALR_87012103", method:"BAPI",
+      desc:"Anstehende Skontofristen identifizieren, Empfehlung an Treasury.",
+      params:[ P("company_code","Buchungskreis","text","1000"), P("horizon_days","Horizont (Tage)","number","7"),
+        P("min_skonto_pct","Mindest-Skonto (Prozent)","number","2"), P("min_amount","Mindestbetrag (EUR)","number","500") ],
+      workflow:[ {step:1,name:"Faelligkeiten ziehen",action:"RFC fuer offene Faelligkeiten",on_error:"retry"},
+        {step:2,name:"Skonto-Filter",action:"Nur Posten mit Skonto >= Mindest",on_error:"log"},
+        {step:3,name:"Empfehlung",action:"Excel-Liste",on_error:"log"},
+        {step:4,name:"Versand",action:"Mail an Treasury",on_error:"log"} ],
+      notify:{ on_success:["treasury@firma.de"], on_error:["rpa-ops@firma.de"], on_warning:[] },
+      sla:{ max_duration_min:15, retry_count:2, timeout_sec:900 } },
+
+    { robot:"AR", name:"Mahnlauf F150", tcode:"F150", method:"GUI",
+      desc:"Mahnvorschlag, Pruefung, Druck/Mail-Versand.",
+      params:[ P("company_code","Buchungskreis","text","1000"), P("dunning_procedure","Mahnverfahren","text","0001"),
+        P("customer_from","Kunde von","text","0000200000"), P("customer_to","Kunde bis","text","0000299999"),
+        P("min_stage","Mindest-Mahnstufe","number","1"), P("output_mode","Ausgabe","select","Beides",["Druck","E-Mail","Beides"]),
+        P("dunning_date","Mahndatum","date","today"), P("approver_mail","Approver","text","fi-lead@firma.de") ],
+      workflow:[ {step:1,name:"Vorschlag erzeugen",action:"F150/Vorschlag",on_error:"retry"},
+        {step:2,name:"Vorschlag pruefen",action:"XLSX an Approver",on_error:"log"},
+        {step:3,name:"Freigabe abwarten",action:"Mail-Antwort",on_error:"hold"},
+        {step:4,name:"Mahnungen erzeugen",action:"F150/Durchfuehrung",on_error:"stop"},
+        {step:5,name:"Versand",action:"Druck/Mail",on_error:"retry"},
+        {step:6,name:"Mahnstufen aktualisieren",action:"In Kreditorenstammdaten",on_error:"log"},
+        {step:7,name:"Statusbericht",action:"Anzahl je Mahnstufe an FI",on_error:"log"} ],
+      notify:{ on_success:["fi-team@firma.de","credit-mgr@firma.de"], on_error:["rpa-ops@firma.de"], on_warning:["fi-team@firma.de"] },
+      sla:{ max_duration_min:90, retry_count:1, timeout_sec:5400 } },
+    { robot:"AR", name:"Offene-Posten Kunden", tcode:"FBL5N", method:"BAPI",
+      desc:"Tagesaktuelle OP-Liste mit Altersstruktur.",
+      params:[ P("company_code","Buchungskreis","text","1000"), P("customer_from","Kunde von","text","0000200000"),
+        P("customer_to","Kunde bis","text","0000299999"), P("keydate","Stichtag","date","today"),
+        P("aging_buckets","Altersklassen (Tage)","text","30,60,90"), P("currency","Waehrung","select","EUR",["EUR","USD","CHF"]) ],
+      workflow:[ {step:1,name:"OP ziehen",action:"BAPI_AR_ACC_GETOPENITEMS",on_error:"retry"},
+        {step:2,name:"Altersanalyse",action:"Buckets nach Faelligkeit",on_error:"stop"},
+        {step:3,name:"Excel-Pivot",action:"Kunde x Bucket",on_error:"log"},
+        {step:4,name:"Versand",action:"Mail an Credit Manager",on_error:"log"} ],
+      notify:{ on_success:["credit-mgr@firma.de","fi-team@firma.de"], on_error:["rpa-ops@firma.de"], on_warning:[] },
+      sla:{ max_duration_min:10, retry_count:2, timeout_sec:600 } },
+    { robot:"AR", name:"Zahlungseingang verbuchen", tcode:"F-28", method:"BAPI",
+      desc:"camt.053 parsen, Zahlungseingaenge automatisch zuordnen.",
+      params:[ P("company_code","Buchungskreis","text","1000"), P("bank_account","Hausbankkonto","text","DEUTS-EUR-1"),
+        P("camt_path","camt.053 Verzeichnis","text","\\\\srv\\fi\\bankauszuege\\in"),
+        P("min_amount","Mindestbetrag (EUR)","number","0.01"), P("tolerance","Toleranz (EUR)","number","0.05"),
+        P("clearing_account","Klaerkonto","text","0000131000") ],
+      workflow:[ {step:1,name:"Auszuege einlesen",action:"Neue camt.053 Dateien",on_error:"retry"},
+        {step:2,name:"Position pruefen",action:"IBAN + Referenz + Betrag matchen",on_error:"log"},
+        {step:3,name:"Eindeutig: F-28",action:"BAPI Sondervorgang",on_error:"rollback"},
+        {step:4,name:"Unklar: Klaerkonto",action:"Auf Klaerkonto + Hinweis",on_error:"log"},
+        {step:5,name:"Tagesabschluss",action:"Bestaetigung an FI",on_error:"log"} ],
+      notify:{ on_success:["fi-team@firma.de"], on_error:["rpa-ops@firma.de","fi-lead@firma.de"], on_warning:["fi-team@firma.de"] },
+      sla:{ max_duration_min:20, retry_count:3, timeout_sec:1200 } },
+    { robot:"AR", name:"DSO-Reporting", tcode:"S_ALR_87012168", method:"BAPI",
+      desc:"DSO berechnen, Trend-Chart, monatlicher Versand.",
+      params:[ P("company_code","Buchungskreis","text","1000"), P("period_months","Zeitraum (Monate)","number","3"),
+        P("recipients","Empfaenger","text","cfo@firma.de,controlling@firma.de"), P("format","Format","select","PDF",["PDF","XLSX","beides"]) ],
+      workflow:[ {step:1,name:"Umsatzdaten",action:"FAGLL03 je Monat",on_error:"retry"},
+        {step:2,name:"OP-Bestaende",action:"BAPI aggregiert",on_error:"retry"},
+        {step:3,name:"DSO berechnen",action:"(OP/Umsatz)*Tage",on_error:"stop"},
+        {step:4,name:"Report erzeugen",action:"PDF/XLSX mit Chart",on_error:"log"},
+        {step:5,name:"Versand",action:"Mail an Verteiler",on_error:"log"} ],
+      notify:{ on_success:["cfo@firma.de","controlling@firma.de"], on_error:["rpa-ops@firma.de"], on_warning:[] },
+      sla:{ max_duration_min:15, retry_count:2, timeout_sec:900 } },
+
+    { robot:"GL", name:"Periodenwechsel", tcode:"OB52", method:"GUI",
+      desc:"Buchungsperiode zum Monatsende verschieben.",
+      params:[ P("company_code","Buchungskreis","text","1000"), P("variant","Variante","text","INT"),
+        P("new_period","Neue Periode","number","12"), P("fiscal_year","Geschaeftsjahr","number","2026"),
+        P("approver","Approver","text","gl-lead@firma.de") ],
+      workflow:[ {step:1,name:"Praecheck",action:"Vorperiode abgeschlossen?",on_error:"stop"},
+        {step:2,name:"Freigabe",action:"Mail an Approver, Wait",on_error:"hold"},
+        {step:3,name:"OB52 oeffnen",action:"/nOB52",on_error:"retry"},
+        {step:4,name:"Periode setzen",action:"Variante editieren",on_error:"stop"},
+        {step:5,name:"Pruefen",action:"OB52 erneut oeffnen",on_error:"rollback"},
+        {step:6,name:"Bestaetigung",action:"Mail an GL-Team",on_error:"log"} ],
+      notify:{ on_success:["gl-lead@firma.de","gl-team@firma.de"], on_error:["rpa-ops@firma.de"], on_warning:["gl-lead@firma.de"] },
+      sla:{ max_duration_min:30, retry_count:1, timeout_sec:1800 } },
+    { robot:"GL", name:"Umbuchungen", tcode:"BAPI_ACC_GL_POSTING_POST", method:"BAPI",
+      desc:"Wiederkehrende Umbuchungen aus Excel-Vorlage.",
+      params:[ P("company_code","Buchungskreis","text","1000"), P("template_path","Excel-Vorlage","text","\\\\srv\\fi\\gl\\Umbuchungen\\template.xlsx"),
+        P("doc_type","Belegart","select","SA",["SA","SU"]), P("posting_text","Buchungstext","text","Allocation {month}"),
+        P("currency","Waehrung","select","EUR",["EUR","USD","CHF"]) ],
+      workflow:[ {step:1,name:"Excel einlesen",action:"Vorlage parsen",on_error:"stop"},
+        {step:2,name:"Validierung",action:"Soll=Haben, Konten existieren",on_error:"stop"},
+        {step:3,name:"Belege buchen",action:"BAPI + COMMIT",on_error:"rollback"},
+        {step:4,name:"Belegnummern",action:"Aus OBJ_KEY zurueckschreiben",on_error:"log"},
+        {step:5,name:"Bestaetigung",action:"Mail an GL-Team",on_error:"log"} ],
+      notify:{ on_success:["gl-team@firma.de"], on_error:["rpa-ops@firma.de"], on_warning:[] },
+      sla:{ max_duration_min:20, retry_count:2, timeout_sec:1200 } },
+    { robot:"GL", name:"Saldenliste", tcode:"FAGLB03", method:"BAPI",
+      desc:"GuV/Bilanz-Saldenliste je Periode exportieren.",
+      params:[ P("company_code","Buchungskreis","text","1000"), P("ledger","Ledger","text","0L"),
+        P("period_from","Periode von","number","1"), P("period_to","Periode bis","number","12"),
+        P("fiscal_year","Geschaeftsjahr","number","2026"), P("format","Format","select","XLSX",["XLSX","CSV","PDF"]),
+        P("target_path","Ziel-Pfad","text","\\\\srv\\fi\\gl\\Saldenlisten\\") ],
+      workflow:[ {step:1,name:"Salden lesen",action:"FAGLB03 fuer Range",on_error:"retry"},
+        {step:2,name:"Hierarchie",action:"Kontengruppen und Summen",on_error:"log"},
+        {step:3,name:"Format erzeugen",action:"XLSX/CSV/PDF",on_error:"log"},
+        {step:4,name:"Ablage",action:"Sharepoint",on_error:"retry"},
+        {step:5,name:"Notification",action:"Mail mit Link",on_error:"log"} ],
+      notify:{ on_success:["gl-team@firma.de"], on_error:["rpa-ops@firma.de"], on_warning:[] },
+      sla:{ max_duration_min:10, retry_count:2, timeout_sec:600 } },
+    { robot:"GL", name:"FX-Bewertung", tcode:"F.05", method:"Batch",
+      desc:"Fremdwaehrungsbewertung als Hintergrundjob.",
+      params:[ P("company_code","Buchungskreis","text","1000"), P("key_date","Stichtag","date","eom"),
+        P("method","Bewertungsmethode","select","M2",["M1","M2","M3"]), P("variant","Programm-Variante","text","STD_FX"),
+        P("test_run","Testlauf erst","boolean","true") ],
+      workflow:[ {step:1,name:"Variante",action:"SAPF100 Variante existiert?",on_error:"stop"},
+        {step:2,name:"Testlauf",action:"BAPI_XBP_JOB_OPEN mit Testlauf",on_error:"retry"},
+        {step:3,name:"Job pollen",action:"Status alle 30s",on_error:"retry"},
+        {step:4,name:"Spool auswerten",action:"Fehler im Spool?",on_error:"stop"},
+        {step:5,name:"Echtlauf",action:"Ohne Testlauf-Flag",on_error:"stop"},
+        {step:6,name:"Reporting",action:"Spool-PDF an GL-Lead",on_error:"log"} ],
+      notify:{ on_success:["gl-lead@firma.de"], on_error:["rpa-ops@firma.de","gl-lead@firma.de"], on_warning:["gl-lead@firma.de"] },
+      sla:{ max_duration_min:120, retry_count:1, timeout_sec:7200 } },
+
+    { robot:"AA", name:"Anlagenzugang", tcode:"BAPI_FIXEDASSET_CREATE1", method:"BAPI",
+      desc:"Neue Anlagen aus Excel anlegen und Zugang buchen.",
+      params:[ P("company_code","Buchungskreis","text","1000"), P("asset_class","Anlagenklasse","text","1000"),
+        P("excel_path","Excel mit Anlagenstamm","text","\\\\srv\\fi\\aa\\Zugaenge\\inbox\\"),
+        P("default_cost_center","Standard-Kostenstelle","text","K0000100"), P("depreciation_key","Abschreibungsschluessel","text","LINK"),
+        P("useful_life_years","ND (Jahre)","number","5") ],
+      workflow:[ {step:1,name:"Excel einlesen",action:"Pro Zeile Stamm + Zugang",on_error:"stop"},
+        {step:2,name:"Anlage anlegen",action:"BAPI_FIXEDASSET_CREATE1",on_error:"rollback"},
+        {step:3,name:"Zugangsbuchung",action:"BAPI mit Bewegungsart 100",on_error:"rollback"},
+        {step:4,name:"Nr. zurueckschreiben",action:"In Excel ergaenzen",on_error:"log"},
+        {step:5,name:"Bestaetigung",action:"Mail an AA-Team",on_error:"log"} ],
+      notify:{ on_success:["aa-team@firma.de"], on_error:["rpa-ops@firma.de","aa-lead@firma.de"], on_warning:["aa-team@firma.de"] },
+      sla:{ max_duration_min:30, retry_count:2, timeout_sec:1800 } },
+    { robot:"AA", name:"Abschreibungslauf AFAB", tcode:"AFAB", method:"Batch",
+      desc:"Monatlicher Abschreibungslauf, erst Testlauf, dann Echtlauf nach Freigabe.",
+      params:[ P("company_code","Buchungskreis","text","1000"), P("period","Periode","number","current"),
+        P("fiscal_year","Geschaeftsjahr","number","2026"), P("run_type","Lauftyp","select","Planlauf",["Planlauf","Wiederholung","Neulauf"]),
+        P("test_run","Testlauf erst","boolean","true"), P("approver","Approver","text","aa-lead@firma.de") ],
+      workflow:[ {step:1,name:"Praemissen",action:"Vorperiode AFAB komplett",on_error:"stop"},
+        {step:2,name:"Testlauf",action:"AFAB Hintergrundjob mit Testlauf",on_error:"retry"},
+        {step:3,name:"Spool pruefen",action:"Fehler in Liste?",on_error:"stop"},
+        {step:4,name:"Freigabe",action:"Spool an Approver",on_error:"hold"},
+        {step:5,name:"Echtlauf",action:"Ohne Testlauf-Flag",on_error:"stop"},
+        {step:6,name:"Reporting",action:"Spool-PDF + KPI an AA-Lead",on_error:"log"} ],
+      notify:{ on_success:["aa-lead@firma.de","aa-team@firma.de"], on_error:["rpa-ops@firma.de","aa-lead@firma.de"], on_warning:["aa-lead@firma.de"] },
+      sla:{ max_duration_min:180, retry_count:1, timeout_sec:10800 } },
+    { robot:"AA", name:"Anlagengitter AR01", tcode:"AR01", method:"BAPI",
+      desc:"Anlagengitter zum Periodenende erzeugen.",
+      params:[ P("company_code","Buchungskreis","text","1000"), P("dep_area","Bewertungsbereich","text","01"),
+        P("period","Periode","number","12"), P("fiscal_year","Geschaeftsjahr","number","2026"),
+        P("sort_variant","Sortvariante","text","0001"), P("target_path","Ziel-Pfad","text","\\\\srv\\fi\\aa\\Anlagengitter\\") ],
+      workflow:[ {step:1,name:"Anlagen ziehen",action:"RFC fuer aktive Anlagen",on_error:"retry"},
+        {step:2,name:"Werte berechnen",action:"AHK, Zugang, Abgang, kum. AfA",on_error:"stop"},
+        {step:3,name:"Excel + PDF",action:"AHK / Buchwert je Klasse",on_error:"log"},
+        {step:4,name:"Ablage",action:"Sharepoint + DMS",on_error:"retry"},
+        {step:5,name:"Notification",action:"Mail mit Link",on_error:"log"} ],
+      notify:{ on_success:["aa-lead@firma.de","aa-team@firma.de"], on_error:["rpa-ops@firma.de"], on_warning:[] },
+      sla:{ max_duration_min:20, retry_count:2, timeout_sec:1200 } },
+    { robot:"AA", name:"Periodenverschiebung AJRW", tcode:"AJRW", method:"GUI",
+      desc:"AA-Periodenwechsel zum Jahresende.",
+      params:[ P("company_code","Buchungskreis","text","1000"), P("new_fiscal_year","Neues Geschaeftsjahr","number","2027"),
+        P("test_run","Testlauf erst","boolean","true"), P("approver","Approver","text","aa-lead@firma.de") ],
+      workflow:[ {step:1,name:"Praemissen",action:"Jahresabschluss komplett",on_error:"stop"},
+        {step:2,name:"AJRW Testlauf",action:"/nAJRW, Testlauf-Modus",on_error:"retry"},
+        {step:3,name:"Pruefung",action:"Spool an Approver",on_error:"hold"},
+        {step:4,name:"Freigabe",action:"Mail-Antwort abwarten",on_error:"hold"},
+        {step:5,name:"Echtlauf",action:"AJRW Live-Modus",on_error:"stop"},
+        {step:6,name:"Bestaetigung",action:"Mail an AA-Team",on_error:"log"} ],
+      notify:{ on_success:["aa-lead@firma.de","gl-lead@firma.de"], on_error:["rpa-ops@firma.de","aa-lead@firma.de"], on_warning:["aa-lead@firma.de"] },
+      sla:{ max_duration_min:60, retry_count:1, timeout_sec:3600 } }
+  ];
+
+  var DEFAULT_CONNECTIONS = [
+    { id:"conn-dev", name:"SAP-DEV", env:"DEV", type:"RFC", active:true,
+      rfc:{ ashost:"sapdev01.intern.firma.de", sysnr:"00", client:"100", user:"RPA_DEV_SERVICE",
+            passwordRef:"azure-kv://sap-dev/RPA_DEV_SERVICE", lang:"DE", saprouter:"", mshost:"", msgroup:"", sapid:"DEV",
+            sncEnabled:false, sncLib:"", sncMyname:"", sncPartner:"", sncQop:"3" },
+      gui:{}, odata:{}, assignedRobots:[], assignedMethods:["BAPI"],
+      lastTest:{ ts:null, ok:null, message:"Noch nicht getestet" } },
+    { id:"conn-qas", name:"SAP-QAS", env:"QAS", type:"RFC", active:true,
+      rfc:{ ashost:"sapqas01.intern.firma.de", sysnr:"00", client:"200", user:"RPA_QAS_SERVICE",
+            passwordRef:"azure-kv://sap-qas/RPA_QAS_SERVICE", lang:"DE", saprouter:"", mshost:"", msgroup:"", sapid:"QAS",
+            sncEnabled:true, sncLib:"%SECUDIR%/libsapcrypto.dll",
+            sncMyname:"p:CN=RPA_QAS,O=Firma,C=DE", sncPartner:"p:CN=SAPQAS,O=Firma,C=DE", sncQop:"8" },
+      gui:{}, odata:{}, assignedRobots:[], assignedMethods:["BAPI"],
+      lastTest:{ ts:null, ok:null, message:"Noch nicht getestet" } },
+    { id:"conn-prd", name:"SAP-PRD", env:"PRD", type:"RFC", active:true,
+      rfc:{ ashost:"", sysnr:"00", client:"300", user:"RPA_PRD_SERVICE",
+            passwordRef:"azure-kv://sap-prd/RPA_PRD_SERVICE", lang:"DE",
+            saprouter:"/H/sapgw.firma.de/S/3299", mshost:"sapprd-ms.intern.firma.de", msgroup:"PUBLIC", sapid:"PRD",
+            sncEnabled:true, sncLib:"%SECUDIR%/libsapcrypto.dll",
+            sncMyname:"p:CN=RPA_PRD,O=Firma,C=DE", sncPartner:"p:CN=SAPPRD,O=Firma,C=DE", sncQop:"9" },
+      gui:{}, odata:{}, assignedRobots:["AP","AR","GL","AA"], assignedMethods:["BAPI"],
+      lastTest:{ ts:null, ok:null, message:"Noch nicht getestet" } },
+    { id:"conn-gui-prd", name:"SAP-GUI-PRD", env:"PRD", type:"GUI", active:true,
+      rfc:{}, odata:{},
+      gui:{ saplogon:"PRD [public]", lang:"DE", user:"RPA_PRD_SERVICE",
+            passwordRef:"azure-kv://sap-prd/RPA_PRD_SERVICE", autoLogin:true, scriptingEnabled:true, waitForReady:5 },
+      assignedRobots:["AP","AR","GL","AA"], assignedMethods:["GUI"],
+      lastTest:{ ts:null, ok:null, message:"Noch nicht getestet" } },
+    { id:"conn-s4-prd", name:"S4HANA-OData-PRD", env:"PRD", type:"OData", active:false,
+      rfc:{}, gui:{},
+      odata:{ baseUrl:"https://s4-api.firma.de/sap/opu/odata/sap/", authMethod:"OAuth2",
+              clientId:"rpa-finance-client", secretRef:"azure-kv://sap-prd/S4_OAUTH_SECRET",
+              tokenUrl:"https://auth.firma.de/oauth/token", scopes:"FI.Read FI.Write", certPath:"", verifyTls:true },
+      assignedRobots:[], assignedMethods:["OData"],
+      lastTest:{ ts:null, ok:null, message:"Noch nicht getestet" } }
+  ];
+
+  function seed(){
+    var tasks = DEFAULT_TASKS.map(function(t,i){ return Object.assign({ id:"t"+(i+1), lastRun:null, lastStatus:"pending", running:false }, t); });
+    var schedules = [
+      { id:"s1", taskId:"t2",  freq:"daily",      time:"14:00", active:true },
+      { id:"s2", taskId:"t5",  freq:"weekly",     time:"09:00", active:true },
+      { id:"s3", taskId:"t14", freq:"monthly",    time:"06:00", active:true },
+      { id:"s4", taskId:"t12", freq:"period_end", time:"22:00", active:true }
+    ];
+    return { tasks:tasks, schedules:schedules, logs:[], connections: JSON.parse(JSON.stringify(DEFAULT_CONNECTIONS)) };
+  }
+  var state;
+  function load(){ try { var raw = localStorage.getItem(STORE_KEY); if (raw) { var s = JSON.parse(raw); if (!s.connections) s.connections = JSON.parse(JSON.stringify(DEFAULT_CONNECTIONS)); return s; } } catch(e){} return seed(); }
+  function save(){ try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch(e){} }
+  state = load();
+
+  function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]; }); }
+  function findRobot(id){ for (var i=0;i<ROBOTS.length;i++) if (ROBOTS[i].id===id) return ROBOTS[i]; return null; }
+  function findTask(id){  for (var i=0;i<state.tasks.length;i++)     if (state.tasks[i].id===id)     return state.tasks[i];     return null; }
+  function findSched(id){ for (var i=0;i<state.schedules.length;i++) if (state.schedules[i].id===id) return state.schedules[i]; return null; }
+  function findConn(id){  if (!state.connections) return null; for (var i=0;i<state.connections.length;i++) if (state.connections[i].id===id) return state.connections[i]; return null; }
+
+  function showTab(name){
+    var tabs = document.querySelectorAll(".tab");
+    for (var i=0;i<tabs.length;i++) tabs[i].classList.toggle("active", tabs[i].getAttribute("data-tab")===name);
+    var sections = ["overview","tasks","schedule","connections","logs","arch"];
+    for (var j=0;j<sections.length;j++){
+      var el = document.getElementById("tab-"+sections[j]);
+      if (el) el.style.display = (sections[j]===name) ? "" : "none";
+    }
+    if (name !== "tasks") closeTaskDetail();
+    if (name !== "connections") closeConnDetail();
+    if (name==="tasks")       renderTaskTable();
+    if (name==="schedule")    renderSchedTable();
+    if (name==="connections") renderConnections();
+    if (name==="logs")        renderLogs();
+  }
+
+  function renderOverview(){
+    var grid = document.getElementById("robotsGrid"); grid.innerHTML = "";
+    var totalRunning=0, ok24=0, err24=0; var cutoff = Date.now() - 24*3600*1000;
+    state.tasks.forEach(function(t){
+      if (t.running) totalRunning++;
+      if (t.lastRun && new Date(t.lastRun).getTime() > cutoff){
+        if (t.lastStatus==="ok") ok24++;
+        if (t.lastStatus==="error") err24++;
+      }
+    });
+    document.getElementById("kpi-tasks").textContent   = state.tasks.length;
+    document.getElementById("kpi-running").textContent = totalRunning;
+    document.getElementById("kpi-ok").textContent      = ok24;
+    document.getElementById("kpi-err").textContent     = err24;
+
+    ROBOTS.forEach(function(r){
+      var tasks = state.tasks.filter(function(t){ return t.robot===r.id; });
+      var running = tasks.some(function(t){ return t.running; });
+      var anyErr  = tasks.some(function(t){ return t.lastStatus==="error"; });
+      var dotClass = running ? "running" : (anyErr ? "error" : "idle");
+      var okCount  = tasks.filter(function(t){ return t.lastStatus==="ok"; }).length;
+      var errCount = tasks.filter(function(t){ return t.lastStatus==="error"; }).length;
+      var schedCount = state.schedules.filter(function(s){ var t = findTask(s.taskId); return t && t.robot===r.id && s.active; }).length;
+      var conns = (state.connections||[]).filter(function(c){ return c.assignedRobots && c.assignedRobots.indexOf(r.id)>=0; });
+      var connHtml = conns.length ? conns.map(function(c){ return "<span class=\"badge " + (c.env==="PRD"?"fail":c.env==="QAS"?"warn":"ok") + "\">" + esc(c.name) + "</span>"; }).join(" ") : "<span class=\"muted\">keine zugewiesen</span>";
+
+      var card = document.createElement("div");
+      card.className = "card robot-card";
+      card.innerHTML =
+        "<h3><span class=\"dot " + dotClass + "\"></span> " + r.name + " <span class=\"badge " + r.cls + "\">" + r.id + "</span></h3>" +
+        "<div class=\"domain\">" + r.domain + "</div>" +
+        "<div class=\"stats\">" +
+          "<div><b>" + tasks.length + "</b>Aufgaben</div>" +
+          "<div><b>" + schedCount   + "</b>Geplant</div>" +
+          "<div><b>" + okCount      + "</b>OK</div>" +
+          "<div><b>" + errCount     + "</b>Fehler</div>" +
+        "</div>" +
+        "<div class=\"muted\" style=\"font-size:11px;margin-bottom:8px\">Verbindungen: " + connHtml + "</div>" +
+        "<div class=\"row\">" +
+          "<button class=\"btn primary small\" data-act=\"run-robot\" data-robot=\"" + r.id + "\">Alle starten</button>" +
+          "<button class=\"btn small\"          data-act=\"stop-robot\" data-robot=\"" + r.id + "\">Stoppen</button>" +
+          "<button class=\"btn small\"          data-act=\"filter-tasks\" data-robot=\"" + r.id + "\">Aufgaben</button>" +
+        "</div>";
+      grid.appendChild(card);
+    });
+  }
+
+  function renderTaskTable(){
+    var filter = document.getElementById("taskFilter").value;
+    var tb = document.querySelector("#taskTable tbody"); tb.innerHTML = "";
+    state.tasks.filter(function(t){ return filter==="all" || t.robot===filter; }).forEach(function(t){
+      var r = findRobot(t.robot);
+      var status = t.running ? "<span class=\"badge run\">Laeuft</span>"
+                : t.lastStatus==="ok"    ? "<span class=\"badge ok\">OK</span>"
+                : t.lastStatus==="error" ? "<span class=\"badge fail\">Fehler</span>"
+                : "<span class=\"badge pend\">Offen</span>";
+      var tr = document.createElement("tr");
+      tr.innerHTML =
+        "<td><span class=\"badge " + r.cls + "\">" + r.id + "</span></td>" +
+        "<td><b>" + esc(t.name) + "</b><br><span class=\"muted\">" + esc(t.desc||"") + "</span></td>" +
+        "<td><code>" + esc(t.tcode) + "</code></td>" +
+        "<td>" + esc(t.method) + "</td>" +
+        "<td>" + (t.lastRun ? new Date(t.lastRun).toLocaleString("de-DE") : "&mdash;") + "</td>" +
+        "<td>" + status + "</td>" +
+        "<td><div class=\"row\">" +
+          "<button class=\"btn small primary\" data-act=\"run-task\"   data-id=\"" + t.id + "\">Start</button>" +
+          "<button class=\"btn small\"         data-act=\"sched\"      data-id=\"" + t.id + "\">Plan</button>" +
+          "<button class=\"btn small\"         data-act=\"config-task\" data-id=\"" + t.id + "\">Konfig</button>" +
+          "<button class=\"btn small danger\"  data-act=\"del-task\"   data-id=\"" + t.id + "\">X</button>" +
+        "</div></td>";
+      tb.appendChild(tr);
+    });
+  }
+
+  // Task-Detail
+  var currentSubtab = "general";
+  function openTaskDetail(taskId){
+    var t = findTask(taskId); if (!t) return;
+    document.getElementById("taskListView").style.display = "none";
+    var view = document.getElementById("taskDetailView");
+    view.style.display = "block"; view.dataset.taskId = taskId;
+    currentSubtab = "general"; renderTaskDetail();
+  }
+  function closeTaskDetail(){
+    var view = document.getElementById("taskDetailView");
+    view.style.display = "none"; delete view.dataset.taskId;
+    document.getElementById("taskListView").style.display = "";
+  }
+  function getCurrentTask(){ var v = document.getElementById("taskDetailView"); return findTask(v.dataset.taskId); }
+
+  function renderTaskDetail(){
+    var t = getCurrentTask(); if (!t) { closeTaskDetail(); return; }
+    var r = findRobot(t.robot);
+    var view = document.getElementById("taskDetailView");
+    view.innerHTML =
+      "<div class=\"detail-head\">" +
+        "<div>" +
+          "<button class=\"btn\" data-act=\"close-detail\" style=\"margin-bottom:8px\">&larr; Zurueck</button>" +
+          "<h2><span class=\"badge " + r.cls + "\">" + r.id + "</span> " + esc(t.name) + "</h2>" +
+          "<div class=\"meta\">" + esc(r.name) + " &middot; " + esc(r.domain) + " &middot; <code>" + esc(t.tcode) + "</code> &middot; " + esc(t.method) + "</div>" +
+        "</div>" +
+        "<div class=\"row\">" +
+          "<button class=\"btn primary\" data-act=\"run-task\" data-id=\"" + t.id + "\">Jetzt starten</button>" +
+          "<button class=\"btn\" data-act=\"sched\" data-id=\"" + t.id + "\">Zeitplan</button>" +
+        "</div>" +
+      "</div>" +
+      "<div class=\"subtabs\" id=\"subtabs\">" +
+        "<button class=\"subtab " + (currentSubtab==="general"?"active":"") + "\" data-sub=\"general\">Allgemein</button>" +
+        "<button class=\"subtab " + (currentSubtab==="params"?"active":"")  + "\" data-sub=\"params\">Parameter (" + (t.params||[]).length + ")</button>" +
+        "<button class=\"subtab " + (currentSubtab==="workflow"?"active":"")+ "\" data-sub=\"workflow\">Workflow (" + (t.workflow||[]).length + ")</button>" +
+        "<button class=\"subtab " + (currentSubtab==="notify"?"active":"")  + "\" data-sub=\"notify\">Benachrichtigungen</button>" +
+        "<button class=\"subtab " + (currentSubtab==="sla"?"active":"")     + "\" data-sub=\"sla\">SLA</button>" +
+      "</div>" +
+      "<div id=\"subContent\"></div>";
+    renderSubtab(t);
+  }
+  function renderSubtab(t){
+    var box = document.getElementById("subContent");
+    if (currentSubtab === "general")  box.innerHTML = renderGeneral(t);
+    if (currentSubtab === "params")   box.innerHTML = renderParams(t);
+    if (currentSubtab === "workflow") box.innerHTML = renderWorkflow(t);
+    if (currentSubtab === "notify")   box.innerHTML = renderNotify(t);
+    if (currentSubtab === "sla")      box.innerHTML = renderSLA(t);
+  }
+  function renderGeneral(t){
+    return "<div class=\"card\">" +
+      "<div class=\"grid2\">" +
+        "<div><label>Robot</label><select data-bind=\"robot\">" +
+          ROBOTS.map(function(r){ return "<option value=\"" + r.id + "\"" + (t.robot===r.id?" selected":"") + ">" + r.name + " (" + r.domain + ")</option>"; }).join("") + "</select></div>" +
+        "<div><label>Methode</label><select data-bind=\"method\">" +
+          ["GUI","BAPI","OData","Batch"].map(function(m){ return "<option value=\"" + m + "\"" + (t.method===m?" selected":"") + ">" + m + "</option>"; }).join("") + "</select></div>" +
+      "</div>" +
+      "<label>Aufgabenname</label><input type=\"text\" data-bind=\"name\" value=\"" + esc(t.name) + "\">" +
+      "<label>SAP Transaktion / BAPI</label><input type=\"text\" data-bind=\"tcode\" value=\"" + esc(t.tcode) + "\">" +
+      "<label>Beschreibung</label><textarea data-bind=\"desc\" rows=\"4\">" + esc(t.desc||"") + "</textarea>" +
+      "<div style=\"margin-top:14px\"><button class=\"btn primary\" data-act=\"save-general\">Speichern</button></div>" +
+    "</div>";
+  }
+  function renderParams(t){
+    var rows = (t.params||[]).map(function(p, idx){
+      var ctrl;
+      if (p.type === "select") {
+        ctrl = "<select data-param=\"" + idx + "\">" + p.opts.map(function(o){
+          var val = String(o).split(" ")[0];
+          return "<option value=\"" + esc(val) + "\"" + (String(p.value)===val?" selected":"") + ">" + esc(o) + "</option>";
+        }).join("") + "</select>";
+      } else if (p.type === "boolean") {
+        ctrl = "<select data-param=\"" + idx + "\"><option value=\"true\"" + (String(p.value)==="true"?" selected":"") + ">Ja</option><option value=\"false\"" + (String(p.value)!=="true"?" selected":"") + ">Nein</option></select>";
+      } else {
+        ctrl = "<input type=\"" + p.type + "\" data-param=\"" + idx + "\" value=\"" + esc(p.value) + "\">";
+      }
+      return "<div class=\"param-row\">" +
+        "<div><label style=\"margin:0\">" + esc(p.label) + "</label><div class=\"muted\" style=\"font-size:11px\"><code>" + esc(p.key) + "</code></div></div>" +
+        "<div>" + ctrl + "</div>" +
+        "<button class=\"btn small danger\" data-act=\"del-param\" data-idx=\"" + idx + "\">X</button>" +
+      "</div>";
+    }).join("");
+    return "<div class=\"card\">" + (rows || "<div class=\"muted\">Keine Parameter.</div>") +
+      "<div style=\"display:flex;gap:8px;margin-top:14px;flex-wrap:wrap\">" +
+        "<button class=\"btn\" data-act=\"add-param\">+ Parameter</button>" +
+        "<button class=\"btn primary\" data-act=\"save-params\">Speichern</button>" +
+      "</div></div>";
+  }
+  function renderWorkflow(t){
+    var errOpts = [["stop","stop"],["retry","retry"],["skip","skip"],["rollback","rollback"],["hold","hold"],["log","log"]];
+    var steps = (t.workflow||[]).map(function(s, idx){
+      return "<div class=\"step\">" +
+        "<div class=\"step-head\"><div class=\"step-num\">" + (idx+1) + "</div>" +
+          "<input class=\"step-name\" type=\"text\" data-wf=\"" + idx + "\" data-field=\"name\" value=\"" + esc(s.name) + "\" style=\"font-weight:600;border:none;background:transparent;padding:4px 0;flex:1\">" +
+          "<button class=\"btn small\" data-act=\"wf-up\"   data-idx=\"" + idx + "\">&uarr;</button>" +
+          "<button class=\"btn small\" data-act=\"wf-down\" data-idx=\"" + idx + "\">&darr;</button>" +
+          "<button class=\"btn small danger\" data-act=\"wf-del\" data-idx=\"" + idx + "\">X</button>" +
+        "</div>" +
+        "<div class=\"step-meta\">" +
+          "<div><label>Aktion</label><input type=\"text\" data-wf=\"" + idx + "\" data-field=\"action\" value=\"" + esc(s.action) + "\"></div>" +
+          "<div><label>Fehler-Verhalten</label><select data-wf=\"" + idx + "\" data-field=\"on_error\">" + errOpts.map(function(o){ return "<option value=\"" + o[0] + "\"" + (s.on_error===o[0]?" selected":"") + ">" + o[1] + "</option>"; }).join("") + "</select></div>" +
+          "<div></div>" +
+        "</div></div>";
+    }).join("");
+    return "<div>" + (steps || "<div class=\"card muted\">Keine Workflow-Schritte.</div>") +
+      "<div style=\"display:flex;gap:8px;margin-top:10px;flex-wrap:wrap\">" +
+        "<button class=\"btn\" data-act=\"add-wf\">+ Schritt</button>" +
+        "<button class=\"btn primary\" data-act=\"save-wf\">Speichern</button>" +
+      "</div></div>";
+  }
+  function renderNotify(t){
+    var n = t.notify || { on_success:[], on_error:[], on_warning:[] };
+    function field(key, label){
+      var v = (n[key]||[]).join(", ");
+      return "<label>" + label + "</label><input type=\"text\" data-notify=\"" + key + "\" value=\"" + esc(v) + "\" placeholder=\"komma-getrennt\">";
+    }
+    return "<div class=\"card\">" +
+      field("on_success","<span class=\"pill ok\">Bei Erfolg</span>") +
+      field("on_error","<span class=\"pill err\">Bei Fehler</span>") +
+      field("on_warning","<span class=\"pill warn\">Bei Warnung</span>") +
+      "<div style=\"margin-top:14px\"><button class=\"btn primary\" data-act=\"save-notify\">Speichern</button></div></div>";
+  }
+  function renderSLA(t){
+    var s = t.sla || { max_duration_min:30, retry_count:3, timeout_sec:1800 };
+    return "<div class=\"card\"><div class=\"grid3\">" +
+      "<div><label>Max. Laufzeit (Min)</label><input type=\"number\" data-sla=\"max_duration_min\" value=\"" + esc(s.max_duration_min) + "\"></div>" +
+      "<div><label>Retries</label><input type=\"number\" data-sla=\"retry_count\" value=\"" + esc(s.retry_count) + "\"></div>" +
+      "<div><label>Timeout (Sek)</label><input type=\"number\" data-sla=\"timeout_sec\" value=\"" + esc(s.timeout_sec) + "\"></div>" +
+    "</div><div style=\"margin-top:14px\"><button class=\"btn primary\" data-act=\"save-sla\">Speichern</button></div></div>";
+  }
+
+  function saveGeneral(){
+    var t = getCurrentTask(); if (!t) return;
+    document.querySelectorAll("[data-bind]").forEach(function(el){ t[el.getAttribute("data-bind")] = el.value; });
+    save(); log("info","Allgemein gespeichert: " + t.name); renderTaskDetail();
+  }
+  function saveParams(){
+    var t = getCurrentTask(); if (!t) return;
+    (t.params||[]).forEach(function(p, idx){ var el = document.querySelector("[data-param=\"" + idx + "\"]"); if (el) p.value = el.value; });
+    save(); log("info","Parameter gespeichert: " + t.name); renderTaskDetail();
+  }
+  function addParam(){
+    var t = getCurrentTask(); if (!t) return;
+    if (!t.params) t.params = [];
+    var key = prompt("Parameter-Key:"); if (!key) return;
+    var label = prompt("Anzeigename:", key) || key;
+    t.params.push(P(key,label,"text",""));
+    save(); renderTaskDetail();
+  }
+  function delParam(idx){ var t = getCurrentTask(); if (!t || !confirm("Parameter loeschen?")) return; t.params.splice(idx,1); save(); renderTaskDetail(); }
+  function saveWorkflow(){
+    var t = getCurrentTask(); if (!t) return;
+    (t.workflow||[]).forEach(function(s, idx){
+      ["name","action","on_error"].forEach(function(f){ var el = document.querySelector("[data-wf=\"" + idx + "\"][data-field=\"" + f + "\"]"); if (el) s[f] = el.value; });
+      s.step = idx+1;
+    });
+    save(); log("info","Workflow gespeichert: " + t.name); renderTaskDetail();
+  }
+  function addWf(){ var t = getCurrentTask(); if (!t) return; if (!t.workflow) t.workflow = []; t.workflow.push({step:t.workflow.length+1,name:"Neuer Schritt",action:"",on_error:"stop"}); save(); renderTaskDetail(); }
+  function delWf(idx){ var t = getCurrentTask(); if (!t || !confirm("Schritt loeschen?")) return; t.workflow.splice(idx,1); t.workflow.forEach(function(s,i){ s.step=i+1; }); save(); renderTaskDetail(); }
+  function moveWf(idx, dir){ var t = getCurrentTask(); if (!t || !t.workflow) return; var j = idx+dir; if (j<0||j>=t.workflow.length) return; var tmp = t.workflow[idx]; t.workflow[idx] = t.workflow[j]; t.workflow[j] = tmp; t.workflow.forEach(function(s,i){ s.step=i+1; }); save(); renderTaskDetail(); }
+  function saveNotify(){
+    var t = getCurrentTask(); if (!t) return;
+    if (!t.notify) t.notify = {};
+    ["on_success","on_error","on_warning"].forEach(function(k){ var el = document.querySelector("[data-notify=\"" + k + "\"]"); if (el) t.notify[k] = el.value.split(",").map(function(s){return s.trim();}).filter(Boolean); });
+    save(); log("info","Benachrichtigungen gespeichert: " + t.name); renderTaskDetail();
+  }
+  function saveSLA(){
+    var t = getCurrentTask(); if (!t) return;
+    if (!t.sla) t.sla = {};
+    ["max_duration_min","retry_count","timeout_sec"].forEach(function(k){ var el = document.querySelector("[data-sla=\"" + k + "\"]"); if (el) t.sla[k] = Number(el.value)||0; });
+    save(); log("info","SLA gespeichert: " + t.name); renderTaskDetail();
+  }
+
+  // ---------- VERBINDUNGEN ----------
+  function envColor(env){ return env==="PRD"?"#dc2626":env==="QAS"?"#f59e0b":"#16a34a"; }
+  function typeLabel(t){ return { RFC:"RFC / BAPI", GUI:"SAP GUI Scripting", OData:"OData / REST" }[t] || t; }
+
+  function renderConnections(){
+    var grid = document.getElementById("connGrid"); grid.innerHTML = "";
+    var conns = state.connections || [];
+    if (conns.length === 0){ grid.innerHTML = "<div class=\"card muted\" style=\"grid-column:1/-1;text-align:center\">Noch keine Verbindungen.</div>"; return; }
+    conns.forEach(function(c){
+      var dot = c.lastTest && c.lastTest.ok === true ? "dot running" : c.lastTest && c.lastTest.ok === false ? "dot error" : "dot idle";
+      var hostLabel = "";
+      if (c.type === "RFC")   hostLabel = (c.rfc.ashost || c.rfc.mshost || "(kein Host)") + " &middot; Mandant " + (c.rfc.client || "?");
+      if (c.type === "GUI")   hostLabel = "Saplogon: " + esc(c.gui.saplogon || "(keine)");
+      if (c.type === "OData") hostLabel = esc(c.odata.baseUrl || "(keine URL)");
+      var robotBadges = (c.assignedRobots && c.assignedRobots.length) ? c.assignedRobots.map(function(rid){ return "<span class=\"badge " + rid.toLowerCase() + "\">" + rid + "</span>"; }).join(" ") : "<span class=\"muted\">&mdash;</span>";
+      var testLine = c.lastTest && c.lastTest.ts ? ("Letzter Test: " + new Date(c.lastTest.ts).toLocaleString("de-DE") + " &mdash; " + esc(c.lastTest.message)) : "Noch nicht getestet";
+
+      var card = document.createElement("div");
+      card.className = "card";
+      card.innerHTML =
+        "<div style=\"display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px\">" +
+          "<div><h3 style=\"margin:0;font-size:15px\"><span class=\"" + dot + "\"></span> " + esc(c.name) + "</h3>" +
+          "<div class=\"muted\" style=\"font-size:11px;margin-top:2px\">" + typeLabel(c.type) + (c.active?"":" &middot; <b>INAKTIV</b>") + "</div></div>" +
+          "<span class=\"env-pill\" style=\"background:" + envColor(c.env) + "\">" + c.env + "</span>" +
+        "</div>" +
+        "<div class=\"muted\" style=\"font-size:12px;margin:8px 0\">" + hostLabel + "</div>" +
+        "<div style=\"font-size:11px;margin-bottom:6px\">Zugewiesen: " + robotBadges + "</div>" +
+        "<div class=\"muted\" style=\"font-size:11px\">" + testLine + "</div>" +
+        "<div class=\"row\" style=\"margin-top:10px\">" +
+          "<button class=\"btn small primary\" data-act=\"test-conn\"   data-id=\"" + c.id + "\">Testen</button>" +
+          "<button class=\"btn small\"         data-act=\"edit-conn\"   data-id=\"" + c.id + "\">Bearbeiten</button>" +
+          "<button class=\"btn small\"         data-act=\"toggle-conn\" data-id=\"" + c.id + "\">" + (c.active?"Deaktivieren":"Aktivieren") + "</button>" +
+          "<button class=\"btn small danger\"  data-act=\"del-conn\"    data-id=\"" + c.id + "\">X</button>" +
+        "</div>";
+      grid.appendChild(card);
+    });
+  }
+
+  var currentConnSubtab = "general";
+  function openConnDetail(id){
+    var c = findConn(id); if (!c) return;
+    document.getElementById("connListView").style.display = "none";
+    var v = document.getElementById("connDetailView");
+    v.style.display = "block"; v.dataset.connId = id;
+    currentConnSubtab = "general"; renderConnDetail();
+  }
+  function closeConnDetail(){
+    var v = document.getElementById("connDetailView");
+    v.style.display = "none"; delete v.dataset.connId;
+    document.getElementById("connListView").style.display = "";
+  }
+  function getCurrentConn(){ var v = document.getElementById("connDetailView"); return v.dataset.connId ? findConn(v.dataset.connId) : null; }
+
+  function renderConnDetail(){
+    var c = getCurrentConn(); if (!c) { closeConnDetail(); return; }
+    var v = document.getElementById("connDetailView");
+    v.innerHTML =
+      "<div class=\"detail-head\">" +
+        "<div>" +
+          "<button class=\"btn\" data-act=\"close-conn-detail\" style=\"margin-bottom:8px\">&larr; Zurueck</button>" +
+          "<h2>" + esc(c.name) + " <span class=\"env-pill\" style=\"background:" + envColor(c.env) + "\">" + c.env + "</span></h2>" +
+          "<div class=\"meta\">" + typeLabel(c.type) + " &middot; ID: <code>" + c.id + "</code></div>" +
+        "</div>" +
+        "<div class=\"row\"><button class=\"btn primary\" data-act=\"test-conn\" data-id=\"" + c.id + "\">Verbindung testen</button></div>" +
+      "</div>" +
+      "<div class=\"subtabs\" id=\"connSubtabs\">" +
+        "<button class=\"subtab " + (currentConnSubtab==="general"?"active":"") + "\" data-csub=\"general\">Allgemein</button>" +
+        "<button class=\"subtab " + (currentConnSubtab==="conn"?"active":"")    + "\" data-csub=\"conn\">Verbindung</button>" +
+        "<button class=\"subtab " + (currentConnSubtab==="auth"?"active":"")    + "\" data-csub=\"auth\">Authentifizierung &amp; SNC</button>" +
+        "<button class=\"subtab " + (currentConnSubtab==="assign"?"active":"")  + "\" data-csub=\"assign\">Zuordnung Robots</button>" +
+        "<button class=\"subtab " + (currentConnSubtab==="test"?"active":"")    + "\" data-csub=\"test\">Test &amp; Status</button>" +
+      "</div>" +
+      "<div id=\"connSubContent\"></div>";
+    renderConnSubtab(c);
+  }
+  function renderConnSubtab(c){
+    var box = document.getElementById("connSubContent");
+    if (currentConnSubtab === "general") box.innerHTML = renderConnGeneral(c);
+    if (currentConnSubtab === "conn")    box.innerHTML = renderConnConn(c);
+    if (currentConnSubtab === "auth")    box.innerHTML = renderConnAuth(c);
+    if (currentConnSubtab === "assign")  box.innerHTML = renderConnAssign(c);
+    if (currentConnSubtab === "test")    box.innerHTML = renderConnTest(c);
+  }
+  function renderConnGeneral(c){
+    return "<div class=\"card\"><div class=\"grid3\">" +
+      "<div><label>Anzeigename</label><input type=\"text\" data-cg=\"name\" value=\"" + esc(c.name) + "\"></div>" +
+      "<div><label>Umgebung</label><select data-cg=\"env\">" + ["DEV","QAS","PRD"].map(function(e){ return "<option value=\"" + e + "\"" + (c.env===e?" selected":"") + ">" + e + "</option>"; }).join("") + "</select></div>" +
+      "<div><label>Typ</label><select data-cg=\"type\">" + ["RFC","GUI","OData"].map(function(tp){ return "<option value=\"" + tp + "\"" + (c.type===tp?" selected":"") + ">" + typeLabel(tp) + "</option>"; }).join("") + "</select></div>" +
+    "</div>" +
+    "<label>Aktiv</label><select data-cg=\"active\"><option value=\"true\"" + (c.active?" selected":"") + ">Ja</option><option value=\"false\"" + (!c.active?" selected":"") + ">Nein</option></select>" +
+    "<div style=\"margin-top:14px\"><button class=\"btn primary\" data-act=\"save-conn-general\">Speichern</button></div></div>";
+  }
+  function renderConnConn(c){
+    if (c.type === "RFC"){
+      var r = c.rfc || {};
+      return "<div class=\"card\"><h4 style=\"margin-top:0\">Direkt-Anmeldung (Application Server)</h4>" +
+        "<div class=\"grid2\">" +
+          "<div><label>ASHOST (Application Server)</label><input type=\"text\" data-cc=\"rfc.ashost\" value=\"" + esc(r.ashost) + "\" placeholder=\"sapprod01.intern.firma.de\"></div>" +
+          "<div><label>SYSNR (System-Nummer)</label><input type=\"text\" data-cc=\"rfc.sysnr\" value=\"" + esc(r.sysnr) + "\" placeholder=\"00\"></div>" +
+          "<div><label>CLIENT (Mandant)</label><input type=\"text\" data-cc=\"rfc.client\" value=\"" + esc(r.client) + "\" placeholder=\"100\"></div>" +
+          "<div><label>LANG (Sprache)</label><select data-cc=\"rfc.lang\">" + ["DE","EN","FR","ES","IT"].map(function(l){ return "<option value=\"" + l + "\"" + (r.lang===l?" selected":"") + ">" + l + "</option>"; }).join("") + "</select></div>" +
+          "<div><label>SAPID (System-ID)</label><input type=\"text\" data-cc=\"rfc.sapid\" value=\"" + esc(r.sapid) + "\" placeholder=\"PRD\"></div>" +
+          "<div><label>SAProuter (optional)</label><input type=\"text\" data-cc=\"rfc.saprouter\" value=\"" + esc(r.saprouter) + "\" placeholder=\"/H/sapgw.firma.de/S/3299\"></div>" +
+        "</div></div>" +
+      "<div class=\"card\" style=\"margin-top:12px\"><h4 style=\"margin-top:0\">Load-Balancing (optional)</h4>" +
+        "<div class=\"muted\" style=\"margin-bottom:10px\">Statt Direktanmeldung Message-Server (MSHOST + GROUP). ASHOST darf dann leer sein.</div>" +
+        "<div class=\"grid2\">" +
+          "<div><label>MSHOST (Message-Server)</label><input type=\"text\" data-cc=\"rfc.mshost\" value=\"" + esc(r.mshost) + "\"></div>" +
+          "<div><label>GROUP (Anmeldegruppe)</label><input type=\"text\" data-cc=\"rfc.msgroup\" value=\"" + esc(r.msgroup) + "\" placeholder=\"PUBLIC\"></div>" +
+        "</div></div>" +
+      "<div style=\"margin-top:14px\"><button class=\"btn primary\" data-act=\"save-conn-conn\">Speichern</button></div>";
+    }
+    if (c.type === "GUI"){
+      var g = c.gui || {};
+      return "<div class=\"card\"><h4 style=\"margin-top:0\">SAP GUI Scripting</h4>" +
+        "<div class=\"muted\" style=\"margin-bottom:10px\">Voraussetzung: SAP GUI installiert, Verbindung in SAPLogon, Scripting auf Server (RZ11 sapgui/user_scripting=TRUE) und Client aktiviert.</div>" +
+        "<div class=\"grid2\">" +
+          "<div><label>SAPLogon-Verbindungsname</label><input type=\"text\" data-cc=\"gui.saplogon\" value=\"" + esc(g.saplogon) + "\" placeholder=\"PRD [public]\"></div>" +
+          "<div><label>Sprache</label><select data-cc=\"gui.lang\">" + ["DE","EN","FR","ES","IT"].map(function(l){ return "<option value=\"" + l + "\"" + (g.lang===l?" selected":"") + ">" + l + "</option>"; }).join("") + "</select></div>" +
+          "<div><label>Auto-Login</label><select data-cc=\"gui.autoLogin\"><option value=\"true\"" + (g.autoLogin?" selected":"") + ">Ja</option><option value=\"false\"" + (!g.autoLogin?" selected":"") + ">Nein (SSO)</option></select></div>" +
+          "<div><label>Wartezeit (Sek)</label><input type=\"number\" data-cc=\"gui.waitForReady\" value=\"" + esc(g.waitForReady||5) + "\"></div>" +
+        "</div>" +
+        "<label>Scripting auf Client aktiviert</label><select data-cc=\"gui.scriptingEnabled\"><option value=\"true\"" + (g.scriptingEnabled?" selected":"") + ">Ja</option><option value=\"false\"" + (!g.scriptingEnabled?" selected":"") + ">Nein</option></select>" +
+      "</div>" +
+      "<div style=\"margin-top:14px\"><button class=\"btn primary\" data-act=\"save-conn-conn\">Speichern</button></div>";
+    }
+    if (c.type === "OData"){
+      var o = c.odata || {};
+      return "<div class=\"card\"><h4 style=\"margin-top:0\">OData / REST (S/4HANA)</h4>" +
+        "<label>Basis-URL</label><input type=\"text\" data-cc=\"odata.baseUrl\" value=\"" + esc(o.baseUrl) + "\" placeholder=\"https://s4-api.firma.de/sap/opu/odata/sap/\">" +
+        "<div class=\"grid2\">" +
+          "<div><label>Auth-Methode</label><select data-cc=\"odata.authMethod\">" + ["Basic","OAuth2","Cert","SAML-Bearer"].map(function(a){ return "<option value=\"" + a + "\"" + (o.authMethod===a?" selected":"") + ">" + a + "</option>"; }).join("") + "</select></div>" +
+          "<div><label>TLS-Validierung</label><select data-cc=\"odata.verifyTls\"><option value=\"true\"" + (o.verifyTls?" selected":"") + ">Ja</option><option value=\"false\"" + (!o.verifyTls?" selected":"") + ">Nein</option></select></div>" +
+          "<div><label>Client-ID</label><input type=\"text\" data-cc=\"odata.clientId\" value=\"" + esc(o.clientId) + "\"></div>" +
+          "<div><label>Token-URL (OAuth2)</label><input type=\"text\" data-cc=\"odata.tokenUrl\" value=\"" + esc(o.tokenUrl) + "\"></div>" +
+          "<div><label>Scopes</label><input type=\"text\" data-cc=\"odata.scopes\" value=\"" + esc(o.scopes) + "\" placeholder=\"FI.Read FI.Write\"></div>" +
+          "<div><label>Cert-Pfad</label><input type=\"text\" data-cc=\"odata.certPath\" value=\"" + esc(o.certPath) + "\"></div>" +
+        "</div></div>" +
+      "<div style=\"margin-top:14px\"><button class=\"btn primary\" data-act=\"save-conn-conn\">Speichern</button></div>";
+    }
+    return "<div class=\"card muted\">Unbekannter Typ.</div>";
+  }
+  function renderConnAuth(c){
+    var html = "<div class=\"card\"><h4 style=\"margin-top:0\">Service-User</h4>";
+    if (c.type === "RFC"){
+      var r = c.rfc || {};
+      html += "<label>SAP-User</label><input type=\"text\" data-cc=\"rfc.user\" value=\"" + esc(r.user) + "\" placeholder=\"RPA_AP_SERVICE\">" +
+        "<label>Passwort-Referenz (Vault)</label><input type=\"text\" data-cc=\"rfc.passwordRef\" value=\"" + esc(r.passwordRef) + "\" placeholder=\"azure-kv://sap-prd/RPA_AP_SERVICE\">" +
+        "<div class=\"muted\" style=\"font-size:11px;margin-top:2px\">URI auf Secret-Store. Der Worker loest dies zur Laufzeit auf.</div>" +
+      "</div>" +
+      "<div class=\"card\" style=\"margin-top:12px\"><h4 style=\"margin-top:0\">SNC &mdash; Secure Network Communication</h4>" +
+        "<div class=\"muted\" style=\"margin-bottom:10px\">In PRD verpflichtend: verschluesselte Verbindung und Mutual-Auth via Zertifikat.</div>" +
+        "<label>SNC aktiviert</label><select data-cc=\"rfc.sncEnabled\"><option value=\"true\"" + (r.sncEnabled?" selected":"") + ">Ja</option><option value=\"false\"" + (!r.sncEnabled?" selected":"") + ">Nein</option></select>" +
+        "<div class=\"grid2\">" +
+          "<div><label>SNC_LIB</label><input type=\"text\" data-cc=\"rfc.sncLib\" value=\"" + esc(r.sncLib) + "\" placeholder=\"%SECUDIR%/libsapcrypto.dll\"></div>" +
+          "<div><label>SNC_QOP</label><select data-cc=\"rfc.sncQop\">" +
+            [["1","1 = Authentifizierung"],["2","2 = Integritaet"],["3","3 = Verschluesselung"],["8","8 = Max verfuegbar"],["9","9 = Max lt. Server"]].map(function(o){ return "<option value=\"" + o[0] + "\"" + (String(r.sncQop)===o[0]?" selected":"") + ">" + o[1] + "</option>"; }).join("") +
+          "</select></div>" +
+        "</div>" +
+        "<label>SNC_MYNAME (Client-Zertifikat)</label><input type=\"text\" data-cc=\"rfc.sncMyname\" value=\"" + esc(r.sncMyname) + "\" placeholder=\"p:CN=RPA_PRD,O=Firma,C=DE\">" +
+        "<label>SNC_PARTNERNAME (Server-Zertifikat)</label><input type=\"text\" data-cc=\"rfc.sncPartner\" value=\"" + esc(r.sncPartner) + "\" placeholder=\"p:CN=SAPPRD,O=Firma,C=DE\">" +
+      "</div>";
+    } else if (c.type === "GUI"){
+      var g = c.gui || {};
+      html += "<label>SAP-User</label><input type=\"text\" data-cc=\"gui.user\" value=\"" + esc(g.user) + "\">" +
+        "<label>Passwort-Referenz (Vault)</label><input type=\"text\" data-cc=\"gui.passwordRef\" value=\"" + esc(g.passwordRef) + "\">" +
+      "</div>";
+    } else if (c.type === "OData"){
+      var o = c.odata || {};
+      html += "<label>Client-Secret-Referenz</label><input type=\"text\" data-cc=\"odata.secretRef\" value=\"" + esc(o.secretRef) + "\" placeholder=\"azure-kv://...\">" +
+        "<div class=\"muted\" style=\"font-size:11px\">Basic: User/PW. OAuth2: Client-Secret. Cert: Pfad zum PFX im Verbindungs-Tab.</div>" +
+      "</div>";
+    }
+    html += "<div style=\"margin-top:14px\"><button class=\"btn primary\" data-act=\"save-conn-auth\">Speichern</button></div>";
+    return html;
+  }
+  function renderConnAssign(c){
+    var html = "<div class=\"card\"><h4 style=\"margin-top:0\">Zuordnung zu Robots</h4>" +
+      "<div class=\"muted\" style=\"margin-bottom:10px\">Welche Robots nutzen diese Verbindung?</div><div class=\"grid2\">";
+    ROBOTS.forEach(function(r){
+      var checked = (c.assignedRobots||[]).indexOf(r.id) >= 0 ? "checked" : "";
+      html += "<label style=\"display:flex;align-items:center;gap:8px;font-weight:normal\"><input type=\"checkbox\" data-ca-robot=\"" + r.id + "\" " + checked + "> <span class=\"badge " + r.cls + "\">" + r.id + "</span> " + esc(r.name) + "</label>";
+    });
+    html += "</div><h4 style=\"margin-top:18px\">Anwendbar fuer Methoden</h4><div class=\"row\">";
+    ["BAPI","GUI","OData","Batch"].forEach(function(m){
+      var checked = (c.assignedMethods||[]).indexOf(m) >= 0 ? "checked" : "";
+      html += "<label style=\"display:flex;align-items:center;gap:6px;font-weight:normal\"><input type=\"checkbox\" data-ca-method=\"" + m + "\" " + checked + "> " + m + "</label>";
+    });
+    html += "</div><div style=\"margin-top:14px\"><button class=\"btn primary\" data-act=\"save-conn-assign\">Speichern</button></div></div>";
+    return html;
+  }
+  function renderConnTest(c){
+    var t = c.lastTest || {};
+    var statusBox = "<div class=\"muted\">Noch nicht getestet.</div>";
+    if (t.ts){
+      var ok = t.ok === true;
+      statusBox = "<div class=\"card\" style=\"background:" + (ok?"#dcfce7":"#fee2e2") + ";color:" + (ok?"#166534":"#991b1b") + ";border-color:" + (ok?"#86efac":"#fca5a5") + "\"><b>" + (ok?"OK":"FEHLER") + "</b> &middot; " + new Date(t.ts).toLocaleString("de-DE") + "<br>" + esc(t.message||"") + "</div>";
+    }
+    var checks = [];
+    if (c.type === "RFC"){
+      checks = [["DNS / Host", !!c.rfc.ashost || !!c.rfc.mshost], ["System-Nummer", !!c.rfc.sysnr], ["Mandant", !!c.rfc.client],
+                ["Service-User", !!c.rfc.user], ["Vault-Referenz", !!c.rfc.passwordRef && c.rfc.passwordRef.indexOf("://")>0],
+                ["SNC in PRD", c.env!=="PRD" || !!c.rfc.sncEnabled]];
+    } else if (c.type === "GUI"){
+      checks = [["SAPLogon-Verbindung", !!c.gui.saplogon], ["Scripting freigegeben", !!c.gui.scriptingEnabled],
+                ["Service-User", !!c.gui.user], ["Vault-Referenz", !!c.gui.passwordRef && c.gui.passwordRef.indexOf("://")>0]];
+    } else if (c.type === "OData"){
+      checks = [["Basis-URL", !!c.odata.baseUrl && c.odata.baseUrl.indexOf("http")===0], ["TLS in PRD", c.env!=="PRD" || !!c.odata.verifyTls],
+                ["Auth-Methode", !!c.odata.authMethod], ["Secret-Referenz", !!c.odata.secretRef && c.odata.secretRef.indexOf("://")>0]];
+    }
+    var checkHtml = checks.map(function(ch){
+      return "<div style=\"display:flex;align-items:center;gap:8px;padding:4px 0\">" +
+        "<span style=\"width:18px;height:18px;border-radius:50%;background:" + (ch[1]?"#16a34a":"#dc2626") + ";color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700\">" + (ch[1]?"OK":"X") + "</span>" +
+        "<span>" + esc(ch[0]) + "</span></div>";
+    }).join("");
+    return statusBox +
+      "<div class=\"card\" style=\"margin-top:12px\"><h4 style=\"margin-top:0\">Konfigurations-Checks</h4>" + checkHtml + "</div>" +
+      "<div class=\"card\" style=\"margin-top:12px\"><h4 style=\"margin-top:0\">Verbindungstest</h4>" +
+        "<div class=\"muted\" style=\"margin-bottom:10px\">Im echten Worker: RFC_PING (BAPI), GUI-Session (GUI), $metadata (OData).</div>" +
+        "<button class=\"btn primary\" data-act=\"test-conn\" data-id=\"" + c.id + "\">Test ausfuehren</button>" +
+      "</div>";
+  }
+
+  function setNested(obj, path, val){
+    var parts = path.split("."); var cur = obj;
+    for (var i=0;i<parts.length-1;i++){ if (cur[parts[i]] == null) cur[parts[i]] = {}; cur = cur[parts[i]]; }
+    cur[parts[parts.length-1]] = val;
+  }
+  function saveConnGeneral(){
+    var c = getCurrentConn(); if (!c) return;
+    document.querySelectorAll("[data-cg]").forEach(function(el){
+      var k = el.getAttribute("data-cg"); var v = el.value;
+      if (k === "active") c.active = (v === "true"); else c[k] = v;
+    });
+    save(); log("info","Verbindung " + c.name + " gespeichert."); renderConnDetail(); renderConnections();
+  }
+  function saveConnConn(){
+    var c = getCurrentConn(); if (!c) return;
+    document.querySelectorAll("[data-cc]").forEach(function(el){
+      var path = el.getAttribute("data-cc"); var v = el.value;
+      if (v === "true") v = true; else if (v === "false") v = false;
+      setNested(c, path, v);
+    });
+    save(); log("info","Verbindung " + c.name + " - Technik gespeichert."); renderConnDetail(); renderConnections();
+  }
+  function saveConnAuth(){ saveConnConn(); }
+  function saveConnAssign(){
+    var c = getCurrentConn(); if (!c) return;
+    var robots=[]; document.querySelectorAll("[data-ca-robot]").forEach(function(el){ if (el.checked) robots.push(el.getAttribute("data-ca-robot")); });
+    var methods=[]; document.querySelectorAll("[data-ca-method]").forEach(function(el){ if (el.checked) methods.push(el.getAttribute("data-ca-method")); });
+    c.assignedRobots = robots; c.assignedMethods = methods;
+    save(); log("info","Zuordnung " + c.name + " gespeichert."); renderConnDetail(); renderConnections(); renderOverview();
+  }
+  function testConn(id){
+    var c = findConn(id); if (!c) return;
+    log("info","Verbindungstest gestartet: " + c.name);
+    var ok = true, msg = "Verbindung erfolgreich (Simulation).";
+    if (c.type === "RFC"){
+      if (!c.rfc.ashost && !c.rfc.mshost){ ok=false; msg="Weder ASHOST noch MSHOST gesetzt."; }
+      else if (!c.rfc.client){ ok=false; msg="Mandant fehlt."; }
+      else if (!c.rfc.user){   ok=false; msg="Service-User fehlt."; }
+      else if (c.env==="PRD" && !c.rfc.sncEnabled){ ok=false; msg="SNC in PRD verpflichtend."; }
+    } else if (c.type === "GUI"){
+      if (!c.gui.saplogon){ ok=false; msg="SAPLogon-Verbindungsname fehlt."; }
+      else if (!c.gui.scriptingEnabled){ ok=false; msg="SAP-GUI-Scripting nicht freigegeben."; }
+    } else if (c.type === "OData"){
+      if (!c.odata.baseUrl){ ok=false; msg="Basis-URL fehlt."; }
+      else if (c.env==="PRD" && !c.odata.verifyTls){ ok=false; msg="TLS-Validierung in PRD verpflichtend."; }
+    }
+    if (ok && Math.random() < 0.1){ ok=false; msg="Server nicht erreichbar (Simulation)."; }
+    c.lastTest = { ts:new Date().toISOString(), ok:ok, message:msg };
+    log(ok?"ok":"err", c.name + ": " + msg);
+    save(); renderConnections();
+    var v = document.getElementById("connDetailView");
+    if (v.dataset.connId === id) renderConnDetail();
+  }
+  function testAllConns(){ (state.connections||[]).forEach(function(c, i){ setTimeout(function(){ testConn(c.id); }, i*400); }); }
+  function toggleConn(id){ var c = findConn(id); if (!c) return; c.active = !c.active; save(); renderConnections(); }
+  function deleteConn(id){
+    var c = findConn(id); if (!c) return;
+    if (!confirm("Verbindung '" + c.name + "' loeschen?")) return;
+    state.connections = state.connections.filter(function(x){ return x.id!==id; });
+    save(); closeConnDetail(); renderConnections();
+  }
+  function addConn(){
+    var name = prompt("Anzeigename der neuen Verbindung:", "SAP-NEU"); if (!name) return;
+    var newConn = { id:"conn-"+Date.now(), name:name, env:"DEV", type:"RFC", active:true,
+      rfc:{ ashost:"", sysnr:"00", client:"100", user:"", passwordRef:"", lang:"DE", saprouter:"", mshost:"", msgroup:"", sapid:"",
+            sncEnabled:false, sncLib:"", sncMyname:"", sncPartner:"", sncQop:"3" },
+      gui:{}, odata:{}, assignedRobots:[], assignedMethods:["BAPI"],
+      lastTest:{ ts:null, ok:null, message:"Noch nicht getestet" } };
+    if (!state.connections) state.connections = [];
+    state.connections.push(newConn);
+    save(); renderConnections(); openConnDetail(newConn.id);
+  }
+
+  // ---------- Schedule ----------
+  function renderSchedTable(){
+    var tb = document.querySelector("#schedTable tbody"); tb.innerHTML = "";
+    if (state.schedules.length === 0){ tb.innerHTML = "<tr><td colspan=\"7\" class=\"muted\" style=\"text-align:center;padding:20px\">Keine Zeitplaene.</td></tr>"; return; }
+    state.schedules.forEach(function(s){
+      var t = findTask(s.taskId); if (!t) return;
+      var r = findRobot(t.robot);
+      var freqLabel = { daily:"Taeglich", weekly:"Woechentlich", monthly:"Monatlich", period_end:"Periodenende" }[s.freq];
+      var tr = document.createElement("tr");
+      tr.innerHTML = "<td><span class=\"badge " + r.cls + "\">" + r.id + "</span></td>" +
+        "<td>" + esc(t.name) + "</td><td>" + freqLabel + "</td><td>" + s.time + "</td><td>" + nextRun(s) + "</td>" +
+        "<td><label style=\"display:flex;align-items:center;gap:6px\"><input type=\"checkbox\" data-act=\"toggle-sched\" data-id=\"" + s.id + "\" " + (s.active?"checked":"") + "> " + (s.active?"an":"aus") + "</label></td>" +
+        "<td><div class=\"row\"><button class=\"btn small\" data-act=\"edit-sched\" data-id=\"" + s.id + "\">Edit</button>" +
+        "<button class=\"btn small danger\" data-act=\"del-sched\" data-id=\"" + s.id + "\">X</button></div></td>";
+      tb.appendChild(tr);
+    });
+  }
+  function nextRun(s){
+    if (!s.active) return "<span class=\"muted\">&mdash;</span>";
+    var now = new Date(); var parts = s.time.split(":"); var h=+parts[0]||0, m=+parts[1]||0;
+    var next = new Date(now); next.setHours(h,m,0,0);
+    if (s.freq==="daily") { if (next<=now) next.setDate(next.getDate()+1); }
+    else if (s.freq==="weekly"){ var i=0; while ((next.getDay()!==1 || next<=now) && i<14){ next.setDate(next.getDate()+1); i++; } }
+    else if (s.freq==="monthly"){ next.setDate(1); if (next<=now) next.setMonth(next.getMonth()+1); }
+    else if (s.freq==="period_end"){ next = new Date(now.getFullYear(), now.getMonth()+1, 0, h, m); if (next<=now) next = new Date(now.getFullYear(), now.getMonth()+2, 0, h, m); }
+    return next.toLocaleString("de-DE");
+  }
+
+  function log(level, msg){
+    state.logs.unshift({ ts:new Date().toISOString(), level:level, msg:msg });
+    if (state.logs.length>500) state.logs.length = 500;
+    save();
+    if (document.getElementById("tab-logs").style.display !== "none") renderLogs();
+  }
+  function renderLogs(){
+    var filter = document.getElementById("logFilter").value;
+    var box = document.getElementById("logBox");
+    var lines = state.logs.filter(function(l){ return filter==="all" || l.msg.indexOf(filter)>=0; });
+    if (lines.length===0){ box.textContent = "Noch keine Logs."; return; }
+    box.innerHTML = lines.map(function(l){
+      var cls = l.level==="ok"?"ok":l.level==="err"?"err":"info";
+      return "<span class=\"ts\">[" + new Date(l.ts).toLocaleString("de-DE") + "]</span> <span class=\"" + cls + "\">" + esc(l.msg) + "</span>";
+    }).join("\n");
+  }
+
+  function runTask(id){
+    var t = findTask(id); if (!t) return;
+    if (t.running){ log("info", t.name + " laeuft bereits."); return; }
+    t.running = true; t.lastStatus = "running";
+    log("info", "Start: " + t.robot + " / " + t.name + " (" + t.tcode + ", " + t.method + ")");
+    var steps = t.workflow || [];
+    steps.forEach(function(s, i){ setTimeout(function(){ if (!t.running) return; log("info", "  Schritt " + (i+1) + "/" + steps.length + ": " + s.name); }, 200 + i*180); });
+    save(); renderAll();
+    var duration = 1500 + steps.length*180 + Math.random()*1500;
+    setTimeout(function(){
+      var ok = Math.random() > 0.12;
+      t.running = false; t.lastRun = new Date().toISOString(); t.lastStatus = ok ? "ok" : "error";
+      log(ok?"ok":"err", (ok?"OK":"FEHLER") + ": " + t.robot + " / " + t.name + " (" + Math.round(duration) + " ms)");
+      save(); renderAll();
+    }, duration);
+  }
+  function runRobot(robot){
+    var tasks = state.tasks.filter(function(t){ return t.robot===robot; });
+    log("info", "Robot-" + robot + ": starte " + tasks.length + " Aufgaben.");
+    tasks.forEach(function(t,i){ setTimeout(function(){ runTask(t.id); }, i*300); });
+  }
+  function stopRobot(robot){
+    state.tasks.filter(function(t){ return t.robot===robot && t.running; }).forEach(function(t){
+      t.running = false; t.lastStatus = "error"; log("err", t.name + " manuell gestoppt.");
+    });
+    save(); renderAll();
+  }
+
+  function openTaskModal(){
+    document.getElementById("f-robot").value = "AP";
+    document.getElementById("f-name").value = "";
+    document.getElementById("f-tcode").value = "";
+    document.getElementById("f-method").value = "GUI";
+    document.getElementById("f-desc").value = "";
+    document.getElementById("taskModal").classList.add("open");
+  }
+  function closeTaskModal(){ document.getElementById("taskModal").classList.remove("open"); }
+  function saveTask(){
+    var data = {
+      robot:  document.getElementById("f-robot").value,
+      name:   document.getElementById("f-name").value.trim(),
+      tcode:  document.getElementById("f-tcode").value.trim(),
+      method: document.getElementById("f-method").value,
+      desc:   document.getElementById("f-desc").value.trim()
+    };
+    if (!data.name){ alert("Bitte Namen angeben."); return; }
+    var newTask = Object.assign({
+      id:"t"+Date.now(), lastRun:null, lastStatus:"pending", running:false,
+      params:[], workflow:[], notify:{ on_success:[], on_error:["rpa-ops@firma.de"], on_warning:[] },
+      sla:{ max_duration_min:30, retry_count:3, timeout_sec:1800 }
+    }, data);
+    state.tasks.push(newTask);
+    log("info","Aufgabe " + data.name + " angelegt.");
+    save(); closeTaskModal(); renderAll();
+  }
+  function deleteTask(id){
+    if (!confirm("Aufgabe loeschen?")) return;
+    state.tasks = state.tasks.filter(function(t){ return t.id !== id; });
+    state.schedules = state.schedules.filter(function(s){ return s.taskId !== id; });
+    save(); renderAll();
+  }
+
+  var schedContextTaskId = null;
+  function openSchedModal(taskId){
+    var t = findTask(taskId); if (!t) return;
+    var existing = null;
+    for (var i=0;i<state.schedules.length;i++) if (state.schedules[i].taskId===taskId){ existing = state.schedules[i]; break; }
+    schedContextTaskId = taskId;
+    document.getElementById("s-id").value = existing ? existing.id : "";
+    document.getElementById("s-context").innerHTML = "<b>" + t.robot + "</b> &mdash; " + esc(t.name);
+    document.getElementById("s-freq").value = existing ? existing.freq : "daily";
+    document.getElementById("s-time").value = existing ? existing.time : "07:00";
+    document.getElementById("s-active").checked = existing ? existing.active : true;
+    document.getElementById("schedModal").classList.add("open");
+  }
+  function openSchedModalById(schedId){ var s = findSched(schedId); if (s) openSchedModal(s.taskId); }
+  function closeSchedModal(){ document.getElementById("schedModal").classList.remove("open"); }
+  function saveSched(){
+    var id = document.getElementById("s-id").value;
+    var data = { taskId: schedContextTaskId, freq: document.getElementById("s-freq").value, time: document.getElementById("s-time").value, active: document.getElementById("s-active").checked };
+    if (id){ var s = findSched(id); if (s) Object.assign(s, data); }
+    else { state.schedules.push(Object.assign({ id:"s"+Date.now() }, data)); }
+    save(); closeSchedModal(); renderAll();
+  }
+  function deleteSched(id){ if (!confirm("Zeitplan loeschen?")) return; state.schedules = state.schedules.filter(function(s){ return s.id !== id; }); save(); renderSchedTable(); }
+  function toggleSched(id, active){ var s = findSched(id); if (s){ s.active = active; save(); renderSchedTable(); renderOverview(); } }
+
+  function renderAll(){
+    renderOverview();
+    if (document.getElementById("tab-tasks").style.display !== "none"){
+      var view = document.getElementById("taskDetailView");
+      if (view.style.display !== "none" && view.dataset.taskId) renderTaskDetail();
+      else renderTaskTable();
+    }
+    if (document.getElementById("tab-schedule").style.display !== "none") renderSchedTable();
+    if (document.getElementById("tab-connections").style.display !== "none"){
+      var v = document.getElementById("connDetailView");
+      if (v.style.display !== "none" && v.dataset.connId) renderConnDetail();
+      else renderConnections();
+    }
+  }
+
+  function exportConfig(){
+    var blob = new Blob([JSON.stringify(state, null, 2)], { type:"application/json" });
+    var url = URL.createObjectURL(blob); var a = document.createElement("a");
+    a.href = url; a.download = "sap-robot-cockpit.json"; a.click(); URL.revokeObjectURL(url);
+  }
+  function importConfig(ev){
+    var file = ev.target.files[0]; if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function(e){ try { state = JSON.parse(e.target.result); save(); renderAll(); } catch(err){ alert("Datei nicht lesbar."); } };
+    reader.readAsText(file);
+  }
+  function resetAll(){ if (!confirm("Alles zuruecksetzen?")) return; try{ localStorage.removeItem(STORE_KEY); }catch(e){} state = seed(); save(); renderAll(); }
+
+  // ---------- Event-Delegation ----------
+  document.getElementById("tabs").addEventListener("click", function(ev){
+    var b = ev.target.closest(".tab"); if (b) showTab(b.getAttribute("data-tab"));
+  });
+  document.body.addEventListener("click", function(ev){
+    var b = ev.target.closest("[data-act]"); if (!b) return;
+    var act = b.getAttribute("data-act"), id = b.getAttribute("data-id"), robot = b.getAttribute("data-robot");
+    if      (act==="run-task")        runTask(id);
+    else if (act==="config-task")     openTaskDetail(id);
+    else if (act==="close-detail")    closeTaskDetail();
+    else if (act==="del-task")        deleteTask(id);
+    else if (act==="sched")           openSchedModal(id);
+    else if (act==="edit-sched")      openSchedModalById(id);
+    else if (act==="del-sched")       deleteSched(id);
+    else if (act==="run-robot")       runRobot(robot);
+    else if (act==="stop-robot")      stopRobot(robot);
+    else if (act==="filter-tasks")    { showTab("tasks"); document.getElementById("taskFilter").value = robot; renderTaskTable(); }
+    else if (act==="save-general")    saveGeneral();
+    else if (act==="save-params")     saveParams();
+    else if (act==="add-param")       addParam();
+    else if (act==="del-param")       delParam(+b.getAttribute("data-idx"));
+    else if (act==="save-wf")         saveWorkflow();
+    else if (act==="add-wf")          addWf();
+    else if (act==="wf-del")          delWf(+b.getAttribute("data-idx"));
+    else if (act==="wf-up")           moveWf(+b.getAttribute("data-idx"), -1);
+    else if (act==="wf-down")         moveWf(+b.getAttribute("data-idx"), +1);
+    else if (act==="save-notify")     saveNotify();
+    else if (act==="save-sla")        saveSLA();
+    else if (act==="edit-conn")        openConnDetail(id);
+    else if (act==="close-conn-detail") closeConnDetail();
+    else if (act==="test-conn")        testConn(id);
+    else if (act==="toggle-conn")      toggleConn(id);
+    else if (act==="del-conn")         deleteConn(id);
+    else if (act==="save-conn-general") saveConnGeneral();
+    else if (act==="save-conn-conn")    saveConnConn();
+    else if (act==="save-conn-auth")    saveConnAuth();
+    else if (act==="save-conn-assign")  saveConnAssign();
+  });
+  document.body.addEventListener("click", function(ev){
+    var b = ev.target.closest(".subtab"); if (!b) return;
+    if (b.hasAttribute("data-csub")){
+      currentConnSubtab = b.getAttribute("data-csub");
+      var c = getCurrentConn(); if (!c) return;
+      document.querySelectorAll("#connSubtabs .subtab").forEach(function(x){ x.classList.toggle("active", x===b); });
+      renderConnSubtab(c);
+      return;
+    }
+    if (b.hasAttribute("data-sub")){
+      currentSubtab = b.getAttribute("data-sub");
+      var t = getCurrentTask(); if (!t) return;
+      document.querySelectorAll("#subtabs .subtab").forEach(function(x){ x.classList.toggle("active", x===b); });
+      renderSubtab(t);
+    }
+  });
+  document.body.addEventListener("change", function(ev){
+    var t = ev.target;
+    if (t && t.getAttribute("data-act") === "toggle-sched") toggleSched(t.getAttribute("data-id"), t.checked);
+  });
+
+  document.getElementById("taskFilter").addEventListener("change", renderTaskTable);
+  document.getElementById("logFilter").addEventListener("change", renderLogs);
+  document.getElementById("btnExport").addEventListener("click", exportConfig);
+  document.getElementById("btnImport").addEventListener("click", function(){ document.getElementById("importFile").click(); });
+  document.getElementById("importFile").addEventListener("change", importConfig);
+  document.getElementById("btnReset").addEventListener("click", resetAll);
+  document.getElementById("btnAddTask").addEventListener("click", openTaskModal);
+  document.getElementById("btnTaskCancel").addEventListener("click", closeTaskModal);
+  document.getElementById("btnTaskSave").addEventListener("click", saveTask);
+  document.getElementById("btnSchedCancel").addEventListener("click", closeSchedModal);
+  document.getElementById("btnSchedSave").addEventListener("click", saveSched);
+  document.getElementById("btnClearLogs").addEventListener("click", function(){ if (!confirm("Logs leeren?")) return; state.logs = []; save(); renderLogs(); });
+  document.getElementById("btnAddConn").addEventListener("click", addConn);
+  document.getElementById("btnTestAllConns").addEventListener("click", testAllConns);
+
+  document.getElementById("loadingBox").style.display = "none";
+  document.getElementById("appRoot").style.display = "block";
+  renderAll();
+
+  } catch (err) {
+    showError((err && err.stack) || String(err));
+  }
+})();
+</script>
+
+<script>
+(function(){
+  var _origCheck = typeof checkBridge !== 'undefined' ? checkBridge : null;
+  function syncDot(){
+    var dot = document.getElementById('bridgeDotMain');
+    var lbl = document.getElementById('bridgeLabelMain');
+    if(!dot||!lbl) return;
+    // try to read REAL_MODE from page scope
+    try {
+      if(typeof REAL_MODE !== 'undefined'){
+        dot.className = 'status-dot ' + (REAL_MODE ? 'connected' : '');
+        lbl.textContent = REAL_MODE ? 'Bridge verbunden' : 'SIM-Modus';
+      }
+    } catch(e){}
+  }
+  setInterval(syncDot, 1500);
+})();
+</script>
+<!-- App-Regel G-9: auth.js – Login-Guard + Benutzer/SAP-System-Header global -->
+<script src="auth.js"></script>
+<script>
+  if (window.AUTH && AUTH.renderHeader) AUTH.renderHeader('headerRight');
+</script>
+</body>
+</html>

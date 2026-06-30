@@ -1,0 +1,955 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>YCONN — 3W Kontrollzentrum</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg:      #0d1117; --bg2: #161b22; --bg3: #21262d; --bg4: #0a0f17;
+  --border:  #30363d; --text: #e6edf3; --muted: #8b949e;
+  --accent:  #1f6feb; --ok: #10b981; --warn: #f59e0b; --err: #ef4444;
+  --purple:  #a78bfa; --cyan: #22d3ee; --orange: #fb923c;
+}
+html, body { background: var(--bg4); color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 14px; min-height: 100vh; }
+
+/* Animated BG */
+body::before {
+  content: ''; position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background: radial-gradient(ellipse 80% 50% at 10% 10%, rgba(31,111,235,.07) 0%, transparent 60%),
+              radial-gradient(ellipse 60% 40% at 90% 80%, rgba(139,92,246,.05) 0%, transparent 60%);
+}
+
+/* Header */
+.hdr {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 24px; background: rgba(13,17,23,.96);
+  border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 100;
+  backdrop-filter: blur(10px);
+}
+.hdr-left { display: flex; align-items: center; gap: 14px; }
+.logo { font-size: 18px; font-weight: 700; color: var(--text); letter-spacing: -.3px; }
+.logo span { color: var(--accent); }
+.page-badge {
+  background: rgba(139,92,246,.15); color: var(--purple);
+  border: 1px solid rgba(139,92,246,.3); border-radius: 6px;
+  padding: 3px 10px; font-size: 11px; font-weight: 600; letter-spacing: .3px;
+}
+.nav-links { display: flex; gap: 2px; }
+.nav-links a {
+  padding: 6px 12px; font-size: 12px; color: var(--muted);
+  text-decoration: none; border-radius: 6px; transition: all .15s;
+}
+.nav-links a:hover { color: var(--text); background: var(--bg3); }
+.nav-links a.active { color: var(--accent); background: rgba(31,111,235,.1); }
+
+/* Refresh bar */
+.refresh-bar {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 24px; background: rgba(22,27,34,.8);
+  border-bottom: 1px solid rgba(48,54,61,.5); font-size: 11px;
+}
+.refresh-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ok);
+  animation: pulse 2s infinite; flex-shrink: 0; }
+@keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(.8)} }
+.refresh-dot.loading { background: var(--warn); animation: spin-dot 1s linear infinite; }
+@keyframes spin-dot { 0%{opacity:1}50%{opacity:.3}100%{opacity:1} }
+
+/* Main grid */
+.main { padding: 20px 24px; position: relative; z-index: 1; }
+
+/* Hero stats */
+.hero-stats {
+  display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; margin-bottom: 20px;
+}
+@media (max-width:900px) { .hero-stats { grid-template-columns: repeat(3,1fr); } }
+.hero-card {
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 10px;
+  padding: 14px 16px; position: relative; overflow: hidden; cursor: default;
+  transition: border-color .2s, transform .2s;
+}
+.hero-card:hover { border-color: var(--c, var(--accent)); transform: translateY(-1px); }
+.hero-card::before {
+  content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 2px;
+  background: var(--c, var(--accent)); opacity: .7;
+}
+.hero-num { font-size: 32px; font-weight: 700; color: var(--c, var(--accent)); line-height: 1; }
+.hero-label { font-size: 11px; color: var(--muted); margin-top: 5px; font-weight: 500; }
+.hero-sub { font-size: 10px; color: var(--muted); margin-top: 2px; opacity: .7; }
+.hero-icon { position: absolute; top: 12px; right: 14px; font-size: 18px; opacity: .4; }
+
+/* Two-column layout */
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+.grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+@media (max-width:900px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
+
+/* Cards */
+.card {
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 10px;
+  padding: 18px 20px;
+}
+.card-hdr {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 14px;
+}
+.card-title { font-size: 12px; font-weight: 600; color: var(--muted);
+  text-transform: uppercase; letter-spacing: .5px; }
+.card-action { font-size: 11px; color: var(--accent); cursor: pointer;
+  text-decoration: none; background: none; border: none; font-family: inherit; }
+.card-action:hover { text-decoration: underline; }
+
+/* Layer status strip */
+.layer-strip { display: flex; flex-direction: column; gap: 8px; }
+.layer-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 12px; border-radius: 8px; background: var(--bg3);
+  border: 1px solid rgba(48,54,61,.6); transition: border-color .15s;
+}
+.layer-row:hover { border-color: rgba(88,166,255,.2); }
+.layer-num { font-size: 10px; font-weight: 700; color: var(--muted); width: 16px; }
+.layer-icon { font-size: 15px; flex-shrink: 0; }
+.layer-info { flex: 1; }
+.layer-name { font-size: 12px; font-weight: 600; color: var(--text); }
+.layer-desc { font-size: 10px; color: var(--muted); margin-top: 1px; }
+.layer-count {
+  font-size: 18px; font-weight: 700; min-width: 36px; text-align: right;
+}
+.layer-bar-wrap { width: 60px; height: 4px; background: var(--bg); border-radius: 2px; }
+.layer-bar { height: 4px; border-radius: 2px; transition: width 1s ease; }
+
+/* Audit stream */
+.audit-stream { display: flex; flex-direction: column; gap: 6px; max-height: 340px; overflow-y: auto; }
+.audit-item {
+  display: flex; gap: 10px; padding: 8px 10px; border-radius: 7px;
+  background: var(--bg3); border: 1px solid rgba(48,54,61,.5);
+  animation: fadeIn .3s ease;
+}
+@keyframes fadeIn { from{opacity:0;transform:translateY(-4px)} to{opacity:1;transform:none} }
+.audit-who { font-size: 11px; font-weight: 700; color: #79b8ff; white-space: nowrap; }
+.audit-what { font-size: 11px; color: var(--text); flex: 1; }
+.audit-meta { font-size: 10px; color: var(--muted); white-space: nowrap; text-align: right; }
+.audit-sys { display: inline-block; border-radius: 3px; padding: 1px 5px;
+  font-size: 9px; font-weight: 700; margin-left: 4px; }
+.sys-sep { background: rgba(245,158,11,.15); color: #f59e0b; }
+.sys-seq { background: rgba(16,185,129,.15); color: #10b981; }
+
+/* Health checks */
+.health-list { display: flex; flex-direction: column; gap: 7px; }
+.health-item {
+  display: flex; align-items: center; gap: 10px; padding: 8px 12px;
+  background: var(--bg3); border-radius: 7px; border: 1px solid rgba(48,54,61,.5);
+}
+.h-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.h-dot.ok  { background: var(--ok);   box-shadow: 0 0 6px rgba(16,185,129,.5); }
+.h-dot.err { background: var(--err);  }
+.h-dot.chk { background: var(--warn); animation: pulse 1s infinite; }
+.h-name { font-size: 12px; color: var(--text); flex: 1; }
+.h-val  { font-size: 11px; color: var(--muted); }
+
+/* Governance table */
+.gov-list { display: flex; flex-direction: column; gap: 5px; }
+.gov-item {
+  display: flex; align-items: center; gap: 10px; padding: 8px 10px;
+  background: var(--bg3); border-radius: 7px; border: 1px solid rgba(48,54,61,.5);
+}
+.gov-id { font-size: 11px; font-weight: 700; color: var(--purple); min-width: 40px; }
+.gov-title { font-size: 12px; color: var(--text); flex: 1; }
+.gov-mod { font-size: 10px; color: var(--muted); }
+.prio-pip { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 4px; }
+.p5{background:#ef4444} .p4{background:#f59e0b} .p3{background:#3b82f6} .p2{background:#10b981} .p1{background:#6b7280}
+
+/* Toggle */
+.toggle { position: relative; display: inline-block; width: 32px; height: 17px; flex-shrink: 0; }
+.toggle input { opacity: 0; width: 0; height: 0; }
+.tslider { position: absolute; cursor: pointer; inset: 0; background: #30363d;
+  border-radius: 17px; transition: .2s; }
+.tslider:before { content: ''; position: absolute; width: 11px; height: 11px;
+  left: 3px; top: 3px; background: #e6edf3; border-radius: 50%; transition: .2s; }
+.toggle input:checked + .tslider { background: var(--ok); }
+.toggle input:checked + .tslider:before { transform: translateX(15px); }
+
+/* Quick actions */
+.qa-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.qa-card {
+  background: var(--bg3); border: 1px solid var(--border); border-radius: 8px;
+  padding: 12px 14px; cursor: pointer; transition: all .15s; text-align: center;
+}
+.qa-card:hover { border-color: var(--accent); background: rgba(31,111,235,.08); }
+.qa-card .qa-icon { font-size: 22px; margin-bottom: 5px; }
+.qa-card .qa-label { font-size: 11px; color: var(--muted); font-weight: 500; }
+
+/* Modal */
+.modal-overlay {
+  display: none; position: fixed; inset: 0; background: rgba(0,0,0,.7);
+  z-index: 200; align-items: center; justify-content: center;
+  backdrop-filter: blur(4px);
+}
+.modal-overlay.open { display: flex; }
+.modal {
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 12px;
+  padding: 24px; width: 480px; max-width: 95vw; max-height: 90vh; overflow-y: auto;
+  animation: modalIn .2s ease;
+}
+@keyframes modalIn { from{opacity:0;transform:scale(.95)} to{opacity:1;transform:none} }
+.modal-title { font-size: 16px; font-weight: 700; margin-bottom: 18px; color: var(--text); }
+.form-row { margin-bottom: 12px; }
+.form-row label { display: block; font-size: 11px; color: var(--muted); margin-bottom: 4px; font-weight: 500; }
+.form-row input, .form-row select, .form-row textarea {
+  width: 100%; background: var(--bg3); border: 1px solid var(--border);
+  color: var(--text); border-radius: 7px; padding: 8px 10px;
+  font-size: 13px; font-family: inherit; outline: none; transition: border-color .15s;
+}
+.form-row input:focus, .form-row select:focus, .form-row textarea:focus {
+  border-color: var(--accent);
+}
+.form-row textarea { resize: vertical; min-height: 80px; }
+.modal-btns { display: flex; gap: 8px; margin-top: 18px; justify-content: flex-end; }
+.btn-primary { background: var(--accent); color: #fff; border: none; border-radius: 7px;
+  padding: 8px 20px; font-size: 13px; cursor: pointer; font-family: inherit; font-weight: 600; }
+.btn-cancel  { background: var(--bg3); color: var(--muted); border: 1px solid var(--border);
+  border-radius: 7px; padding: 8px 16px; font-size: 13px; cursor: pointer; font-family: inherit; }
+
+/* Mini bar chart */
+.mini-chart { display: flex; align-items: flex-end; gap: 3px; height: 28px; }
+.mini-bar { flex: 1; border-radius: 2px 2px 0 0; min-width: 6px; transition: height .5s; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
+
+/* Toast */
+.toast {
+  position: fixed; bottom: 24px; right: 24px; background: var(--bg2);
+  border: 1px solid var(--border); border-radius: 8px;
+  padding: 12px 16px; font-size: 13px; z-index: 300; min-width: 200px;
+  box-shadow: 0 8px 32px rgba(0,0,0,.4); animation: toastIn .3s ease;
+  display: none;
+}
+.toast.show { display: block; }
+@keyframes toastIn { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:none} }
+
+/* Header user styles (G-9) */
+.hdr-user { display:flex;align-items:center;gap:7px;padding:4px 12px 4px 6px;
+  border-radius:20px;border:1px solid rgba(88,166,255,.2);
+  background:rgba(88,166,255,.08);font-size:12px;white-space:nowrap; }
+.hdr-user-avatar { width:26px;height:26px;border-radius:50%;flex-shrink:0;
+  background:#1f6feb;display:flex;align-items:center;
+  justify-content:center;font-size:12px;font-weight:700;color:#fff; }
+.hdr-user-sys { border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700;letter-spacing:.5px; }
+.badge-sap { background:rgba(31,111,235,.15);color:#79b8ff;border:1px solid rgba(31,111,235,.3);
+  border-radius:999px;padding:3px 10px;font-size:11px;font-weight:600;white-space:nowrap; }
+.btn-logout { padding:4px 10px;border-radius:6px;border:1px solid rgba(239,68,68,.2);
+  background:rgba(239,68,68,.1);color:#ef4444;font-size:11px;font-weight:600;
+  cursor:pointer;font-family:inherit;white-space:nowrap; }
+</style>
+</head>
+<body>
+
+<!-- G-9 Header -->
+<header class="hdr">
+  <div class="hdr-left">
+    <div class="logo"><span>Y</span>CONN</div>
+    <span class="page-badge">⬡ 3W Kontrollzentrum</span>
+    <nav class="nav-links">
+      <a href="startseite.html">Übersicht</a>
+      <a href="zinsen.html">Zinsen</a>
+      <a href="payroll.html">Payroll</a>
+      <a href="rechnung.html">Rechnungen</a>
+      <a href="brain.html">🧠 Digitales Gehirn</a>
+      <a href="db-admin.html">DB-Details</a>
+      <a href="regeln.html">App-Regeln</a>
+      <a href="db-kontrollzentrum.html" class="active">Kontrollzentrum</a>
+    </nav>
+  </div>
+  <div id="headerRight" style="display:flex;align-items:center;gap:8px;"></div>
+</header>
+
+<div class="refresh-bar">
+  <div class="refresh-dot" id="rfDot"></div>
+  <span id="rfLabel" style="color:var(--muted);">Bereit — Auto-Refresh alle 30s</span>
+  <span style="margin-left:auto;color:var(--muted);">Zuletzt aktualisiert: <span id="rfTime">–</span></span>
+  <button onclick="refresh()" style="background:rgba(31,111,235,.15);color:#79b8ff;border:1px solid rgba(31,111,235,.3);border-radius:5px;padding:3px 10px;font-size:11px;cursor:pointer;font-family:inherit;">↻ Jetzt</button>
+</div>
+
+<div class="main">
+
+  <!-- Hero Stats -->
+  <div class="hero-stats" id="heroStats">
+    <div class="hero-card" style="--c:#79b8ff">
+      <div class="hero-icon">🗄️</div>
+      <div class="hero-num" id="h-core">–</div>
+      <div class="hero-label">Core-Datensätze</div>
+      <div class="hero-sub">Robots · Tasks · Runs · User</div>
+    </div>
+    <div class="hero-card" style="--c:var(--purple)">
+      <div class="hero-icon">🔍</div>
+      <div class="hero-num" id="h-audit">–</div>
+      <div class="hero-label">3W Audit-Einträge</div>
+      <div class="hero-sub">WHO · WHAT · WHY</div>
+    </div>
+    <div class="hero-card" style="--c:var(--warn)">
+      <div class="hero-icon">📚</div>
+      <div class="hero-num" id="h-know">–</div>
+      <div class="hero-label">Wissensbasis</div>
+      <div class="hero-sub">Regeln · BAPI · Fehler</div>
+    </div>
+    <div class="hero-card" style="--c:var(--ok)">
+      <div class="hero-icon">🧠</div>
+      <div class="hero-num" id="h-learn">–</div>
+      <div class="hero-label">Lernmuster</div>
+      <div class="hero-sub">Erkannte Muster</div>
+    </div>
+    <div class="hero-card" style="--c:var(--err)">
+      <div class="hero-icon">💡</div>
+      <div class="hero-num" id="h-sug">–</div>
+      <div class="hero-label">Vorschläge</div>
+      <div class="hero-sub">Offen · Akzeptiert</div>
+    </div>
+    <div class="hero-card" style="--c:var(--orange)">
+      <div class="hero-icon">⚖️</div>
+      <div class="hero-num" id="h-rules">–</div>
+      <div class="hero-label">App-Regeln</div>
+      <div class="hero-sub">Governance Layer 6</div>
+    </div>
+  </div>
+
+  <div class="grid-2">
+
+    <!-- Layer-Status -->
+    <div class="card">
+      <div class="card-hdr">
+        <span class="card-title">Schichtenarchitektur</span>
+        <a href="db-admin.html" class="card-action">Details →</a>
+      </div>
+      <div class="layer-strip" id="layerStrip">
+        <!-- rendered by JS -->
+      </div>
+    </div>
+
+    <!-- System Health -->
+    <div class="card">
+      <div class="card-hdr">
+        <span class="card-title">System-Health</span>
+        <button class="card-action" onclick="checkHealth()">↻ Prüfen</button>
+      </div>
+      <div class="health-list" id="healthList">
+        <div class="health-item">
+          <div class="h-dot chk" id="hd-orch"></div>
+          <span class="h-name">Orchestrator (localhost:8000)</span>
+          <span class="h-val" id="hv-orch">Prüfe…</span>
+        </div>
+        <div class="health-item">
+          <div class="h-dot chk" id="hd-bridge"></div>
+          <span class="h-name">Bridge (localhost:8765)</span>
+          <span class="h-val" id="hv-bridge">Prüfe…</span>
+        </div>
+        <div class="health-item">
+          <div class="h-dot chk" id="hd-3w"></div>
+          <span class="h-name">3W-Engine API</span>
+          <span class="h-val" id="hv-3w">Prüfe…</span>
+        </div>
+        <div class="health-item">
+          <div class="h-dot chk" id="hd-gov"></div>
+          <span class="h-name">Governance-Regeln</span>
+          <span class="h-val" id="hv-gov">Prüfe…</span>
+        </div>
+        <div class="health-item">
+          <div class="h-dot" id="hd-auth" style="background:var(--ok);box-shadow:0 0 6px rgba(16,185,129,.5)"></div>
+          <span class="h-name">Auth (localStorage)</span>
+          <span class="h-val" id="hv-auth">–</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="grid-2">
+
+    <!-- Live Audit Stream -->
+    <div class="card">
+      <div class="card-hdr">
+        <span class="card-title">Live Buchungs-Audit</span>
+        <div style="display:flex;gap:6px;align-items:center;">
+          <select id="audit-sys-filter" onchange="loadAudit()" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:5px;padding:3px 7px;font-size:11px;font-family:inherit;">
+            <option value="">SEP + SEQ</option>
+            <option value="SEP">SEP</option>
+            <option value="SEQ">SEQ</option>
+          </select>
+          <button class="card-action" onclick="loadAudit()">↻</button>
+        </div>
+      </div>
+      <div class="audit-stream" id="auditStream">
+        <div style="text-align:center;padding:30px;color:var(--muted);font-size:12px;">Wird geladen…</div>
+      </div>
+    </div>
+
+    <!-- Governance Controls -->
+    <div class="card">
+      <div class="card-hdr">
+        <span class="card-title">App-Regeln — Governance Layer 6</span>
+        <a href="db-admin.html#rules" class="card-action">Alle →</a>
+      </div>
+      <div class="gov-list" id="govList">
+        <div style="text-align:center;padding:20px;color:var(--muted);font-size:12px;">Wird geladen…</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Quick Actions + Recent Knowledge + Suggestions -->
+  <div class="grid-3">
+
+    <!-- Quick Actions -->
+    <div class="card">
+      <div class="card-hdr">
+        <span class="card-title">Schnell-Aktionen</span>
+      </div>
+      <div class="qa-grid">
+        <div class="qa-card" onclick="openModal('know')">
+          <div class="qa-icon">📝</div>
+          <div class="qa-label">Wissen eintragen</div>
+        </div>
+        <div class="qa-card" onclick="openModal('sug')">
+          <div class="qa-icon">💡</div>
+          <div class="qa-label">Vorschlag einreichen</div>
+        </div>
+        <div class="qa-card" onclick="openModal('audit')">
+          <div class="qa-icon">🔍</div>
+          <div class="qa-label">Audit-Eintrag</div>
+        </div>
+        <div class="qa-card" onclick="window.open('http://localhost:8000/docs','_blank')">
+          <div class="qa-icon">📡</div>
+          <div class="qa-label">API Explorer</div>
+        </div>
+      </div>
+
+      <!-- Mini chart -->
+      <div style="margin-top:16px;">
+        <div style="font-size:10px;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.4px;">DB-Verteilung</div>
+        <div class="mini-chart" id="miniChart" style="height:36px;">
+          <!-- generated by JS -->
+        </div>
+        <div style="display:flex;gap:3px;margin-top:4px;" id="miniLabels"></div>
+      </div>
+    </div>
+
+    <!-- Recent Knowledge -->
+    <div class="card">
+      <div class="card-hdr">
+        <span class="card-title">Wissensbasis (neu)</span>
+        <a href="db-admin.html" class="card-action">Alle →</a>
+      </div>
+      <div id="knowList" style="display:flex;flex-direction:column;gap:5px;">
+        <div style="text-align:center;padding:20px;color:var(--muted);font-size:12px;">Wird geladen…</div>
+      </div>
+    </div>
+
+    <!-- Open Suggestions -->
+    <div class="card">
+      <div class="card-hdr">
+        <span class="card-title">Offene Vorschläge</span>
+        <a href="db-admin.html" class="card-action">Alle →</a>
+      </div>
+      <div id="sugList" style="display:flex;flex-direction:column;gap:6px;">
+        <div style="text-align:center;padding:20px;color:var(--muted);font-size:12px;">Wird geladen…</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Modal: Wissenseintrag -->
+<div class="modal-overlay" id="modal-know" onclick="closeModal(event,'modal-know')">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-title">📝 Neuer Wissenseintrag</div>
+    <div class="form-row">
+      <label>Kategorie</label>
+      <select id="kn-cat">
+        <option value="rule">Regel</option>
+        <option value="bapi">BAPI</option>
+        <option value="error">Fehler / Lösung</option>
+        <option value="pattern">Muster</option>
+        <option value="note">Notiz</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <label>Schlüssel (eindeutig)</label>
+      <input id="kn-key" placeholder="z.B. bapi:acc_document_post:obj_key_format">
+    </div>
+    <div class="form-row">
+      <label>Titel</label>
+      <input id="kn-title" placeholder="Kurze Beschreibung">
+    </div>
+    <div class="form-row">
+      <label>Inhalt (Markdown)</label>
+      <textarea id="kn-body" placeholder="Detailliertes Wissen, Fehlerlösung, BAPI-Muster…"></textarea>
+    </div>
+    <div class="form-row">
+      <label>Modul</label>
+      <select id="kn-mod">
+        <option value="">Global</option>
+        <option value="zinsen">Zinsen</option>
+        <option value="payroll">Payroll</option>
+        <option value="rechnung">Rechnung</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <label>Vertrauen (1–5)</label>
+      <select id="kn-conf">
+        <option value="5">5 – Sehr hoch (verifiziert)</option>
+        <option value="4">4 – Hoch</option>
+        <option value="3" selected>3 – Mittel</option>
+        <option value="2">2 – Niedrig (ungeprüft)</option>
+        <option value="1">1 – Unsicher</option>
+      </select>
+    </div>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeModalById('modal-know')">Abbrechen</button>
+      <button class="btn-primary" onclick="submitKnowledge()">Speichern</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Vorschlag -->
+<div class="modal-overlay" id="modal-sug" onclick="closeModal(event,'modal-sug')">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-title">💡 Neuer Verbesserungsvorschlag</div>
+    <div class="form-row">
+      <label>Typ</label>
+      <select id="sg-stype">
+        <option value="db_schema">DB-Schema</option>
+        <option value="workflow">Workflow</option>
+        <option value="ui">Benutzeroberfläche</option>
+        <option value="data_quality">Datenqualität</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <label>Priorität</label>
+      <select id="sg-prio">
+        <option value="5">5 – Kritisch</option>
+        <option value="4">4 – Hoch</option>
+        <option value="3" selected>3 – Mittel</option>
+        <option value="2">2 – Niedrig</option>
+        <option value="1">1 – Info</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <label>Titel</label>
+      <input id="sg-title" placeholder="Kurze Beschreibung des Vorschlags">
+    </div>
+    <div class="form-row">
+      <label>Beschreibung</label>
+      <textarea id="sg-desc" placeholder="Detaillierte Begründung und Auswirkung…"></textarea>
+    </div>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeModalById('modal-sug')">Abbrechen</button>
+      <button class="btn-primary" onclick="submitSuggestion()">Einreichen</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Manueller Audit-Eintrag -->
+<div class="modal-overlay" id="modal-audit" onclick="closeModal(event,'modal-audit')">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-title">🔍 Manueller Audit-Eintrag</div>
+    <div class="form-row">
+      <label>Aktion / Was</label>
+      <input id="au-action" placeholder="z.B. manuelle_korrektur">
+    </div>
+    <div class="form-row">
+      <label>Beschreibung</label>
+      <input id="au-desc" placeholder="Was wurde getan?">
+    </div>
+    <div class="form-row">
+      <label>Objekt-Referenz</label>
+      <input id="au-ref" placeholder="z.B. BELNR:2300009624 oder NR:011">
+    </div>
+    <div class="form-row">
+      <label>Begründung / Warum</label>
+      <textarea id="au-why" placeholder="Warum wurde diese Aktion durchgeführt?" style="min-height:60px;"></textarea>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div class="form-row">
+        <label>Modul</label>
+        <select id="au-mod">
+          <option value="">Global</option>
+          <option value="zinsen">Zinsen</option>
+          <option value="payroll">Payroll</option>
+          <option value="rechnung">Rechnung</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>SAP-System</label>
+        <select id="au-sys">
+          <option value="SEP">SEP</option>
+          <option value="SEQ">SEQ</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeModalById('modal-audit')">Abbrechen</button>
+      <button class="btn-primary" onclick="submitAudit()">Eintragen</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script src="auth.js"></script>
+<script>
+const API = 'http://localhost:8000';
+const BRIDGE = 'http://localhost:8765';
+let _stats = {};
+let _refreshTimer = null;
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+AUTH.renderHeader('headerRight');
+refresh();
+startAutoRefresh();
+
+function startAutoRefresh() {
+  clearInterval(_refreshTimer);
+  _refreshTimer = setInterval(refresh, 30000);
+}
+
+async function refresh() {
+  setLoading(true);
+  try {
+    await Promise.all([loadStats(), loadAudit(), loadGov(), loadKnowledge(), loadSuggestions()]);
+    checkHealth();
+  } finally {
+    setLoading(false);
+    document.getElementById('rfTime').textContent =
+      new Date().toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  }
+}
+
+function setLoading(on) {
+  const dot = document.getElementById('rfDot');
+  const lbl = document.getElementById('rfLabel');
+  dot.className = on ? 'refresh-dot loading' : 'refresh-dot';
+  lbl.textContent = on ? 'Aktualisiere…' : 'Auto-Refresh alle 30s';
+}
+
+// ── Stats + Hero ──────────────────────────────────────────────────────────────
+async function loadStats() {
+  const s = await fetch(`${API}/3w/stats`).then(r=>r.json()).catch(()=>({}));
+  _stats = s;
+
+  const core = (s.core_robots||0)+(s.core_tasks||0)+(s.core_runs||0)+(s.core_sap_users||0)
+              +(s.core_payroll_imports||0)+(s.core_invoice_records||0);
+  set('h-core',   core);
+  set('h-audit',  s.three_w_answers      || 0);
+  set('h-know',   s.knowledge_items      || 0);
+  set('h-learn',  s.learning_patterns    || 0);
+  set('h-sug',    s.structure_suggestions|| 0);
+  set('h-rules',  s.governance_rules     || 0);
+
+  renderLayerStrip(s);
+  renderMiniChart(s);
+}
+
+function renderLayerStrip(s) {
+  const layers = [
+    { n:1, icon:'🗄️', name:'Core Database',   desc:'robots · tasks · runs · sap_users · imports · invoices',
+      count: (s.core_robots||0)+(s.core_tasks||0)+(s.core_runs||0)+(s.core_sap_users||0)+(s.core_payroll_imports||0)+(s.core_invoice_records||0),
+      color:'#79b8ff', max:200 },
+    { n:2, icon:'🔍', name:'3W-Schicht',       desc:'three_w_answers — Buchungs-Audit-Trail',
+      count: s.three_w_answers||0,   color:'#a78bfa', max:500 },
+    { n:3, icon:'📚', name:'Wissensschicht',   desc:'knowledge_items — Regeln, BAPI, Fehler',
+      count: s.knowledge_items||0,   color:'#f59e0b', max:200 },
+    { n:4, icon:'🧠', name:'Lernschicht',      desc:'learning_patterns — Erkannte Muster',
+      count: s.learning_patterns||0, color:'#10b981', max:100 },
+    { n:5, icon:'💡', name:'Reorganisations.',  desc:'structure_suggestions — Vorschläge',
+      count: s.structure_suggestions||0, color:'#ef4444', max:50 },
+    { n:6, icon:'⚖️', name:'Governance',        desc:'governance_rules — App-Regeln',
+      count: s.governance_rules||0,  color:'#fb923c', max:30 },
+  ];
+  document.getElementById('layerStrip').innerHTML = layers.map(l => {
+    const pct = Math.min(100, Math.round((l.count/l.max)*100));
+    return `
+    <div class="layer-row">
+      <div class="layer-num">${l.n}</div>
+      <div class="layer-icon">${l.icon}</div>
+      <div class="layer-info">
+        <div class="layer-name">${l.name}</div>
+        <div class="layer-desc">${l.desc}</div>
+      </div>
+      <div class="layer-bar-wrap">
+        <div class="layer-bar" style="width:${pct}%;background:${l.color};"></div>
+      </div>
+      <div class="layer-count" style="color:${l.color};">${l.count}</div>
+    </div>`;
+  }).join('');
+}
+
+function renderMiniChart(s) {
+  const data = [
+    { l:'Core',  v: (s.core_robots||0)+(s.core_tasks||0)+(s.core_runs||0)+(s.core_sap_users||0)+(s.core_payroll_imports||0)+(s.core_invoice_records||0), c:'#79b8ff' },
+    { l:'3W',    v: s.three_w_answers||0,       c:'#a78bfa' },
+    { l:'Know',  v: s.knowledge_items||0,        c:'#f59e0b' },
+    { l:'Learn', v: s.learning_patterns||0,      c:'#10b981' },
+    { l:'Reorg', v: s.structure_suggestions||0,  c:'#ef4444' },
+    { l:'Gov',   v: s.governance_rules||0,        c:'#fb923c' },
+  ];
+  const max = Math.max(1, ...data.map(d=>d.v));
+  document.getElementById('miniChart').innerHTML = data.map(d => {
+    const h = Math.max(4, Math.round((d.v/max)*36));
+    return `<div class="mini-bar" style="height:${h}px;background:${d.c};flex:1;border-radius:2px 2px 0 0;" title="${d.l}: ${d.v}"></div>`;
+  }).join('');
+  document.getElementById('miniLabels').innerHTML = data.map(d =>
+    `<div style="flex:1;text-align:center;font-size:9px;color:var(--muted);">${d.l}</div>`
+  ).join('');
+}
+
+// ── Audit Stream ───────────────────────────────────────────────────────────────
+async function loadAudit() {
+  const sys = document.getElementById('audit-sys-filter').value;
+  let url = `${API}/3w/answers?limit=12`;
+  if (sys) url += `&sap_system=${sys}`;
+  const rows = await fetch(url).then(r=>r.json()).catch(()=>[]);
+  const el = document.getElementById('auditStream');
+  if (!rows.length) {
+    el.innerHTML = `<div style="text-align:center;padding:30px;color:var(--muted);font-size:12px;">
+      Keine Audit-Einträge vorhanden.<br>
+      <span style="font-size:11px;opacity:.6;">Entstehen automatisch nach SAP-Buchungen.</span>
+    </div>`;
+    return;
+  }
+  el.innerHTML = rows.map(r => {
+    const sys = r.sap_system || '';
+    const sysBadge = sys ? `<span class="audit-sys ${sys==='SEQ'?'sys-seq':'sys-sep'}">${esc(sys)}</span>` : '';
+    const rule = r.business_rule ? `<span style="color:var(--purple);font-size:10px;margin-left:4px;">${esc(r.business_rule)}</span>` : '';
+    return `
+    <div class="audit-item">
+      <div style="min-width:0;flex:1;">
+        <div style="display:flex;align-items:center;gap:4px;margin-bottom:2px;">
+          <span class="audit-who">${esc(r.who)}</span>
+          <span style="color:var(--muted);font-size:10px;">→</span>
+          <span class="audit-what">${esc(r.action_desc || r.action_type)}</span>
+          ${rule}
+        </div>
+        <div style="font-size:10px;color:var(--muted);">
+          ${r.object_ref ? `<span style="font-family:monospace;">${esc(r.object_ref)}</span> ·` : ''}
+          ${r.periode ? `Periode ${esc(r.periode)} ·` : ''}
+          ${r.comp_code ? `BK ${esc(r.comp_code)}` : ''}
+        </div>
+      </div>
+      <div class="audit-meta">
+        ${sysBadge}
+        <div style="margin-top:2px;">${fmtDt(r.when_ts)}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── Governance ────────────────────────────────────────────────────────────────
+async function loadGov() {
+  const rows = await fetch(`${API}/3w/rules`).then(r=>r.json()).catch(()=>[]);
+  const el = document.getElementById('govList');
+  if (!rows.length) {
+    el.innerHTML = `<div style="text-align:center;padding:20px;color:var(--muted);font-size:12px;">Keine Regeln (Orchestrator prüfen)</div>`;
+    return;
+  }
+  // Show top 10
+  el.innerHTML = rows.slice(0,10).map(r => `
+    <div class="gov-item">
+      <span class="gov-id">${esc(r.rule_id)}</span>
+      <span class="gov-title">${esc(r.title)}</span>
+      <span class="gov-mod">${esc(r.module)}</span>
+      <span class="prio-pip p${r.priority}"></span>
+      <label class="toggle">
+        <input type="checkbox" ${r.active?'checked':''} onchange="toggleRule('${esc(r.rule_id)}',this.checked)">
+        <span class="tslider"></span>
+      </label>
+    </div>
+  `).join('');
+}
+
+async function toggleRule(ruleId, active) {
+  await fetch(`${API}/3w/rules/${encodeURIComponent(ruleId)}?active=${active?1:0}`,{method:'PATCH'});
+  toast(`Regel ${ruleId} ${active?'aktiviert':'deaktiviert'}`);
+}
+
+// ── Knowledge ─────────────────────────────────────────────────────────────────
+async function loadKnowledge() {
+  const rows = await fetch(`${API}/3w/knowledge`).then(r=>r.json()).catch(()=>[]);
+  const el = document.getElementById('knowList');
+  if (!rows.length) {
+    el.innerHTML = `<div style="text-align:center;padding:20px;color:var(--muted);font-size:12px;">Leer — Wissen eintragen ↑</div>`;
+    return;
+  }
+  el.innerHTML = rows.slice(0,6).map(r => {
+    const catC = {rule:'#a78bfa',bapi:'#79b8ff',error:'#ef4444',pattern:'#f59e0b',note:'#8b949e'}[r.category]||'#8b949e';
+    return `
+    <div style="display:flex;gap:8px;padding:7px 9px;background:var(--bg3);border-radius:7px;border:1px solid rgba(48,54,61,.5);">
+      <div style="width:3px;border-radius:2px;background:${catC};flex-shrink:0;"></div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:12px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(r.title)}</div>
+        <div style="font-size:10px;color:var(--muted);">${esc(r.category)} · ${esc(r.source_module||'global')} · ${'●'.repeat(r.confidence||3)}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── Suggestions ───────────────────────────────────────────────────────────────
+async function loadSuggestions() {
+  const rows = await fetch(`${API}/3w/suggestions?status=open`).then(r=>r.json()).catch(()=>[]);
+  const el = document.getElementById('sugList');
+  if (!rows.length) {
+    el.innerHTML = `<div style="text-align:center;padding:20px;color:var(--muted);font-size:12px;">Keine offenen Vorschläge ✓</div>`;
+    return;
+  }
+  el.innerHTML = rows.slice(0,5).map(r => {
+    const prioC = ['','#6b7280','#10b981','#3b82f6','#f59e0b','#ef4444'][r.priority]||'#3b82f6';
+    return `
+    <div style="display:flex;gap:8px;align-items:center;padding:8px 10px;background:var(--bg3);border-radius:7px;border:1px solid rgba(48,54,61,.5);">
+      <div style="width:8px;height:8px;border-radius:50%;background:${prioC};flex-shrink:0;"></div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:12px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(r.title)}</div>
+        <div style="font-size:10px;color:var(--muted);">${esc(r.stype)} · P${r.priority}</div>
+      </div>
+      <div style="display:flex;gap:4px;">
+        <button onclick="decide(${r.id},'accepted')" title="Akzeptieren"
+          style="background:rgba(16,185,129,.15);color:#10b981;border:1px solid rgba(16,185,129,.3);border-radius:4px;padding:2px 7px;font-size:10px;cursor:pointer;font-family:inherit;">✓</button>
+        <button onclick="decide(${r.id},'rejected')" title="Ablehnen"
+          style="background:rgba(239,68,68,.1);color:#ef4444;border:1px solid rgba(239,68,68,.2);border-radius:4px;padding:2px 7px;font-size:10px;cursor:pointer;font-family:inherit;">✗</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function decide(id, status) {
+  await fetch(`${API}/3w/suggestions/${id}?status=${status}`,{method:'PATCH'});
+  toast(`Vorschlag ${status === 'accepted' ? 'akzeptiert ✓' : 'abgelehnt ✗'}`);
+  loadSuggestions();
+  loadStats();
+}
+
+// ── Health checks ─────────────────────────────────────────────────────────────
+async function checkHealth() {
+  // Orchestrator
+  try {
+    const r = await fetch(`${API}/robots`,{signal:AbortSignal.timeout(3000)});
+    setHealth('orch', r.ok, r.ok ? 'Erreichbar' : `HTTP ${r.status}`);
+  } catch { setHealth('orch', false, 'Nicht erreichbar'); }
+
+  // Bridge
+  try {
+    const r = await fetch(`${BRIDGE}/health`,{signal:AbortSignal.timeout(3000)});
+    const d = r.ok ? await r.json().catch(()=>({})) : {};
+    setHealth('bridge', r.ok, r.ok ? `OK · ${(d.handlers||[]).length} Handler` : `HTTP ${r.status}`);
+  } catch { setHealth('bridge', false, 'Nicht erreichbar'); }
+
+  // 3W-Engine
+  try {
+    const r = await fetch(`${API}/3w/stats`,{signal:AbortSignal.timeout(3000)});
+    setHealth('3w', r.ok, r.ok ? '3W-Engine OK' : `HTTP ${r.status}`);
+  } catch { setHealth('3w', false, 'Fehler'); }
+
+  // Governance
+  const govCount = _stats.governance_rules || 0;
+  setHealth('gov', govCount > 0, govCount > 0 ? `${govCount} Regeln aktiv` : 'Keine Regeln (neu seeden)');
+
+  // Auth
+  const user = AUTH.user;
+  setHealth('auth', !!user, user ? `${user.display_name} (${user.role})` : 'Nicht angemeldet');
+}
+
+function setHealth(key, ok, val) {
+  const dot = document.getElementById(`hd-${key}`);
+  const txt = document.getElementById(`hv-${key}`);
+  if (dot) { dot.className = `h-dot ${ok ? 'ok' : 'err'}`; }
+  if (txt)  txt.textContent = val;
+}
+
+// ── Modals ────────────────────────────────────────────────────────────────────
+function openModal(id) {
+  document.getElementById(`modal-${id}`).classList.add('open');
+}
+function closeModal(e, id) {
+  if (e.target === document.getElementById(id))
+    document.getElementById(id).classList.remove('open');
+}
+function closeModalById(id) {
+  document.getElementById(id).classList.remove('open');
+}
+
+async function submitKnowledge() {
+  const body = {
+    category:      document.getElementById('kn-cat').value,
+    key:           document.getElementById('kn-key').value.trim(),
+    title:         document.getElementById('kn-title').value.trim(),
+    body:          document.getElementById('kn-body').value.trim(),
+    source_module: document.getElementById('kn-mod').value,
+    confidence:    parseInt(document.getElementById('kn-conf').value),
+  };
+  if (!body.key || !body.title) { toast('Schlüssel und Titel sind Pflichtfelder.'); return; }
+  await fetch(`${API}/3w/knowledge`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  closeModalById('modal-know');
+  toast('Wissenseintrag gespeichert ✓');
+  loadKnowledge(); loadStats();
+}
+
+async function submitSuggestion() {
+  const user = AUTH.user;
+  const body = {
+    stype:       document.getElementById('sg-stype').value,
+    title:       document.getElementById('sg-title').value.trim(),
+    description: document.getElementById('sg-desc').value.trim(),
+    priority:    parseInt(document.getElementById('sg-prio').value),
+    proposed_by: user?.sap_username || user?.display_name || 'user',
+  };
+  if (!body.title) { toast('Titel ist Pflichtfeld.'); return; }
+  await fetch(`${API}/3w/suggestions`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  closeModalById('modal-sug');
+  toast('Vorschlag eingereicht ✓');
+  loadSuggestions(); loadStats();
+}
+
+async function submitAudit() {
+  const user = AUTH.user;
+  const body = {
+    who:          user?.sap_username || user?.display_name || '?',
+    action_type:  document.getElementById('au-action').value.trim() || 'manual',
+    action_desc:  document.getElementById('au-desc').value.trim(),
+    object_ref:   document.getElementById('au-ref').value.trim(),
+    why_desc:     document.getElementById('au-why').value.trim(),
+    module:       document.getElementById('au-mod').value,
+    sap_system:   document.getElementById('au-sys').value,
+    status:       'ok',
+    metadata_json:'{}',
+  };
+  await fetch(`${API}/3w/answers`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  closeModalById('modal-audit');
+  toast('Audit-Eintrag gespeichert ✓');
+  loadAudit(); loadStats();
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function set(id, v) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = v;
+}
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function fmtDt(iso) {
+  if (!iso) return '–';
+  try {
+    return new Date(iso).toLocaleString('de-DE',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+  } catch { return iso; }
+}
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 2800);
+}
+</script>
+</body>
+</html>

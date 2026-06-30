@@ -1,0 +1,2504 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>YCONN Cockpit</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+*,*::before,*::after{box-sizing:border-box;}
+:root{
+  --bg:#0d1117;--bg2:#161b22;--bg3:#21262d;
+  --border:#30363d;--text:#e6edf3;--muted:#8b949e;
+  --accent:#1f6feb;--ok:#10b981;--warn:#f59e0b;--err:#ef4444;
+}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  font-size:14px;line-height:1.5;min-height:100vh;}
+.wrap{max-width:1280px;margin:0 auto;padding:20px 24px;}
+/* Header */
+.page-header{display:flex;align-items:center;justify-content:space-between;gap:12px;
+  flex-wrap:wrap;margin-bottom:24px;padding-bottom:18px;border-bottom:1px solid var(--border);}
+.brand{display:flex;align-items:center;gap:12px;}
+.brand-icon{width:40px;height:40px;border-radius:10px;
+  background:linear-gradient(135deg,#1f6feb,#8b5cf6);
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.brand-title{font-size:18px;font-weight:800;letter-spacing:-.4px;}
+.brand-sub{font-size:11px;color:var(--muted);}
+.header-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.btn-nav{padding:6px 14px;border-radius:7px;border:1px solid var(--border);
+  background:var(--bg2);color:var(--text);font-size:12px;font-weight:500;
+  cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:5px;
+  transition:background .15s;}
+.btn-nav:hover{background:var(--bg3);}
+.btn-nav.primary{background:var(--accent);border-color:var(--accent);color:#fff;}
+.btn-nav.danger{background:rgba(239,68,68,.08);border-color:rgba(239,68,68,.3);color:var(--err);}
+/* App-Regel G-9: Globaler User/SAP-System-Header */
+.hdr-user{display:flex;align-items:center;gap:6px;background:rgba(88,166,255,.08);
+  border:1px solid rgba(88,166,255,.2);border-radius:20px;padding:4px 12px 4px 6px;
+  font-size:12px;color:var(--text);white-space:nowrap;}
+.hdr-user-avatar{width:26px;height:26px;border-radius:50%;background:var(--accent);
+  display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;color:#fff;}
+.hdr-user-name{font-weight:600;}
+.hdr-user-role{color:var(--muted);font-size:11px;}
+.hdr-user-sys{background:rgba(245,158,11,.15);color:#f59e0b;border-radius:4px;
+  padding:1px 6px;font-size:10px;font-weight:700;letter-spacing:.5px;}
+.hdr-user-sys.seq{background:rgba(16,185,129,.15);color:var(--ok);}
+.btn-logout{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.2);
+  color:#ef4444;border-radius:6px;padding:4px 10px;font-size:11px;cursor:pointer;
+  text-decoration:none;white-space:nowrap;}
+.btn-logout:hover{background:rgba(239,68,68,.2);}
+.badge-sap{background:rgba(31,111,235,.15);color:#79b8ff;border:1px solid rgba(31,111,235,.3);
+  border-radius:999px;padding:3px 10px;font-size:11px;font-weight:600;white-space:nowrap;}
+.status-chip{display:flex;align-items:center;gap:7px;padding:5px 12px;
+  border-radius:999px;border:1px solid var(--border);background:var(--bg2);
+  font-size:12px;font-weight:600;cursor:pointer;}
+.status-dot{width:7px;height:7px;border-radius:50%;background:var(--err);}
+.status-dot.connected{background:var(--ok);box-shadow:0 0 0 3px rgba(16,185,129,.2);animation:pulse 2s infinite;}
+.status-dot.checking{background:var(--warn);}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+/* Mode bar */
+.modebar{display:flex;align-items:center;gap:10px;padding:10px 14px;
+  border-radius:10px;margin-bottom:16px;font-size:13px;border:1px solid;}
+.modebar.real{background:rgba(16,185,129,.08);color:#10b981;border-color:rgba(16,185,129,.25);}
+.modebar.sim{background:rgba(245,158,11,.08);color:#f59e0b;border-color:rgba(245,158,11,.25);}
+/* Tabs */
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--border);margin-bottom:20px;flex-wrap:wrap;}
+.tab{padding:8px 16px;background:none;border:0;border-bottom:2px solid transparent;
+  cursor:pointer;font-size:13px;color:var(--muted);font-weight:500;font-family:inherit;}
+.tab:hover{color:var(--text);}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent);}
+section{display:none;}
+section.active{display:block;}
+/* Cards & Grid */
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;}
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:16px;}
+.card h3{margin:0 0 4px 0;font-size:15px;color:var(--text);}
+/* KPI */
+.kpi{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px;}
+.kpi .card{padding:12px 14px;}
+.kpi .card .v{font-size:22px;font-weight:700;color:var(--text);}
+.kpi .card .l{color:var(--muted);font-size:12px;}
+/* Badges */
+.badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;}
+.badge.ap,.badge.AP{background:rgba(59,130,246,.15);color:#3b82f6;}
+.badge.ar,.badge.AR{background:rgba(16,185,129,.15);color:#10b981;}
+.badge.gl,.badge.GL{background:rgba(245,158,11,.15);color:#f59e0b;}
+.badge.aa,.badge.AA{background:rgba(139,92,246,.15);color:#8b5cf6;}
+.badge.ok{background:rgba(16,185,129,.15);color:#10b981;}
+.badge.fail{background:rgba(239,68,68,.15);color:#ef4444;}
+.badge.warn{background:rgba(245,158,11,.15);color:#f59e0b;}
+.badge.run{background:rgba(96,165,250,.15);color:#60a5fa;}
+.badge.pend{background:rgba(255,255,255,.06);color:var(--muted);}
+.badge.real{background:rgba(16,185,129,.15);color:#10b981;}
+.badge.sim{background:rgba(245,158,11,.15);color:#f59e0b;}
+/* ENV */
+.env,.env-pill{color:#fff;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;display:inline-block;}
+.env.DEV,.env-DEV{background:#16a34a;}
+.env.QAS,.env-QAS{background:#b45309;}
+.env.PRD,.env-PRD{background:#b91c1c;}
+/* Dot */
+.dot{width:10px;height:10px;border-radius:50%;display:inline-block;}
+.dot.idle{background:#4b5563;}
+.dot.running{background:var(--ok);box-shadow:0 0 0 3px rgba(16,185,129,.2);animation:pulse 1.5s infinite;}
+.dot.error{background:var(--err);}
+/* Buttons */
+button{padding:6px 14px;border-radius:7px;border:1px solid var(--border);
+  background:var(--bg3);cursor:pointer;font-size:13px;color:var(--text);font-family:inherit;}
+button.primary,.btn.primary{background:var(--accent);color:#fff;border-color:var(--accent);}
+button.danger,.btn.danger{color:var(--err);border-color:rgba(239,68,68,.3);background:rgba(239,68,68,.06);}
+button.small,.btn.small{padding:3px 8px;font-size:12px;}
+button:hover,.btn:hover{opacity:.85;}
+.btn{padding:6px 12px;border-radius:7px;border:1px solid var(--border);
+  background:var(--bg3);cursor:pointer;font-size:13px;color:var(--text);font-family:inherit;}
+/* Inputs */
+.field{margin:10px 0;}
+.field label{display:block;font-size:11px;color:var(--muted);margin-bottom:3px;font-weight:500;}
+input[type=text],input[type=number],input[type=date],input[type=time],
+input[type=password],select,textarea,.field input,.field select{
+  background:var(--bg3);border:1px solid var(--border);border-radius:6px;
+  color:var(--text);padding:6px 9px;font:inherit;width:100%;box-sizing:border-box;}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent);}
+label{display:block;font-size:12px;color:var(--muted);margin:8px 0 3px;font-weight:500;}
+/* Tables */
+table{width:100%;border-collapse:collapse;font-size:13px;}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--border);vertical-align:top;}
+th{background:var(--bg3);font-size:11px;text-transform:uppercase;color:var(--muted);font-weight:600;letter-spacing:.03em;}
+tr:last-child td{border-bottom:none;}
+tr:hover td{background:rgba(255,255,255,.015);}
+/* Details */
+details{margin-top:10px;}
+summary{cursor:pointer;padding:6px 0;font-weight:600;color:#58a6ff;font-size:13px;user-select:none;}
+/* Code */
+code{background:var(--bg3);padding:1px 6px;border-radius:4px;font-size:12px;color:#e6edf3;}
+/* Row */
+.row{display:flex;gap:6px;flex-wrap:wrap;align-items:center;}
+/* Warn */
+.warn{background:rgba(245,158,11,.08);color:#f59e0b;padding:12px 14px;
+  border-radius:8px;border:1px solid rgba(245,158,11,.25);margin-bottom:14px;font-size:13px;}
+/* Results */
+.result{margin-top:10px;padding:10px 12px;border-radius:7px;font-size:12px;}
+.result.ok{background:rgba(16,185,129,.1);color:#10b981;}
+.result.err{background:rgba(239,68,68,.1);color:#ef4444;}
+.result.sim{background:rgba(245,158,11,.1);color:#f59e0b;}
+.result a{color:#58a6ff;font-weight:600;}
+/* Stats */
+.stats{display:flex;gap:14px;color:var(--muted);font-size:12px;margin:8px 0 12px;}
+.stats b{display:block;color:var(--text);font-size:15px;}
+/* Muted */
+.muted{color:var(--muted);font-size:12px;}
+/* Log */
+.log{background:#070d14;color:#8b949e;font-family:"SF Mono",Menlo,Consolas,monospace;
+  font-size:12px;padding:12px;border-radius:8px;max-height:350px;overflow:auto;
+  white-space:pre-wrap;border:1px solid var(--border);}
+.log .ts{color:#484f58;}
+.log .ok{color:#3fb950;}
+.log .err{color:#f85149;}
+.log .info{color:#58a6ff;}
+/* Check */
+.check{display:flex;align-items:center;gap:8px;padding:3px 0;font-size:12px;}
+.check-ok{color:var(--ok);}
+.check-bad{color:var(--err);}
+/* Toast */
+#toast{position:fixed;bottom:20px;right:20px;padding:10px 16px;border-radius:9px;
+  display:none;box-shadow:0 4px 24px rgba(0,0,0,.5);z-index:100;font-size:13px;
+  font-weight:500;max-width:400px;border:1px solid transparent;}
+#toast.ok{background:#0f2a1c;color:#3fb950;border-color:#2ea043;display:block;}
+#toast.err{background:#2a0f0f;color:#f85149;border-color:#da3633;display:block;}
+#toast.info{background:#0d1f38;color:#58a6ff;border-color:#1f6feb;display:block;}
+/* Credential Modal */
+#credModal>div{background:var(--bg2);border:1px solid var(--border);border-radius:12px;
+  padding:22px;width:380px;max-width:92vw;box-shadow:0 12px 40px rgba(0,0,0,.5);color:var(--text);}
+/* Subtabs */
+.subtabs{display:flex;gap:2px;margin-bottom:14px;background:var(--bg3);
+  padding:3px;border-radius:8px;width:fit-content;flex-wrap:wrap;}
+.subtab{padding:6px 14px;cursor:pointer;border:none;background:transparent;
+  color:var(--muted);font-size:13px;font-weight:500;border-radius:6px;font-family:inherit;}
+.subtab.active{background:var(--bg2);color:var(--accent);box-shadow:0 1px 2px rgba(0,0,0,.3);}
+/* Grid helpers */
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;}
+@media(max-width:720px){.grid2,.grid3{grid-template-columns:1fr;}}
+/* Steps */
+.step{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:10px;}
+.step .step-head{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+.step .step-num{background:var(--accent);color:#fff;width:22px;height:22px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;}
+.step .step-meta{display:grid;grid-template-columns:2fr 1fr 1fr;gap:8px;align-items:end;}
+@media(max-width:720px){.step .step-meta{grid-template-columns:1fr;}}
+.param-row{display:grid;grid-template-columns:1.5fr 2fr auto;gap:8px;align-items:center;margin-bottom:6px;}
+/* Pill */
+.pill{display:inline-block;padding:1px 8px;border-radius:999px;font-size:11px;font-weight:500;margin-right:4px;}
+.pill.err{background:rgba(239,68,68,.15);color:#ef4444;}
+.pill.warn{background:rgba(245,158,11,.15);color:#f59e0b;}
+.pill.ok{background:rgba(16,185,129,.15);color:#10b981;}
+/* Modal */
+.modal{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.65);
+  display:none;align-items:center;justify-content:center;padding:16px;z-index:20;}
+.modal.open{display:flex;}
+.modal .panel{background:var(--bg2);border:1px solid var(--border);border-radius:12px;
+  width:560px;max-width:100%;max-height:90vh;overflow:auto;padding:18px;}
+.modal h2{margin-top:0;font-size:17px;color:var(--text);}
+/* Reports */
+.reports-list{list-style:none;padding:0;margin:0;}
+.reports-list li{padding:8px 10px;border-bottom:1px solid var(--border);
+  display:flex;justify-content:space-between;align-items:center;}
+.reports-list a{color:#58a6ff;}
+/* Error box */
+#errBox{display:none;background:rgba(239,68,68,.08);color:#f85149;
+  border:1px solid rgba(239,68,68,.25);padding:12px 14px;border-radius:8px;
+  margin-bottom:14px;font-family:"SF Mono",Menlo,monospace;white-space:pre-wrap;font-size:12px;}
+#loadingBox{padding:24px;text-align:center;color:var(--muted);}
+/* Detail head */
+.detail-head{display:flex;justify-content:space-between;align-items:flex-start;
+  gap:10px;flex-wrap:wrap;margin-bottom:14px;}
+.detail-head h2{margin:0;font-size:18px;}
+.detail-head .meta{color:var(--muted);font-size:12px;margin-top:4px;}
+/* Toolbar */
+.toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;}
+/* Scrollbar */
+::-webkit-scrollbar{width:6px;height:6px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+/* Darlehen */
+#loansTable td{font-size:12px;}
+/* Check list */
+.check-list{margin:8px 0;}
+.check-item{display:flex;align-items:center;gap:8px;padding:3px 0;font-size:12px;}
+.typ,.sub{color:var(--muted);font-size:12px;}
+.actions{display:flex;gap:6px;margin-top:12px;flex-wrap:wrap;}
+/* Nav footer */
+.page-footer{border-top:1px solid var(--border);padding-top:20px;margin-top:32px;
+  display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;
+  font-size:11px;color:var(--muted);}
+.footer-links{display:flex;gap:16px;}
+.footer-links a{color:var(--muted);text-decoration:none;}
+.footer-links a:hover{color:var(--text);}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+<header class="page-header">
+  <div class="brand">
+    <a href="startseite.html" title="Startseite" style="display:block;line-height:0">
+      <img src="YCONN-logo_Web.png" width="156" height="156" alt="YCONN Logo" style="display:block;"/>
+    </a>
+  </div>
+  <div class="header-right">
+    <div class="status-chip" id="modeChip" onclick="checkBridge()">
+      <div class="status-dot" id="modeDot"></div>
+      <span id="modeChipText">Pruefe...</span>
+    </div>
+    <a class="btn-nav" href="startseite.html">&#8592; Startseite</a>
+    <a class="btn-nav" href="cockpit-v2.html">Cockpit v2</a>
+    <!-- App-Regel G-9: Benutzer/SAP-System wird von auth.js via AUTH.renderHeader() eingefügt -->
+  </div>
+</header>
+
+<div class="modebar sim" id="modebar">
+  <span id="modeIcon">SIM</span>
+  <span id="modeText">Pruefe Bridge-Verbindung...</span>
+  <button class="small" onclick="checkBridge()" style="margin-left:auto">Erneut pruefen</button>
+</div>
+
+<div class="tabs">
+  <button class="tab active" onclick="show('uebersicht', this)">Uebersicht</button>
+  <button class="tab" onclick="show('aufgaben', this)">Aufgaben</button>
+  <button class="tab" onclick="show('verbindungen', this)">Verbindungen</button>
+  <button class="tab" onclick="show('reports', this)">Reports</button>
+  <button class="tab" onclick="show('darlehen', this)">Darlehen</button>
+  <button class="tab" onclick="show('logs', this)">Logs</button>
+  <button class="tab" onclick="show('historie', this)">📋 Buchungshistorie</button>
+</div>
+
+<section id="uebersicht" class="active">
+  <div class="grid" id="robotsGrid"></div>
+</section>
+
+<section id="aufgaben">
+  <div class="row" style="margin-bottom:10px">
+    <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text)">Robot:
+      <select id="taskFilter" onchange="renderTasks()" style="width:auto;padding:5px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text)">
+        <option value="all">Alle</option>
+        <option value="AP">Robot-AP</option><option value="AR">Robot-AR</option>
+        <option value="GL">Robot-GL</option><option value="AA">Robot-AA</option>
+      </select>
+    </label>
+  </div>
+  <div id="tasksList" class="grid"></div>
+</section>
+
+<section id="verbindungen">
+  <div class="warn">
+    <b>Sicherheitshinweis:</b> Hier nur die Vault-Referenz eintragen (z. B. <code>env://SAP_PASSWORD</code> oder <code>azure-kv://...</code>).
+    Echte Passwoerter gehoeren in die <code>.env</code> auf der Worker-VM oder in einen Secret-Store.
+  </div>
+  <div class="grid" id="connsGrid"></div>
+</section>
+
+<section id="reports">
+  <p class="sub">Vom Worker erzeugte Reports. Klick auf den Namen zum Herunterladen. Funktioniert nur im Echt-Modus.</p>
+  <div class="row" style="margin-bottom:10px">
+    <button onclick="refreshReports()">Aktualisieren</button>
+  </div>
+  <div class="card"><ul id="reportsList" class="reports-list"></ul></div>
+</section>
+
+<section id="darlehen">
+  <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap">
+    <button class="primary small" onclick="showLoanView('overview', this)">Uebersicht</button>
+    <button class="small" onclick="showLoanView('calc', this)">Rechner</button>
+  </div>
+  <div id="loanOverview">
+    <!-- ── Filterleiste ───────────────────────────────────── -->
+    <div style="background:#0d1117;border:1px solid #21262d;border-radius:10px;padding:12px 16px;margin-bottom:14px">
+      <!-- Zeile 1: Suche + Buttons -->
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
+        <input id="loanFilterSearch" type="text" placeholder="🔍  Nr., Borrower, Partner Code, Konto …"
+          oninput="renderLoans()"
+          style="flex:1;min-width:220px;padding:8px 12px;background:#161b22;border:1px solid #30363d;border-radius:7px;color:#e6edf3;font-size:13px">
+        <button onclick="resetLoanFilters()"
+          style="padding:7px 14px;background:none;border:1px solid #30363d;border-radius:7px;color:#8b949e;font-size:12px;cursor:pointer;white-space:nowrap">
+          ✕ Filter zurücksetzen
+        </button>
+        <span id="loanFilterCount" style="font-size:12px;color:#8b949e;white-space:nowrap"></span>
+      </div>
+      <!-- Zeile 2: Dropdowns -->
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:#8b949e;white-space:nowrap">
+          Borrower
+          <select id="loanFilterBorrower" onchange="renderLoans()"
+            style="padding:5px 8px;border:1px solid #30363d;border-radius:6px;background:#161b22;color:#e6edf3;font-size:12px">
+            <option value="all">Alle</option>
+          </select>
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:#8b949e;white-space:nowrap">
+          Partner Code
+          <select id="loanFilterCocode" onchange="renderLoans()"
+            style="padding:5px 8px;border:1px solid #30363d;border-radius:6px;background:#161b22;color:#e6edf3;font-size:12px">
+            <option value="all">Alle</option>
+          </select>
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:#8b949e;white-space:nowrap">
+          Währung
+          <select id="loanFilterCcy" onchange="renderLoans()"
+            style="padding:5px 8px;border:1px solid #30363d;border-radius:6px;background:#161b22;color:#e6edf3;font-size:12px">
+            <option value="all">Alle</option>
+          </select>
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:#8b949e;white-space:nowrap">
+          Status
+          <select id="loanFilterStatus" onchange="renderLoans()"
+            style="padding:5px 8px;border:1px solid #30363d;border-radius:6px;background:#161b22;color:#e6edf3;font-size:12px">
+            <option value="all">Alle</option>
+            <option value="active">Aktiv</option>
+            <option value="expired">Abgelaufen</option>
+          </select>
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:#8b949e;white-space:nowrap">
+          Darlehen-Nr.
+          <select id="loanFilterNr" onchange="renderLoans()"
+            style="padding:5px 8px;border:1px solid #30363d;border-radius:6px;background:#161b22;color:#e6edf3;font-size:12px;min-width:90px">
+            <option value="all">Alle</option>
+          </select>
+        </label>
+      </div>
+    </div>
+    <div id="loanSummary" class="grid" style="margin-bottom:12px"></div>
+    <div class="card" style="padding:0;overflow:auto">
+      <table id="loansTable" style="font-size:12px">
+        <thead><tr>
+          <th>Nr.</th><th>Borrower</th><th>Partner Code</th><th>Konto</th><th>Beginn</th><th>Ende</th>
+          <th style="text-align:right">Betrag</th><th>CCY</th><th style="text-align:right">Zinssatz</th>
+          <th style="text-align:right">Restschuld</th><th></th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+  <div id="loanCalc" style="display:none">
+
+    <!-- ── 1. Darlehen-Auswahl ───────────────────────────────────────────── -->
+    <div style="background:#0d1117;border:1px solid #21262d;border-radius:12px;padding:18px 20px;margin-bottom:14px">
+      <div style="font-size:11px;font-weight:700;color:#58a6ff;text-transform:uppercase;letter-spacing:.07em;margin-bottom:10px">
+        Darlehen auswählen
+      </div>
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+        <select id="lcPickNr" onchange="onCalcLoanPick()"
+          style="flex:1;min-width:260px;padding:9px 12px;background:#161b22;border:1px solid #30363d;border-radius:8px;color:#e6edf3;font-size:13px;cursor:pointer">
+          <option value="">— Bestehendes Darlehen wählen —</option>
+        </select>
+        <button onclick="calcLoan()" class="primary small" style="padding:9px 18px">▶ Berechnen</button>
+        <button onclick="exportLoanCsv()" class="small" style="padding:9px 14px">⬇ CSV</button>
+      </div>
+
+      <!-- Info-Strip des gewählten Darlehens -->
+      <div id="lcInfoStrip" style="display:none;margin-top:14px;padding:12px 16px;background:#161b22;border:1px solid #21262d;border-radius:8px">
+        <div style="display:flex;gap:20px;flex-wrap:wrap;align-items:center">
+          <div>
+            <div style="font-size:10px;color:#8b949e;font-weight:600;margin-bottom:2px">DARLEHEN-NR.</div>
+            <div id="lcInfoNr" style="font-size:15px;font-weight:800;color:#58a6ff"></div>
+          </div>
+          <div>
+            <div style="font-size:10px;color:#8b949e;font-weight:600;margin-bottom:2px">BORROWER</div>
+            <div id="lcInfoBorrower" style="font-size:13px;color:#e6edf3"></div>
+          </div>
+          <div>
+            <div style="font-size:10px;color:#8b949e;font-weight:600;margin-bottom:2px">URSPRUNGSBETRAG</div>
+            <div id="lcInfoAmount" style="font-size:13px;font-weight:700;color:#e6edf3"></div>
+          </div>
+          <div>
+            <div style="font-size:10px;color:#8b949e;font-weight:600;margin-bottom:2px">RESTSCHULD</div>
+            <div id="lcInfoResidual" style="font-size:14px;font-weight:700;color:#10b981"></div>
+          </div>
+          <div>
+            <div style="font-size:10px;color:#8b949e;font-weight:600;margin-bottom:2px">ZINSSATZ</div>
+            <div id="lcInfoRate" style="font-size:13px;color:#e6edf3"></div>
+          </div>
+          <div>
+            <div style="font-size:10px;color:#8b949e;font-weight:600;margin-bottom:2px">LAUFZEIT</div>
+            <div id="lcInfoEnd" style="font-size:13px;color:#e6edf3"></div>
+          </div>
+          <div style="margin-left:auto;display:flex;gap:8px">
+            <button id="lcBtnEdit" onclick="editCurrentCalcLoan()"
+              style="padding:6px 12px;background:#1c2a3a;border:1px solid #1f6feb;border-radius:6px;color:#58a6ff;font-size:12px;cursor:pointer">
+              ✏️ Bearbeiten
+            </button>
+            <button id="lcBtnRepay" onclick="repayCurrentCalcLoan()"
+              style="padding:6px 12px;background:#0c2a1a;border:1px solid #10b981;border-radius:6px;color:#10b981;font-size:12px;cursor:pointer">
+              💰 Rückzahlung
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── 2. Parameter (immer sichtbar, für manuellen Modus) ────────────── -->
+    <div style="background:#0d1117;border:1px solid #21262d;border-radius:12px;padding:18px 20px;margin-bottom:14px">
+      <div style="font-size:11px;font-weight:700;color:#8b949e;text-transform:uppercase;letter-spacing:.07em;margin-bottom:12px">
+        Berechnungsparameter
+        <span id="lcParamNote" style="font-weight:400;text-transform:none;color:#58a6ff;margin-left:8px;font-size:11px"></span>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px">
+        <div>
+          <label style="display:block;font-size:11px;color:#8b949e;margin-bottom:4px;font-weight:600">Loan-Nr.</label>
+          <input type="text" id="lcNr" value="NEU"
+            style="width:100%;padding:7px 10px;background:#161b22;border:1px solid #30363d;border-radius:7px;color:#e6edf3;font-size:13px;box-sizing:border-box">
+        </div>
+        <div>
+          <label style="display:block;font-size:11px;color:#8b949e;margin-bottom:4px;font-weight:600">Betrag (Restschuld)</label>
+          <input type="number" id="lcAmount" value="100000" step="1000"
+            style="width:100%;padding:7px 10px;background:#161b22;border:1px solid #30363d;border-radius:7px;color:#e6edf3;font-size:13px;box-sizing:border-box">
+        </div>
+        <div>
+          <label style="display:block;font-size:11px;color:#8b949e;margin-bottom:4px;font-weight:600">Währung</label>
+          <select id="lcCcy"
+            style="width:100%;padding:7px 10px;background:#161b22;border:1px solid #30363d;border-radius:7px;color:#e6edf3;font-size:13px;box-sizing:border-box">
+            <option>EUR</option><option>USD</option><option>CNY</option><option>JPY</option><option>CHF</option>
+          </select>
+        </div>
+        <div>
+          <label style="display:block;font-size:11px;color:#8b949e;margin-bottom:4px;font-weight:600">Zinssatz (%)</label>
+          <input type="number" id="lcRate" value="4.54" step="0.01"
+            style="width:100%;padding:7px 10px;background:#161b22;border:1px solid #30363d;border-radius:7px;color:#e6edf3;font-size:13px;box-sizing:border-box">
+        </div>
+        <div>
+          <label style="display:block;font-size:11px;color:#8b949e;margin-bottom:4px;font-weight:600">Beginn</label>
+          <input type="date" id="lcStart"
+            style="width:100%;padding:7px 10px;background:#161b22;border:1px solid #30363d;border-radius:7px;color:#e6edf3;font-size:13px;box-sizing:border-box">
+        </div>
+        <div>
+          <label style="display:block;font-size:11px;color:#8b949e;margin-bottom:4px;font-weight:600">Ende <span style="color:#58a6ff">(überschreibbar)</span></label>
+          <input type="date" id="lcEnd"
+            style="width:100%;padding:7px 10px;background:#161b22;border:1px solid #1f6feb;border-radius:7px;color:#58a6ff;font-size:13px;box-sizing:border-box"
+            oninput="document.getElementById('lcParamNote').textContent=this.value?'▸ Enddatum überschrieben':''">
+        </div>
+        <div>
+          <label style="display:block;font-size:11px;color:#8b949e;margin-bottom:4px;font-weight:600">Methode</label>
+          <select id="lcMethod"
+            style="width:100%;padding:7px 10px;background:#161b22;border:1px solid #30363d;border-radius:7px;color:#e6edf3;font-size:13px;box-sizing:border-box">
+            <option value="360">360-Tage</option><option value="365">365-Tage</option>
+          </select>
+        </div>
+        <div>
+          <label style="display:block;font-size:11px;color:#8b949e;margin-bottom:4px;font-weight:600">Tilgung mtl. (0 = endfällig)</label>
+          <input type="number" id="lcRepay" value="0" step="100" min="0"
+            style="width:100%;padding:7px 10px;background:#161b22;border:1px solid #30363d;border-radius:7px;color:#e6edf3;font-size:13px;box-sizing:border-box">
+        </div>
+        <div>
+          <label style="display:block;font-size:11px;color:#8b949e;margin-bottom:4px;font-weight:600">Borrower</label>
+          <input type="text" id="lcBorrower" value="Catensys Holding"
+            style="width:100%;padding:7px 10px;background:#161b22;border:1px solid #30363d;border-radius:7px;color:#e6edf3;font-size:13px;box-sizing:border-box">
+        </div>
+        <div>
+          <label style="display:block;font-size:11px;color:#8b949e;margin-bottom:4px;font-weight:600">Lender</label>
+          <input type="text" id="lcLender" value="Catensys Germany GmbH"
+            style="width:100%;padding:7px 10px;background:#161b22;border:1px solid #30363d;border-radius:7px;color:#e6edf3;font-size:13px;box-sizing:border-box">
+        </div>
+      </div>
+
+      <!-- Erfasste Rückzahlungen für dieses Darlehen -->
+      <div id="lcRepayList" style="display:none;margin-top:16px;padding-top:14px;border-top:1px solid #21262d">
+        <div style="font-size:11px;font-weight:700;color:#10b981;text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px">
+          💰 Erfasste Rückzahlungen / Tilgungen
+        </div>
+        <div id="lcRepayListBody" style="font-size:12px;color:#8b949e"></div>
+      </div>
+    </div>
+
+    <!-- ── 3. Quick-Edit: Enddatum + Tilgung direkt bearbeiten ────────── -->
+    <div id="lcQuickEdit" style="display:none;background:#0d1117;border:1px solid #21262d;border-radius:12px;padding:18px 20px;margin-bottom:14px">
+      <div style="font-size:11px;font-weight:700;color:#f59e0b;text-transform:uppercase;letter-spacing:.07em;margin-bottom:14px">
+        ✏️ Stammdaten bearbeiten &amp; neu berechnen
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-bottom:16px">
+
+        <!-- Enddatum -->
+        <div style="background:#161b22;border:1px solid #30363d;border-radius:8px;padding:12px 14px">
+          <div style="font-size:10px;color:#8b949e;font-weight:700;text-transform:uppercase;margin-bottom:6px">Darlehen-Enddatum</div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <input type="date" id="lcEditEnd"
+              style="flex:1;padding:7px 10px;background:#0d1117;border:1px solid #1f6feb;border-radius:6px;color:#58a6ff;font-size:13px">
+            <button onclick="saveCalcField('end')"
+              style="padding:6px 12px;background:#1c2a3a;border:1px solid #1f6feb;border-radius:6px;color:#58a6ff;font-size:12px;cursor:pointer;white-space:nowrap">
+              💾 Speichern
+            </button>
+          </div>
+          <div id="lcEditEndHint" style="font-size:10px;color:#6e7681;margin-top:4px"></div>
+        </div>
+
+        <!-- Monatliche Tilgung -->
+        <div style="background:#161b22;border:1px solid #30363d;border-radius:8px;padding:12px 14px">
+          <div style="font-size:10px;color:#8b949e;font-weight:700;text-transform:uppercase;margin-bottom:6px">Monatliche Tilgung (0 = endfällig)</div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <input type="number" id="lcEditRepay" step="100" min="0"
+              style="flex:1;padding:7px 10px;background:#0d1117;border:1px solid #10b981;border-radius:6px;color:#10b981;font-size:13px;font-weight:600">
+            <button onclick="saveCalcField('repay')"
+              style="padding:6px 12px;background:#0c2a1a;border:1px solid #10b981;border-radius:6px;color:#10b981;font-size:12px;cursor:pointer;white-space:nowrap">
+              💾 Speichern
+            </button>
+          </div>
+          <div id="lcEditRepayHint" style="font-size:10px;color:#6e7681;margin-top:4px"></div>
+        </div>
+
+        <!-- Restschuld -->
+        <div style="background:#161b22;border:1px solid #30363d;border-radius:8px;padding:12px 14px">
+          <div style="font-size:10px;color:#8b949e;font-weight:700;text-transform:uppercase;margin-bottom:6px">Aktuelle Restschuld</div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <input type="number" id="lcEditResidual" step="1000" min="0"
+              style="flex:1;padding:7px 10px;background:#0d1117;border:1px solid #30363d;border-radius:6px;color:#e6edf3;font-size:13px">
+            <button onclick="saveCalcField('residual')"
+              style="padding:6px 12px;background:#21262d;border:1px solid #30363d;border-radius:6px;color:#e6edf3;font-size:12px;cursor:pointer;white-space:nowrap">
+              💾 Speichern
+            </button>
+          </div>
+          <div id="lcEditResidualHint" style="font-size:10px;color:#6e7681;margin-top:4px"></div>
+        </div>
+      </div>
+
+      <!-- Einzeltilgung erfassen -->
+      <div style="border-top:1px solid #21262d;padding-top:14px">
+        <div style="font-size:10px;color:#8b949e;font-weight:700;text-transform:uppercase;margin-bottom:10px">💰 Neue Einzeltilgung / Sondertilgung</div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+          <div>
+            <div style="font-size:10px;color:#8b949e;margin-bottom:4px">Datum *</div>
+            <input type="date" id="lcNewRepDate"
+              style="padding:7px 10px;background:#0d1117;border:1px solid #30363d;border-radius:6px;color:#e6edf3;font-size:13px;min-width:140px">
+          </div>
+          <div>
+            <div style="font-size:10px;color:#8b949e;margin-bottom:4px">Betrag *</div>
+            <input type="number" id="lcNewRepAmt" step="1000" min="0" placeholder="0.00"
+              style="padding:7px 10px;background:#0d1117;border:1px solid #30363d;border-radius:6px;color:#e6edf3;font-size:13px;width:130px">
+          </div>
+          <div>
+            <div style="font-size:10px;color:#8b949e;margin-bottom:4px">Währung</div>
+            <select id="lcNewRepCcy"
+              style="padding:7px 10px;background:#0d1117;border:1px solid #30363d;border-radius:6px;color:#e6edf3;font-size:13px">
+              <option>EUR</option><option>USD</option><option>CNY</option>
+            </select>
+          </div>
+          <div style="flex:1;min-width:140px">
+            <div style="font-size:10px;color:#8b949e;margin-bottom:4px">Notiz</div>
+            <input type="text" id="lcNewRepNote" placeholder="z.B. Sondertilgung Q2"
+              style="width:100%;padding:7px 10px;background:#0d1117;border:1px solid #30363d;border-radius:6px;color:#e6edf3;font-size:13px;box-sizing:border-box">
+          </div>
+          <div>
+            <button onclick="addCalcRepayment()"
+              style="padding:8px 16px;background:#0c2a1a;border:1px solid #10b981;border-radius:6px;color:#10b981;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">
+              + Tilgung speichern &amp; neu berechnen
+            </button>
+        </div>
+      </div>
+
+      <!-- Darlehen beenden -->
+      <div style="border-top:1px solid #21262d;padding-top:14px;margin-top:4px">
+        <div style="font-size:10px;color:#8b949e;font-weight:700;text-transform:uppercase;margin-bottom:10px">🔴 Darlehen beenden / abschließen</div>
+        <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+          <div>
+            <div style="font-size:10px;color:#8b949e;margin-bottom:4px">Letzter Zinstag</div>
+            <input type="date" id="lcTermDate"
+              style="padding:7px 10px;background:#0d1117;border:1px solid #ef4444;border-radius:6px;color:#fca5a5;font-size:13px;min-width:150px">
+          </div>
+          <div>
+            <div style="font-size:10px;color:#8b949e;margin-bottom:4px">Abschlussbetrag (Restschuld)</div>
+            <input type="number" id="lcTermResidual" step="1000" min="0" placeholder="0 = vollständig getilgt"
+              style="padding:7px 10px;background:#0d1117;border:1px solid #30363d;border-radius:6px;color:#e6edf3;font-size:13px;width:200px">
+          </div>
+          <button onclick="terminateLoan()"
+            style="padding:8px 16px;background:rgba(239,68,68,.12);border:1px solid #ef4444;border-radius:6px;color:#fca5a5;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">
+            🔴 Darlehen beenden &amp; speichern
+          </button>
+        </div>
+        <div id="lcTermHint" style="font-size:10px;color:#6e7681;margin-top:6px"></div>
+      </div>
+    </div>
+
+    <!-- ── 4. Ergebnis ────────────────────────────────────────────────────── -->
+    <div id="loanCalcResult" style="margin-top:0"></div>
+  </div>
+</section>
+
+
+<section id="historie">
+  <div class="row" style="margin-bottom:12px;gap:8px;flex-wrap:wrap;align-items:center">
+    <strong style="color:var(--acc);font-size:15px">📋 Buchungshistorie</strong>
+    <select id="hFilterYr" onchange="renderHistorie()" style="min-width:80px">
+      <option value="all">Alle Jahre</option>
+    </select>
+    <select id="hFilterMon" onchange="renderHistorie()" style="min-width:100px">
+      <option value="all">Alle Monate</option>
+    </select>
+    <select id="hFilterBukrs" onchange="renderHistorie()" style="min-width:130px">
+      <option value="all">Alle Buchungskreise</option>
+    </select>
+    <select id="hFilterStatus" onchange="renderHistorie()" style="min-width:110px">
+      <option value="all">Alle Status</option>
+      <option value="ok">✓ Gebucht</option>
+      <option value="error">✗ Fehler</option>
+      <option value="storno">↲ Storno</option>
+    </select>
+    <select id="hFilterSource" onchange="renderHistorie()" style="min-width:130px">
+      <option value="all">Alle Quellen</option>
+      <option value="app">App-Buchungen</option>
+      <option value="static">SAP historisch</option>
+    </select>
+    <button onclick="resetHistFilters()" style="padding:4px 10px">✕</button>
+    <span id="hCount" style="color:var(--sub);font-size:12px"></span>
+    <button onclick="exportHistorieCsv()" style="margin-left:auto;padding:4px 12px;background:#0c2a1a;color:#10b981;border:1px solid #10b981;border-radius:4px;cursor:pointer">⬇ CSV Export</button>
+  </div>
+  <div style="overflow-x:auto">
+  <table id="histTable" style="width:100%;border-collapse:collapse;font-size:12px">
+    <thead>
+      <tr style="color:var(--sub);border-bottom:1px solid var(--bdr)">
+        <th style="text-align:left;padding:6px 8px;white-space:nowrap">Datum</th>
+        <th style="text-align:left;padding:6px 8px">Jahr</th>
+        <th style="text-align:left;padding:6px 8px">Monat</th>
+        <th style="text-align:left;padding:6px 8px">Nr.</th>
+        <th style="text-align:left;padding:6px 8px">Buchungskreis</th>
+        <th style="text-align:left;padding:6px 8px">Gesellschaft</th>
+        <th style="text-align:left;padding:6px 8px">Konto</th>
+        <th style="text-align:left;padding:6px 8px">Gegenkto</th>
+        <th style="text-align:left;padding:6px 8px">Bel.typ</th>
+        <th style="text-align:left;padding:6px 8px">Whg.</th>
+        <th style="text-align:right;padding:6px 8px">Betrag</th>
+        <th style="text-align:left;padding:6px 8px">Beleg-Nr.</th>
+        <th style="text-align:left;padding:6px 8px">System</th>
+        <th style="text-align:left;padding:6px 8px">Status</th>
+        <th style="text-align:left;padding:6px 8px">Quelle</th>
+        <th style="text-align:left;padding:6px 8px">Benutzer</th>
+        <th style="text-align:left;padding:6px 8px;max-width:200px">Buchungstext</th>
+      </tr>
+    </thead>
+    <tbody id="histBody">
+      <tr><td colspan="17" style="padding:28px;text-align:center;color:var(--sub)">Lade Buchungshistorie…</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section id="logs">
+  <div class="row" style="margin-bottom:10px">
+    <button onclick="clearLogs()">Logs leeren</button>
+  </div>
+  <div class="log" id="logBox">Keine Logs.</div>
+</section>
+
+<footer class="page-footer">
+  <div>YCONN &mdash; SAP Automation Platform &copy; 2026</div>
+  <div class="footer-links">
+    <a href="startseite.html">Startseite</a>
+    <a href="cockpit.html">Cockpit v1</a>
+    <a href="cockpit-v2.html">Cockpit v2</a>
+    <a href="verbindungen.html">Verbindungen</a>
+  </div>
+</footer>
+</div>
+
+<div id="toast"></div>
+
+<!-- ===== Darlehen-Auswahl-Modal ===== -->
+<div id="loanPickerModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:300;align-items:flex-start;justify-content:center;padding-top:60px">
+  <div style="background:#161b22;border:1px solid #30363d;border-radius:14px;width:860px;max-width:96vw;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 16px 56px rgba(0,0,0,.6)">
+    <!-- Header -->
+    <div style="padding:18px 22px 14px;border-bottom:1px solid #30363d;display:flex;align-items:center;gap:12px;flex-shrink:0">
+      <span style="font-size:20px">📋</span>
+      <div style="flex:1">
+        <div style="font-size:16px;font-weight:700;color:#e6edf3">Darlehen auswählen</div>
+        <div style="font-size:11px;color:#8b949e">Darlehen in den Rechner laden und Tilgung anpassen</div>
+      </div>
+      <button onclick="closeLoanPicker()" style="background:none;border:none;color:#8b949e;font-size:20px;cursor:pointer;padding:2px 6px;border-radius:6px;line-height:1">✕</button>
+    </div>
+    <!-- Filter -->
+    <div style="padding:12px 22px;border-bottom:1px solid #21262d;display:flex;gap:10px;flex-wrap:wrap;flex-shrink:0;align-items:center">
+      <input id="lpSearch" type="text" placeholder="Suche: Nr., Gesellschaft, Partner Code …"
+        oninput="renderLoanPicker()"
+        style="flex:1;min-width:180px;padding:7px 10px;background:#0d1117;border:1px solid #30363d;border-radius:7px;color:#e6edf3;font-size:13px" placeholder="Suche: Nr., Gesellschaft, Partner Code …">
+      <select id="lpCcy" onchange="renderLoanPicker()"
+        style="padding:7px 10px;background:#0d1117;border:1px solid #30363d;border-radius:7px;color:#e6edf3;font-size:13px">
+        <option value="all">Alle Währungen</option>
+        <option>EUR</option><option>USD</option><option>CNY</option><option>JPY</option>
+      </select>
+      <select id="lpStatus" onchange="renderLoanPicker()"
+        style="padding:7px 10px;background:#0d1117;border:1px solid #30363d;border-radius:7px;color:#e6edf3;font-size:13px">
+        <option value="all">Alle</option>
+        <option value="active">Aktiv (Ende ≥ heute)</option>
+        <option value="expired">Abgelaufen</option>
+      </select>
+    </div>
+    <!-- Tabelle -->
+    <div style="overflow-y:auto;flex:1">
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead>
+          <tr style="position:sticky;top:0;background:#0d1117;z-index:1">
+            <th style="padding:9px 12px;text-align:left;color:#8b949e;font-weight:600;border-bottom:1px solid #21262d">Nr.</th>
+            <th style="padding:9px 8px;text-align:left;color:#8b949e;font-weight:600;border-bottom:1px solid #21262d">Gesellschaft</th>
+            <th style="padding:9px 8px;text-align:left;color:#8b949e;font-weight:600;border-bottom:1px solid #21262d">Partner Code</th>
+            <th style="padding:9px 8px;text-align:right;color:#8b949e;font-weight:600;border-bottom:1px solid #21262d">Betrag</th>
+            <th style="padding:9px 8px;text-align:left;color:#8b949e;font-weight:600;border-bottom:1px solid #21262d">CCY</th>
+            <th style="padding:9px 8px;text-align:right;color:#8b949e;font-weight:600;border-bottom:1px solid #21262d">Zins%</th>
+            <th style="padding:9px 8px;text-align:left;color:#8b949e;font-weight:600;border-bottom:1px solid #21262d">Laufzeit</th>
+            <th style="padding:9px 8px;text-align:left;color:#8b949e;font-weight:600;border-bottom:1px solid #21262d">Status</th>
+            <th style="padding:9px 8px;border-bottom:1px solid #21262d"></th>
+          </tr>
+        </thead>
+        <tbody id="lpBody"></tbody>
+      </table>
+    </div>
+    <!-- Tilgung-Eingabe + Laden-Button -->
+    <div id="lpSelected" style="display:none;padding:14px 22px;border-top:1px solid #30363d;background:#0d1117;border-radius:0 0 14px 14px;flex-shrink:0">
+      <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+        <div style="flex:1;min-width:200px">
+          <div style="font-size:11px;color:#8b949e;margin-bottom:4px;font-weight:600">Ausgewählt</div>
+          <div id="lpSelInfo" style="font-size:13px;color:#e6edf3;font-weight:600"></div>
+        </div>
+        <div>
+          <div style="font-size:11px;color:#8b949e;margin-bottom:4px;font-weight:600">Tilgung monatlich (0 = endfällig)</div>
+          <input type="number" id="lpRepay" value="0" step="100" min="0"
+            style="width:160px;padding:7px 10px;background:#21262d;border:1px solid #30363d;border-radius:7px;color:#e6edf3;font-size:13px">
+        </div>
+        <div>
+          <div style="font-size:11px;color:transparent;margin-bottom:4px">.</div>
+          <button onclick="confirmLoanPick()"
+            style="padding:8px 20px;background:#1f6feb;border:none;border-radius:7px;color:#fff;font-size:13px;font-weight:600;cursor:pointer">
+            ▶ In Rechner laden &amp; berechnen
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Darlehen-Bearbeiten-Modal ===== -->
+<div id="loanEditModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:310;align-items:flex-start;justify-content:center;padding-top:50px">
+  <div style="background:#161b22;border:1px solid #30363d;border-radius:14px;width:680px;max-width:96vw;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 16px 56px rgba(0,0,0,.6)">
+    <div style="padding:18px 22px 14px;border-bottom:1px solid #30363d;display:flex;align-items:center;gap:12px;flex-shrink:0">
+      <span style="font-size:20px">✏️</span>
+      <div style="flex:1">
+        <div style="font-size:16px;font-weight:700;color:#e6edf3" id="leTitle">Darlehen bearbeiten</div>
+        <div style="font-size:11px;color:#8b949e">Änderungen werden lokal gespeichert</div>
+      </div>
+      <button onclick="closeLoanEdit()" style="background:none;border:none;color:#8b949e;font-size:20px;cursor:pointer;padding:2px 6px;border-radius:6px;line-height:1">✕</button>
+    </div>
+    <div style="padding:20px 22px;overflow-y:auto;flex:1">
+      <input type="hidden" id="leOrigNr">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+        <div>
+          <label style="display:block;font-size:11px;color:#8b949e;margin-bottom:4px;font-weight:600">Loan-Nr. *</label>
+          <input type="text" id="leNr" style="width:100%;padding:8px 10px;background:#0d1117;border:1px solid #30363d;border-radius:7px;color:#e6edf3;font-size:13px;box-sizing:border-box">
+        </div>
+        <div>
+          <label style="display:block;font-size:11px;color:#8b949e;margin-bottom:4px;font-weight:600">Partner Code</label>
+          <input type="text" id="leCocode" style="width:100%;padding:8px 10px;background:#0d1117;border:1px solid #30363d;border-radius:7px;color:#e6edf3;font-size:13px;box-sizing:border-box">
+        </div>
+        <div style="grid-column:1/-1">
+          <label style="display:block;font-size:11px;color:#8b949e;margin-bottom:4px;font-weight:600">Gesellschaft (Borrower)</label>
+          <input type="text" id="leBorrower" style="width:100%;padding:8px 10px;background:#0d1117;border:1px solid #30363d;border-radius:7px;color:#e6edf3;font-size:13px;box-sizing:border-box">
+        </div>
+        <div>
+          <label style="display:block;font-size:11px;color:#8b949e;margin-bottom:4px;font-weight:600">SAP-Konto</label>
+          <input type="text" id="leAccount" style="width:100%;padding:8px 10px;background:#0d1117;border:1px solid #30363d;border-radius:7px;color:#e6edf3;font-size:13px;box-sizing:border-box">
+        </div>
+        <div>
+          <label style="display:block;font-size:11px;color:#8b949e;margin-bottom:4px;font-weight:600">Währung</label>
+          <select id="leCcy" style="width:100%;padding:8px 10px;background:#0d1117;border:1px solid #30363d;border-radius:7px;color:#e6edf3;font-size:13px;box-sizing:border-box">
+            <option>EUR</option><option>USD</option><option>CNY</option><option>JPY</option><option>CHF</option>
+          </select>
+        </div>
+        <div>
+          <label style="display:block;font-size:11px;color:#8b949e;margin-bottom:4px;font-weight:600">Darlehensbetrag (ursprünglich)</label>
+          <input type="number" id="leAmount" step="1000" style="width:100%;padding:8px 10px;background:#0d1117;border:1px solid #30363d;border-radius:7px;color:#e6edf3;font-size:13px;box-sizing:border-box">
+        </div>
+        <div>
+          <label style="display:block;font-size:11px;color:#8b949e;margin-bottom:4px;font-weight:600">Restschuld aktuell</label>
+          <input type="number" id="leResidual" step="1000" style="width:100%;padding:8px 10px;background:#0d1117;border:1px solid #30363d;border-radius:7px;color:#e6edf3;font-size:13px;box-sizing:border-box">
+        </div>
+        <div>
+          <label style="display:block;font-size:11px;color:#8b949e;margin-bottom:4px;font-weight:600">Zinssatz (%)</label>
+          <input type="number" id="leRate" step="0.01" style="width:100%;padding:8px 10px;background:#0d1117;border:1px solid #30363d;border-radius:7px;color:#e6edf3;font-size:13px;box-sizing:border-box">
+        </div>
+        <div>
+          <label style="display:block;font-size:11px;color:#8b949e;margin-bottom:4px;font-weight:600">Beginn</label>
+          <input type="date" id="leStart" style="width:100%;padding:8px 10px;background:#0d1117;border:1px solid #30363d;border-radius:7px;color:#e6edf3;font-size:13px;box-sizing:border-box">
+        </div>
+        <div>
+          <label style="display:block;font-size:11px;color:#8b949e;margin-bottom:4px;font-weight:600">Ende (leer = offen)</label>
+          <input type="date" id="leEnd" style="width:100%;padding:8px 10px;background:#0d1117;border:1px solid #30363d;border-radius:7px;color:#e6edf3;font-size:13px;box-sizing:border-box">
+        </div>
+        <div>
+          <label style="display:block;font-size:11px;color:#8b949e;margin-bottom:4px;font-weight:600">Berechnungsmethode</label>
+          <select id="leMethod" style="width:100%;padding:8px 10px;background:#0d1117;border:1px solid #30363d;border-radius:7px;color:#e6edf3;font-size:13px;box-sizing:border-box">
+            <option value="360">360-Tage</option><option value="365">365-Tage</option>
+          </select>
+        </div>
+        <div>
+          <label style="display:block;font-size:11px;color:#8b949e;margin-bottom:4px;font-weight:600">Tilgung monatlich (0 = endfällig)</label>
+          <input type="number" id="leRepay" value="0" step="100" min="0" style="width:100%;padding:8px 10px;background:#0d1117;border:1px solid #1f6feb;border-radius:7px;color:#58a6ff;font-size:13px;font-weight:600;box-sizing:border-box">
+        </div>
+        <div style="grid-column:1/-1">
+          <label style="display:block;font-size:11px;color:#8b949e;margin-bottom:4px;font-weight:600">Notizen</label>
+          <textarea id="leNotes" rows="2" style="width:100%;padding:8px 10px;background:#0d1117;border:1px solid #30363d;border-radius:7px;color:#e6edf3;font-size:13px;box-sizing:border-box;resize:vertical;font-family:inherit"></textarea>
+        </div>
+      </div>
+    </div>
+    <div style="padding:14px 22px;border-top:1px solid #30363d;display:flex;gap:10px;justify-content:flex-end;flex-shrink:0">
+      <button onclick="closeLoanEdit()" style="padding:8px 18px;background:none;border:1px solid #30363d;border-radius:7px;color:#8b949e;font-size:13px;cursor:pointer">Abbrechen</button>
+      <button onclick="saveLoanEdit(true)" style="padding:8px 18px;background:#1f2937;border:1px solid #30363d;border-radius:7px;color:#e6edf3;font-size:13px;cursor:pointer">💾 Speichern</button>
+      <button onclick="saveLoanEdit(false)" style="padding:8px 18px;background:#1f6feb;border:none;border-radius:7px;color:#fff;font-size:13px;font-weight:600;cursor:pointer">💾 Speichern &amp; Plan berechnen</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Rückzahlung / Tilgung Modal ===== -->
+<div id="repayModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.78);z-index:320;align-items:flex-start;justify-content:center;padding-top:40px">
+  <div style="background:#161b22;border:1px solid #30363d;border-radius:14px;width:680px;max-width:96vw;max-height:92vh;display:flex;flex-direction:column;box-shadow:0 16px 56px rgba(0,0,0,.65)">
+
+    <!-- Header -->
+    <div style="padding:18px 22px 14px;border-bottom:1px solid #30363d;display:flex;align-items:center;gap:12px;flex-shrink:0">
+      <span style="font-size:20px">💰</span>
+      <div style="flex:1">
+        <div style="font-size:15px;font-weight:700;color:#e6edf3" id="rmTitle">Rückzahlung erfassen</div>
+        <div style="font-size:12px;color:#8b949e;margin-top:2px">
+          Aktuelle Restschuld:
+          <span id="rmResidual" style="color:#10b981;font-weight:700;margin-left:4px">–</span>
+        </div>
+      </div>
+      <button onclick="closeRepayModal()" style="background:none;border:none;color:#8b949e;font-size:20px;cursor:pointer;padding:2px 6px;border-radius:6px;line-height:1">✕</button>
+    </div>
+
+    <!-- Body (scrollable) -->
+    <div style="overflow-y:auto;flex:1;padding:20px 22px">
+
+      <!-- Neue Rückzahlung eingeben -->
+      <div style="background:#0d1117;border:1px solid #21262d;border-radius:10px;padding:16px 18px;margin-bottom:20px">
+        <div style="font-size:12px;font-weight:700;color:#58a6ff;margin-bottom:12px;text-transform:uppercase;letter-spacing:.05em">Neue Rückzahlung / Tilgung</div>
+        <div style="display:grid;grid-template-columns:1fr 130px 150px;gap:12px;align-items:end">
+          <div>
+            <label style="display:block;font-size:11px;color:#8b949e;margin-bottom:4px;font-weight:600">Betrag *</label>
+            <input type="number" id="rmBetrag" min="0" step="100"
+              style="width:100%;padding:9px 10px;background:#161b22;border:1px solid #1f6feb;border-radius:7px;color:#e6edf3;font-size:14px;font-weight:600;box-sizing:border-box"
+              placeholder="z.B. 500000">
+          </div>
+          <div>
+            <label style="display:block;font-size:11px;color:#8b949e;margin-bottom:4px;font-weight:600">Währung</label>
+            <select id="rmCcy" style="width:100%;padding:9px 10px;background:#161b22;border:1px solid #30363d;border-radius:7px;color:#e6edf3;font-size:13px;box-sizing:border-box">
+              <option>EUR</option><option>USD</option><option>CNY</option><option>JPY</option><option>CHF</option>
+            </select>
+          </div>
+          <div>
+            <label style="display:block;font-size:11px;color:#8b949e;margin-bottom:4px;font-weight:600">Rückzahlungsdatum *</label>
+            <input type="date" id="rmDate"
+              style="width:100%;padding:9px 10px;background:#161b22;border:1px solid #30363d;border-radius:7px;color:#e6edf3;font-size:13px;box-sizing:border-box">
+          </div>
+        </div>
+        <div style="margin-top:12px">
+          <label style="display:block;font-size:11px;color:#8b949e;margin-bottom:4px;font-weight:600">Notiz / Buchungsreferenz</label>
+          <input type="text" id="rmNote" maxlength="120"
+            style="width:100%;padding:8px 10px;background:#161b22;border:1px solid #30363d;border-radius:7px;color:#e6edf3;font-size:13px;box-sizing:border-box"
+            placeholder="z.B. SAP-Beleg 100000123 / Teilrückzahlung">
+        </div>
+        <div id="rmErr" style="color:#f87171;font-size:12px;margin-top:8px;min-height:16px"></div>
+        <div style="display:flex;gap:10px;margin-top:14px">
+          <button onclick="saveRepayment(false)"
+            style="padding:9px 20px;background:#10b981;border:none;border-radius:7px;color:#fff;font-size:13px;font-weight:600;cursor:pointer">
+            💾 Rückzahlung speichern
+          </button>
+          <button onclick="saveRepayment(true)"
+            style="padding:9px 20px;background:#1f6feb;border:none;border-radius:7px;color:#fff;font-size:13px;font-weight:600;cursor:pointer">
+            💾 Speichern &amp; Zinsplan berechnen
+          </button>
+        </div>
+      </div>
+
+      <!-- Rückzahlungshistorie -->
+      <div>
+        <div style="font-size:12px;font-weight:700;color:#8b949e;margin-bottom:10px;text-transform:uppercase;letter-spacing:.05em">Rückzahlungshistorie</div>
+        <table style="width:100%;border-collapse:collapse;font-size:13px">
+          <thead>
+            <tr style="background:#0d1117;border-bottom:1px solid #30363d">
+              <th style="padding:8px 10px;text-align:left;color:#8b949e;font-size:11px;font-weight:600">Datum</th>
+              <th style="padding:8px 10px;text-align:right;color:#8b949e;font-size:11px;font-weight:600">Betrag</th>
+              <th style="padding:8px 10px;text-align:left;color:#8b949e;font-size:11px;font-weight:600">Notiz</th>
+              <th style="padding:8px 10px;text-align:left;color:#8b949e;font-size:11px;font-weight:600">Zinsen-Update</th>
+              <th style="padding:8px 10px"></th>
+            </tr>
+          </thead>
+          <tbody id="rmHistBody"></tbody>
+        </table>
+        <div id="rmHistSummary" style="margin-top:10px;font-size:12px;color:#8b949e;text-align:right"></div>
+      </div>
+
+    </div>
+
+    <!-- Footer -->
+    <div style="padding:12px 22px;border-top:1px solid #30363d;display:flex;gap:10px;justify-content:space-between;align-items:center;flex-shrink:0">
+      <div style="font-size:12px;color:#8b949e">Änderungen werden lokal gespeichert (localStorage)</div>
+      <button onclick="closeRepayModal()"
+        style="padding:8px 18px;background:none;border:1px solid #30363d;border-radius:7px;color:#8b949e;font-size:13px;cursor:pointer">
+        Schließen
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SAP-Anmelde-Modal fuer GUI-Aufgaben ===== -->
+<div id="credModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:200;align-items:center;justify-content:center">
+  <div style="background:#161b22;border:1px solid #30363d;border-radius:12px;padding:20px 22px;width:380px;max-width:92vw;box-shadow:0 12px 40px rgba(0,0,0,.5)">
+    <h3 style="margin:0 0 6px 0;font-size:17px;color:#e6edf3">SAP-Anmeldedaten</h3>
+    <div style="color:#8b949e;font-size:12px;margin-bottom:14px" id="credCtx">Fuer die GUI-Aufgabe wird ein SAP-Login benoetigt.</div>
+    <label style="display:block;font-size:11px;color:#8b949e;margin-bottom:3px;font-weight:500">Benutzer</label>
+    <input type="text" id="credUser" autocomplete="off" style="width:100%;padding:7px 8px;border:1px solid #30363d;border-radius:6px;box-sizing:border-box;background:#0d1117;color:#e6edf3">
+    <label style="display:block;font-size:11px;color:#8b949e;margin:10px 0 3px;font-weight:500">Passwort</label>
+    <input type="password" id="credPw" autocomplete="off" style="width:100%;padding:7px 8px;border:1px solid #30363d;border-radius:6px;box-sizing:border-box;background:#0d1117;color:#e6edf3">
+    <label style="display:block;font-size:11px;color:#8b949e;margin:10px 0 3px;font-weight:500">Mandant (optional - default aus .env)</label>
+    <input type="text" id="credClient" autocomplete="off" placeholder="z. B. 600" style="width:100%;padding:7px 8px;border:1px solid #30363d;border-radius:6px;box-sizing:border-box;background:#0d1117;color:#e6edf3">
+    <div style="font-size:11px;color:#8b949e;margin-top:10px">Eingaben werden nicht gespeichert. Nur einmalig an den Worker geschickt.</div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">
+      <button class="small" onclick="window._credCancel && window._credCancel()">Abbrechen</button>
+      <button class="primary small" onclick="window._credOk && window._credOk()">Anmelden &amp; starten</button>
+    </div>
+  </div>
+</div>
+
+<script>
+var BRIDGE_URL = "http://localhost:8765";
+var REAL_MODE = false;
+
+var ROBOTS = [
+  { id:"AP", name:"Robot-AP", domain:"Accounts Payable" },
+  { id:"AR", name:"Robot-AR", domain:"Accounts Receivable" },
+  { id:"GL", name:"Robot-GL", domain:"General Ledger" },
+  { id:"AA", name:"Robot-AA", domain:"Asset Accounting" }
+];
+
+var DEFAULT_TASKS = [
+  { robot:"AP", name:"Rechnungseingang buchen", tcode:"BAPI_ACC_DOCUMENT_POST", method:"BAPI",
+    params:{ "company_code":"1000", "doc_type":"KR", "default_gl":"0000400000", "tax_code":"V1", "approval_threshold":"5000", "approver":"fi-lead@firma.de" } },
+  { robot:"AP", name:"Zahllauf F110", tcode:"F110", method:"GUI",
+    params:{ "company_code":"1000", "payment_method":"U", "vendor_from":"0000100000", "vendor_to":"0000999999", "house_bank":"DEUTS", "due_until":"7", "approver":"fi-lead@firma.de" } },
+  { robot:"AP", name:"Lieferantenabstimmung", tcode:"FBL1N", method:"BAPI",
+    params:{ "comp_code":"1000", "keydate":"today", "tolerance":"0.05" } },
+  { robot:"AP", name:"Skontoanalyse", tcode:"S_ALR_87012103", method:"BAPI",
+    params:{ "company_code":"1000", "horizon_days":"7", "min_skonto_pct":"2" } },
+
+  { robot:"AR", name:"Mahnlauf F150", tcode:"F150", method:"GUI",
+    params:{ "company_code":"1000", "dunning_procedure":"0001", "min_stage":"1", "output_mode":"Beides", "approver":"fi-lead@firma.de" } },
+  { robot:"AR", name:"Offene-Posten Kunden", tcode:"FBL5N", method:"SQL",
+    params:{ "comp_code":"1000", "customer_from":"0000000000", "customer_to":"9999999999", "keydate":"today", "aging_buckets":"30,60,90" } },
+  { robot:"AR", name:"SD-Rechnung anlegen (Queue)", tcode:"SD_INVOICE", method:"Queue",
+    params:{ "doc_date":"today", "amount":"1000.00", "customer":"0000200000", "plant":"1000",
+             "po_reference":"PO-2026-001", "service_type":"DIEN-STD", "currency":"EUR",
+             "payment_terms":"0001", "tax_code":"A1" } },
+  { robot:"AR", name:"SD-Rechnung anlegen (GUI VA01)", tcode:"SD_INVOICE", method:"GUI",
+    params:{ "doc_date":"today", "amount":"1000.00", "customer":"0000200000", "plant":"1000",
+             "po_reference":"PO-2026-001", "service_type":"DIEN-STD", "currency":"EUR",
+             "payment_terms":"0001", "tax_code":"A1",
+             "doc_type":"TA", "sales_org":"1000", "distr_chan":"10", "division":"00" } },
+  { robot:"AR", name:"Zahlungseingang verbuchen", tcode:"F-28", method:"BAPI",
+    params:{ "bank_account":"DEUTS-EUR-1", "camt_path":"\\\\srv\\fi\\bank\\in", "tolerance":"0.05", "clearing_account":"0000131000" } },
+  { robot:"AR", name:"DSO-Reporting", tcode:"S_ALR_87012168", method:"BAPI",
+    params:{ "company_code":"1000", "period_months":"3", "recipients":"cfo@firma.de" } },
+
+  { robot:"GL", name:"Periodenwechsel OB52", tcode:"OB52", method:"GUI",
+    params:{ "company_code":"1000", "variant":"INT", "new_period":"12", "fiscal_year":"2026", "approver":"gl-lead@firma.de" } },
+  { robot:"GL", name:"Umbuchungen", tcode:"BAPI_ACC_GL_POSTING_POST", method:"BAPI",
+    params:{ "company_code":"1000", "template_path":"\\\\srv\\fi\\gl\\template.xlsx", "doc_type":"SA" } },
+  { robot:"GL", name:"Saldenliste FAGLB03", tcode:"FAGLB03", method:"BAPI",
+    params:{ "company_code":"1000", "ledger":"0L", "period_from":"1", "period_to":"12", "format":"XLSX" } },
+  { robot:"GL", name:"FX-Bewertung F.05", tcode:"F.05", method:"Batch",
+    params:{ "company_code":"1000", "key_date":"eom", "method":"M2", "variant":"STD_FX", "test_run":"Ja" } },
+
+  { robot:"AA", name:"Anlagenzugang", tcode:"BAPI_FIXEDASSET_CREATE1", method:"BAPI",
+    params:{ "company_code":"1000", "asset_class":"1000", "cost_center":"K0000100", "useful_life":"5" } },
+  { robot:"AA", name:"Abschreibungslauf AFAB", tcode:"AFAB", method:"Batch",
+    params:{ "company_code":"1000", "run_type":"Planlauf", "test_run":"Ja", "approver":"aa-lead@firma.de" } },
+  { robot:"AA", name:"Anlagengitter AR01", tcode:"AR01", method:"BAPI",
+    params:{ "company_code":"1000", "dep_area":"01", "period":"12", "sort_variant":"0001" } },
+  { robot:"AA", name:"Periodenverschiebung AJRW", tcode:"AJRW", method:"GUI",
+    params:{ "company_code":"1000", "new_fiscal_year":"2027", "test_run":"Ja", "approver":"aa-lead@firma.de" } }
+];
+
+var DEFAULT_WORKFLOWS = {
+  "BAPI_ACC_DOCUMENT_POST": ["E-Mails abrufen","Anhang extrahieren","Duplikatpruefung","Beleg aufbauen","Vier-Augen","Buchung","Bestaetigung","Archivierung"],
+  "F110": ["Praemissen pruefen","F110 oeffnen","Parameter setzen","Vorschlag erzeugen","Vorschlag exportieren","Freigabe abwarten","Durchfuehrung","DTA generieren","Reporting"],
+  "FBL1N": ["OP-Liste ziehen","Saldenmeldung","Abgleich","Excel-Report","Eskalation"],
+  "F150": ["Vorschlag","Pruefung","Freigabe","Mahnungen","Versand","Stufen aktualisieren","Statusbericht"],
+  "FBL5N": ["Kunden ermitteln","OP je Kunde ziehen","Altersanalyse","Excel-Pivot","Versand"],
+  "F-28": ["camt.053 einlesen","Position pruefen","Buchung","Klaerung","Tagesabschluss"],
+  "OB52": ["Praecheck","Freigabe","OB52 oeffnen","Periode setzen","Pruefen","Bestaetigung"],
+  "BAPI_ACC_GL_POSTING_POST": ["Excel einlesen","Validierung","Belege buchen","Nr. zurueckschreiben","Bestaetigung"],
+  "FAGLB03": ["Salden lesen","Hierarchie","Format","Ablage","Notification"],
+  "F.05": ["Variante","Testlauf","Job pollen","Spool auswerten","Echtlauf","Reporting"],
+  "BAPI_FIXEDASSET_CREATE1": ["Excel einlesen","Anlage anlegen","Zugangsbuchung","Nr. zurueckschreiben","Bestaetigung"],
+  "AFAB": ["Praemissen","Testlauf","Spool pruefen","Freigabe","Echtlauf","Reporting"],
+  "AR01": ["Anlagen ziehen","Werte berechnen","Excel + PDF","Ablage","Notification"],
+  "AJRW": ["Praemissen","Testlauf","Pruefung","Freigabe","Echtlauf","Bestaetigung"],
+  "S_ALR_87012103": ["Faelligkeiten","Skonto-Filter","Empfehlung","Versand"],
+  "S_ALR_87012168": ["Umsatzdaten","OP-Bestaende","DSO berechnen","Report","Versand"]
+};
+
+var DEFAULT_CONNECTIONS = [
+  { id:"dev", name:"SAP-DEV", env:"DEV", typ:"RFC", robots:[],
+    fields:{ "ASHOST":"sapdev01.intern.firma.de", "SYSNR":"00", "CLIENT":"100", "LANG":"DE",
+             "Service-User":"RPA_DEV_SERVICE", "Passwort-Vault-Ref":"env://SAP_PASSWORD" } },
+  { id:"qas", name:"SAP-QAS", env:"QAS", typ:"RFC", robots:[],
+    fields:{ "ASHOST":"sapqas01.intern.firma.de", "SYSNR":"00", "CLIENT":"200", "LANG":"DE",
+             "Service-User":"RPA_QAS_SERVICE", "Passwort-Vault-Ref":"env://SAP_PASSWORD",
+             "SNC aktiviert":"Ja", "SNC_LIB":"%SECUDIR%/libsapcrypto.dll" } },
+  { id:"prd", name:"SAP-PRD", env:"PRD", typ:"RFC", robots:["AP","AR","GL","AA"],
+    fields:{ "ASHOST":"172.28.189.8", "SYSNR":"06", "CLIENT":"600", "LANG":"DE",
+             "Service-User":"RFC_COFACE", "Passwort-Vault-Ref":"env://SAP_PASSWORD",
+             "SNC aktiviert":"Ja" } },
+  { id:"gui", name:"SAP-GUI-PRD", env:"PRD", typ:"GUI", robots:["AP","AR","GL","AA"],
+    fields:{ "SAPLogon-Verbindung":"PRD [public]", "Sprache":"DE",
+             "Service-User":"RFC_COFACE", "Passwort-Vault-Ref":"env://SAP_PASSWORD",
+             "Auto-Login":"Ja", "Scripting auf Client":"Aktiviert" } },
+  { id:"odata", name:"S4HANA-OData-PRD", env:"PRD", typ:"OData", robots:[],
+    fields:{ "Basis-URL":"https://s4-api.firma.de/sap/opu/odata/sap/",
+             "Auth-Methode":"OAuth2", "Client-ID":"rpa-finance-client",
+             "Secret-Vault-Ref":"azure-kv://sap-prd/S4_OAUTH_SECRET",
+             "TLS-Validierung":"Ja" } }
+];
+
+var STORE_KEY = "sap-cockpit-real-v4";
+var state = JSON.parse(localStorage.getItem(STORE_KEY) || "null") || {
+  tasks: DEFAULT_TASKS.map(function(t,i){ return Object.assign({ id:"t"+i }, t); }),
+  connections: DEFAULT_CONNECTIONS.slice(),
+  logs: []
+};
+function save(){ try{ localStorage.setItem(STORE_KEY, JSON.stringify(state)); }catch(e){} }
+function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]; }); }
+
+function show(name, btn){
+  ["uebersicht","aufgaben","verbindungen","reports","darlehen","logs","historie"].forEach(function(n){
+    document.getElementById(n).classList.toggle("active", n===name);
+  });
+  document.querySelectorAll(".tab").forEach(function(t){ t.classList.toggle("active", t===btn); });
+  if (name==="aufgaben") renderTasks();
+  if (name==="verbindungen") renderConns();
+  if (name==="logs") renderLogs();
+  if (name==="uebersicht") renderOverview();
+  if (name==="reports") refreshReports();
+  if (name==="darlehen") renderLoans();
+  if (name==="historie") renderHistorie();
+}
+
+function toast(msg, level){
+  var t = document.getElementById("toast");
+  t.className = level || "info"; t.textContent = msg;
+  setTimeout(function(){ t.style.display = "none"; t.className = ""; }, 4000);
+}
+
+function log(level, msg){
+  state.logs.unshift({ ts:new Date().toLocaleString("de-DE"), level:level, msg:msg });
+  if (state.logs.length>200) state.logs.length = 200;
+  save();
+}
+
+// ---------- Bridge ----------
+function checkBridge(){
+  var bar = document.getElementById("modebar");
+  var icon = document.getElementById("modeIcon");
+  var text = document.getElementById("modeText");
+  var dot = document.getElementById("modeDot");
+  var chipText = document.getElementById("modeChipText");
+  bar.className = "modebar sim"; icon.textContent = "..."; text.textContent = "Pruefe Bridge...";
+  if (dot) { dot.className = "status-dot checking"; }
+  if (chipText) chipText.textContent = "Pruefe...";
+  fetch(BRIDGE_URL + "/health", { method:"GET" })
+    .then(function(r){ return r.ok ? r.json() : Promise.reject(r.statusText); })
+    .then(function(data){
+      REAL_MODE = true;
+      bar.className = "modebar real";
+      icon.textContent = "ECHT-MODUS";
+      text.innerHTML = "Bridge auf <code>" + BRIDGE_URL + "</code> - SAP: <code>" + esc(data.sap_host||"?") + "</code>, User: <code>" + esc(data.sap_user||"?") + "</code>, Mandant: <code>" + esc(data.sap_client||"?") + "</code> &middot; " + data.handlers.length + " Handler verfuegbar";
+      log("ok", "Bridge verbunden. Handler: " + data.handlers.join(", "));
+      if (dot) { dot.className = "status-dot connected"; }
+      if (chipText) chipText.textContent = "Verbunden";
+    })
+    .catch(function(err){
+      REAL_MODE = false;
+      bar.className = "modebar sim";
+      icon.textContent = "SIM-MODUS";
+      text.innerHTML = "Bridge nicht erreichbar. Starte <code>Bridge starten.bat</code> fuer echte SAP-Calls. Klicks simulieren bis dahin.";
+      if (dot) { dot.className = "status-dot"; }
+      if (chipText) chipText.textContent = "SIM-Modus";
+    });
+}
+
+function hasHandler(method, tcode){
+  // Bekannte Handler aus handlers.py (Stand jetzt). Wird beim Bridge-Connect ueberschrieben.
+  return ["BAPI/BAPI_ACC_DOCUMENT_POST","BAPI/FBL1N","BAPI/FBL5N","BAPI/RFC_PING","BAPI/SD_INVOICE","SQL/FBL5N","SQL/ASE_PING","Queue/SD_INVOICE","GUI/F110","GUI/SD_INVOICE","Batch/AFAB"].indexOf(method+"/"+tcode) >= 0;
+}
+
+
+// ==================== DARLEHEN-TAB ====================
+var LOANS = [
+  {nr:"011",cocode:"VV9",borrower:"Catensys Holding",account:"120000",start:"2022-12-30",end:"2026-12-31",amount:5000000,currency:"EUR",rate:5.44,residual:2800000},
+  {nr:"013",cocode:"0436",borrower:"Catensys China",account:"120000",start:"2022-06-10",end:"2026-06-08",amount:137850000,currency:"CNY",rate:4.54,residual:137850000},
+  {nr:"014",cocode:"VV9",borrower:"Catensys Holding",account:"120020",start:"2022-10-17",end:"2029-07-31",amount:1500000,currency:"EUR",rate:4.13,residual:1500000},
+  {nr:"015",cocode:"VV9",borrower:"Catensys Holding",account:"120020",start:"2022-08-04",end:"2029-07-31",amount:500000,currency:"EUR",rate:4.13,residual:500000},
+  {nr:"012",cocode:"D-> SK",borrower:"Catensys Slovakia",account:"120000",start:"2022-04-07",end:"2024-05-31",amount:3400000,currency:"EUR",rate:0.75,residual:3200000},
+  {nr:"002",cocode:"0441",borrower:"Catensys Japan",account:"120000",start:"2022-11-01",end:"2025-02-28",amount:100000,currency:"USD",rate:4.47,residual:100000},
+  {nr:"006",cocode:"0441",borrower:"Catensys Japan",account:"120000",start:"2022-10-06",end:"2025-02-28",amount:52000000,currency:"JPY",rate:0.87,residual:52000000},
+  {nr:"009",cocode:"0438",borrower:"Catensys Korea",account:"420200",start:"2022-12-20",end:"2026-06-30",amount:2500000,currency:"USD",rate:3.47,residual:1941000},
+  {nr:"005",cocode:"0438",borrower:"Catensys Korea",account:"420200",start:"2023-06-23",end:"2026-12-31",amount:750000,currency:"USD",rate:3.47,residual:750000},
+  {nr:"016",cocode:"0440",borrower:"Catensys US",account:"420200",start:"2023-03-21",end:"2024-06-20",amount:1000000,currency:"USD",rate:4.54,residual:457529.5},
+  {nr:"020",cocode:"VV9",borrower:"Catensys Holding",account:"120000",start:"2023-05-09",end:"2026-12-31",amount:120000,currency:"EUR",rate:4.54,residual:120000},
+  {nr:"021",cocode:"0441",borrower:"Catensys Japan",account:"120000",start:"2023-05-31",end:"2025-02-28",amount:100000,currency:"EUR",rate:4.54,residual:100000},
+  {nr:"022",cocode:"0441",borrower:"Catensys Japan",account:"120000",start:"2023-05-07",end:"2025-02-28",amount:50000,currency:"EUR",rate:4.54,residual:50000},
+  {nr:"023",cocode:"0440",borrower:"Catensys US",account:"420200",start:"2023-04-25",end:"2024-06-20",amount:1000000,currency:"USD",rate:4.54,residual:1000000},
+  {nr:"024",cocode:"0440",borrower:"Catensys US",account:"420200",start:"2023-05-31",end:"",amount:400000,currency:"USD",rate:4.54,residual:400000},
+  {nr:"025",cocode:"0441",borrower:"Catensys Japan",account:"120000",start:"2023-07-24",end:"2025-02-28",amount:100000,currency:"EUR",rate:4.54,residual:100000},
+  {nr:"026",cocode:"FRA->D",borrower:"Catensys France",account:"420200",start:"2023-09-07",end:"2023-10-01",amount:500000,currency:"EUR",rate:4.54,residual:500000},
+  {nr:"027",cocode:"0441",borrower:"Catensys Japan",account:"120000",start:"2023-09-29",end:"2025-02-28",amount:120000,currency:"EUR",rate:4.54,residual:120000},
+  {nr:"028",cocode:"0440",borrower:"Catensys US",account:"420200",start:"2023-10-18",end:"2024-06-20",amount:1000000,currency:"USD",rate:4.54,residual:1000000},
+  {nr:"029",cocode:"0440",borrower:"Catensys US",account:"420200",start:"2023-11-08",end:"2024-06-20",amount:500000,currency:"USD",rate:4.54,residual:500000},
+  {nr:"030",cocode:"0441",borrower:"Catensys Japan",account:"120000",start:"2024-01-19",end:"2025-02-28",amount:50000,currency:"EUR",rate:4.54,residual:50000},
+  {nr:"031",cocode:"0441",borrower:"Catensys Japan",account:"120000",start:"2024-03-01",end:"2025-02-28",amount:50000,currency:"EUR",rate:4.54,residual:50000},
+  {nr:"032",cocode:"0440",borrower:"Catensys US",account:"420200",start:"2024-03-05",end:"",amount:600000,currency:"USD",rate:4.54,residual:600000},
+  {nr:"033",cocode:"VV9",borrower:"Catensys Holding",account:"120000",start:"2024-03-28",end:"2026-12-31",amount:600000,currency:"EUR",rate:4.54,residual:120000},
+  {nr:"035",cocode:"0440",borrower:"Catensys US",account:"420200",start:"2024-05-24",end:"",amount:340000,currency:"EUR",rate:4.54,residual:340000},
+  {nr:"036",cocode:"0441",borrower:"Catensys Japan",account:"120000",start:"2024-08-05",end:"2025-02-28",amount:20000,currency:"EUR",rate:4.54,residual:20000},
+  {nr:"037",cocode:"0440",borrower:"Catensys US",account:"420200",start:"2024-11-22",end:"",amount:2400000,currency:"EUR",rate:4.54,residual:400000},
+  {nr:"038",cocode:"VV9",borrower:"Catensys Holding",account:"120000",start:"2024-12-27",end:"2026-12-31",amount:750000,currency:"EUR",rate:4.54,residual:50000},
+  {nr:"039",cocode:"VV9",borrower:"Catensys Holding",account:"120000",start:"2025-01-16",end:"2026-12-31",amount:100000,currency:"EUR",rate:4.54,residual:50000},
+  {nr:"040",cocode:"0441",borrower:"Catensys Japan",account:"120000",start:"2024-04-03",end:"2025-02-28",amount:100000,currency:"EUR",rate:4.54,residual:50000},
+  {nr:"041",cocode:"VV9",borrower:"Catensys Holding",account:"120000",start:"2025-09-17",end:"2026-12-31",amount:220000,currency:"EUR",rate:4.54,residual:220000},
+  {nr:"042",cocode:"VV9",borrower:"Catensys Holding",account:"120000",start:"2025-11-03",end:"2026-12-31",amount:20000,currency:"EUR",rate:4.54,residual:20000},
+  {nr:"043",cocode:"VV9",borrower:"Catensys Holding",account:"120000",start:"2026-04-20",end:"2027-04-30",amount:75000,currency:"EUR",rate:4.54,residual:75000},
+  {nr:"044",cocode:"VV9",borrower:"Catensys Holding",account:"120000",start:"2024-12-31",end:"2030-12-31",amount:50000,currency:"EUR",rate:4.54,residual:50000}
+];
+
+// ── Custom-Darlehen aus zinsen.html localStorage einlesen ────────────────
+(function _mergeCustomLoans() {
+  try {
+    var raw = localStorage.getItem('yconn_custom_loans');
+    if (!raw) return;
+    var customs = JSON.parse(raw);
+    customs.forEach(function(l) {
+      // Nicht doppelt eintragen
+      if (LOANS.find(function(x){ return x.nr === l.nr; })) return;
+      // Datum DD.MM.YYYY → YYYY-MM-DD
+      function cvtDate(d) {
+        if (!d) return '';
+        if (d.indexOf('-') > 0) return d; // bereits ISO
+        var p = d.split('.'); return p[2]+'-'+p[1]+'-'+p[0];
+      }
+      LOANS.push({
+        nr:       l.nr,
+        cocode:   l.cocode,
+        borrower: l.company || l.cocode,
+        account:  String(l.ic ? l.ic.acct : l.account),
+        start:    cvtDate(l.start),
+        end:      cvtDate(l.end),
+        amount:   l.amount || 0,
+        currency: l.curr || 'EUR',
+        rate:     l.rate || 0,
+        residual: l.amount || 0
+      });
+    });
+  } catch(e) { console.warn('[YCONN] Custom-Darlehen nicht geladen:', e); }
+})();
+
+function fmtNum(n, dec){ if(n==null) return ""; var d=dec==null?2:dec;
+  return Number(n).toLocaleString("de-DE",{minimumFractionDigits:d,maximumFractionDigits:d}); }
+
+function showLoanView(view, btn){
+  document.querySelectorAll("#darlehen > div > button").forEach(function(b){ b.className = b.className.replace("primary","").trim() + " small"; });
+  if (btn) btn.className = "primary small";
+  document.getElementById("loanOverview").style.display = view==="overview" ? "" : "none";
+  document.getElementById("loanCalc").style.display     = view==="calc" ? "" : "none";
+  if (view==="overview") renderLoans();
+  if (view==="calc") populateCalcLoanPicker();
+}
+
+function populateLoanFilters(){
+  function fillSelect(id, values, current){
+    var el = document.getElementById(id); if (!el) return;
+    var cur = current !== undefined ? current : el.value;
+    el.innerHTML = '<option value="all">Alle</option>';
+    values.forEach(function(x){ el.innerHTML += '<option'+(x===cur?' selected':'')+'>'+esc(x)+'</option>'; });
+  }
+  var bs  = [...new Set(LOANS.map(function(l){return l.borrower;}))].sort();
+  var cs  = [...new Set(LOANS.map(function(l){return l.currency;}))].sort();
+  var ccs = [...new Set(LOANS.map(function(l){return l.cocode;}))].sort();
+  var nrs = [...new Set(LOANS.map(function(l){return l.nr;}))].sort(function(a,b){return a.localeCompare(b,undefined,{numeric:true});});
+  fillSelect('loanFilterBorrower', bs);
+  fillSelect('loanFilterCcy',      cs);
+  fillSelect('loanFilterCocode',   ccs);
+  fillSelect('loanFilterNr',       nrs);
+}
+
+function resetLoanFilters(){
+  ['loanFilterSearch','loanFilterBorrower','loanFilterCcy','loanFilterCocode','loanFilterStatus','loanFilterNr'].forEach(function(id){
+    var el = document.getElementById(id); if (!el) return;
+    if (el.tagName==='INPUT') el.value=''; else el.value='all';
+  });
+  renderLoans();
+}
+
+function renderLoans(){
+  populateLoanFilters();
+  var fb   = document.getElementById("loanFilterBorrower").value;
+  var fc   = document.getElementById("loanFilterCcy").value;
+  var fcc  = (document.getElementById("loanFilterCocode")  || {}).value || 'all';
+  var fst  = (document.getElementById("loanFilterStatus")  || {}).value || 'all';
+  var fnr  = (document.getElementById("loanFilterNr")      || {}).value || 'all';
+  var fsq  = ((document.getElementById("loanFilterSearch") || {}).value || '').toLowerCase().trim();
+  var today = new Date().toISOString().slice(0,10);
+
+  var list = LOANS.filter(function(l){
+    if (fb  !== 'all' && l.borrower !== fb)  return false;
+    if (fc  !== 'all' && l.currency !== fc)  return false;
+    if (fcc !== 'all' && l.cocode  !== fcc)  return false;
+    if (fnr !== 'all' && l.nr      !== fnr)  return false;
+    if (fst === 'active'  && l.end && l.end < today)         return false;
+    if (fst === 'expired' && (!l.end || l.end >= today))     return false;
+    if (fsq) {
+      var hay = (l.nr+' '+l.borrower+' '+l.cocode+' '+l.account+' '+l.currency).toLowerCase();
+      if (!hay.includes(fsq)) return false;
+    }
+    return true;
+  });
+  // Summen pro Waehrung
+  var sums = {};
+  list.forEach(function(l){
+    if (!sums[l.currency]) sums[l.currency] = {count:0, amount:0, residual:0};
+    sums[l.currency].count++;
+    sums[l.currency].amount += l.amount;
+    sums[l.currency].residual += l.residual;
+  });
+  var sg = document.getElementById("loanSummary");
+  sg.innerHTML = Object.keys(sums).sort().map(function(c){
+    var s = sums[c];
+    return "<div class=\"card\" style=\"padding:10px 14px\"><div style=\"color:#8b949e;font-size:11px\">"+c+"</div>"+
+      "<div style=\"font-size:18px;font-weight:700;color:#58a6ff\">"+fmtNum(s.residual,0)+"</div>"+
+      "<div style=\"font-size:11px;color:#8b949e\">"+s.count+" Darlehen / urspr. "+fmtNum(s.amount,0)+"</div></div>";
+  }).join("");
+
+  // Ergebniszähler
+  var cntEl = document.getElementById('loanFilterCount');
+  if (cntEl) cntEl.textContent = list.length + ' von ' + LOANS.length + ' Darlehen';
+
+  var tb = document.querySelector("#loansTable tbody"); tb.innerHTML = "";
+
+  if (!list.length) {
+    var emptyRow = document.createElement('tr');
+    emptyRow.innerHTML = '<td colspan="11" style="text-align:center;color:#8b949e;padding:20px;font-size:13px">Keine Darlehen für diesen Filter gefunden</td>';
+    tb.appendChild(emptyRow);
+    return;
+  }
+
+  list.sort(function(a,b){ return a.nr.localeCompare(b.nr, undefined, {numeric:true}); }).forEach(function(l){
+    var isEdited  = !!_loanEdits[l.nr];
+    var isExpired = l.end && l.end < today;
+    var hasRepay  = !!(_repayData && _repayData[l.nr] && _repayData[l.nr].length);
+    var tr = document.createElement("tr");
+    tr.style.cursor = 'pointer';
+    tr.title = 'Zeile klicken → direkt Zinsplan berechnen';
+    // Hover-Effekt per Klasse wäre sauberer, aber inline reicht hier
+    tr.onmouseenter = function(){ this.style.background='rgba(31,111,235,.08)'; };
+    tr.onmouseleave = function(){ this.style.background=''; };
+    tr.onclick = function(e){
+      // Klick auf Buttons nicht doppelt auslösen
+      if (e.target.tagName === 'BUTTON') return;
+      openLoanPickerFor(l.nr);
+    };
+    tr.innerHTML =
+      "<td style=\"white-space:nowrap\"><b style=\"color:#58a6ff\">"+esc(l.nr)+"</b>"+
+        (isEdited  ? " <span title=\"Bearbeitet\"   style=\"color:#f59e0b;font-size:10px\">✎</span>" : "")+
+        (hasRepay  ? " <span title=\"Rückzahlungen vorhanden\" style=\"color:#10b981;font-size:10px\">💰</span>" : "")+
+      "</td>"+
+      "<td>"+esc(l.borrower)+"</td>"+
+      "<td>"+esc(l.cocode)+"</td>"+
+      "<td style=\"color:#8b949e\">"+esc(l.account)+"</td>"+
+      "<td style=\"color:#8b949e\">"+esc(l.start)+"</td>"+
+      "<td style=\"color:"+(isExpired?'#f87171':'#34d399')+"\">"+esc(l.end||"–")+"</td>"+
+      "<td style=\"text-align:right;color:#8b949e\">"+fmtNum(l.amount,0)+"</td>"+
+      "<td><span style=\"background:#1f2937;padding:2px 6px;border-radius:4px;font-size:11px;font-weight:600\">"+esc(l.currency)+"</span></td>"+
+      "<td style=\"text-align:right\">"+fmtNum(l.rate,2)+" %</td>"+
+      "<td style=\"text-align:right;font-weight:700;color:#10b981\">"+fmtNum(l.residual,0)+"</td>"+
+      "<td style=\"white-space:nowrap\" onclick=\"event.stopPropagation()\">"+
+        "<button class=\"small\" onclick=\"openLoanPickerFor('"+l.nr+"')\" title=\"Zinsplan berechnen\" style=\"margin-right:3px\">📊 Plan</button>"+
+        "<button class=\"small\" onclick=\"openRepayModal('"+l.nr+"')\" title=\"Rückzahlung / Tilgung erfassen\" style=\"margin-right:3px;background:#0c2a1a;color:#10b981;border-color:#10b981\">💰</button>"+
+        "<button class=\"small\" onclick=\"openLoanEdit('"+l.nr+"')\" title=\"Bearbeiten\" style=\"margin-right:3px;background:#1f2937\">✏️</button>"+
+        "<button class=\"small\" onclick=\"deleteLoan('"+l.nr+"')\" title=\"Löschen\" style=\"background:rgba(239,68,68,.15);color:#ef4444;border-color:rgba(239,68,68,.3)\">🗑</button>"+
+      "</td>";
+    tb.appendChild(tr);
+  });
+}
+
+// ── Darlehen-Persistenz (localStorage) ─────────────────────
+var _LOANS_EDIT_KEY = 'yconn_loans_edits';
+var _loanEdits = (function(){
+  try { return JSON.parse(localStorage.getItem(_LOANS_EDIT_KEY) || '{}'); } catch(e){ return {}; }
+})();
+
+// Edits beim Start auf LOANS anwenden
+(function _applyEdits(){
+  Object.keys(_loanEdits).forEach(function(nr){
+    var edit = _loanEdits[nr];
+    var idx  = LOANS.findIndex(function(l){ return l.nr === nr; });
+    if (edit === '__deleted__') {
+      // Gelöschtes Darlehen aus LOANS entfernen
+      if (idx >= 0) LOANS.splice(idx, 1);
+    } else if (idx >= 0) {
+      Object.assign(LOANS[idx], edit);
+    }
+  });
+})();
+
+function _saveEdits(){ localStorage.setItem(_LOANS_EDIT_KEY, JSON.stringify(_loanEdits)); }
+
+// ── Bearbeiten ──────────────────────────────────────────────
+function openLoanEdit(nr){
+  var l = LOANS.find(function(x){ return x.nr === nr; }); if (!l) return;
+document.getElementById('leTitle').textContent = 'Darlehen ' + nr + ' bearbeiten';
+  document.getElementById('leOrigNr').value  = nr;
+  document.getElementById('leNr').value      = l.nr;
+  document.getElementById('leCocode').value  = l.cocode   || '';
+  document.getElementById('leBorrower').value= l.borrower || '';
+  document.getElementById('leAccount').value = l.account  || '';
+  document.getElementById('leCcy').value     = l.currency || 'EUR';
+  document.getElementById('leAmount').value  = l.amount   || 0;
+  document.getElementById('leResidual').value= l.residual || 0;
+  document.getElementById('leRate').value    = l.rate     || 0;
+  document.getElementById('leStart').value   = l.start    || '';
+  document.getElementById('leEnd').value     = l.end      || '';
+  document.getElementById('leMethod').value  = l.method   || '360';
+  document.getElementById('leRepay').value   = l.repay    || 0;
+  document.getElementById('leNotes').value   = l.notes    || '';
+  document.getElementById('loanEditModal').style.display = 'flex';
+}
+
+function closeLoanEdit(){
+  document.getElementById('loanEditModal').style.display = 'none';
+}
+
+function saveLoanEdit(onlySave){
+  var origNr = document.getElementById('leOrigNr').value;
+  var newNr  = (document.getElementById('leNr').value || '').trim();
+  if (!newNr){ alert('Loan-Nr. darf nicht leer sein.'); return; }
+
+  var updated = {
+    nr:       newNr,
+    cocode:   document.getElementById('leCocode').value.trim(),
+    borrower: document.getElementById('leBorrower').value.trim(),
+    account:  document.getElementById('leAccount').value.trim(),
+    currency: document.getElementById('leCcy').value,
+    amount:   parseFloat(document.getElementById('leAmount').value)   || 0,
+    residual: parseFloat(document.getElementById('leResidual').value) || 0,
+    rate:     parseFloat(document.getElementById('leRate').value)     || 0,
+    start:    document.getElementById('leStart').value,
+    end:      document.getElementById('leEnd').value,
+    method:   document.getElementById('leMethod').value,
+    repay:    parseFloat(document.getElementById('leRepay').value)    || 0,
+    notes:    document.getElementById('leNotes').value
+  };
+
+  var idx = LOANS.findIndex(function(l){ return l.nr === origNr; });
+  if (idx >= 0) { LOANS[idx] = updated; } else { LOANS.push(updated); }
+
+  if (origNr !== newNr) delete _loanEdits[origNr];
+  _loanEdits[newNr] = updated;
+  _saveEdits();
+
+  closeLoanEdit();
+  renderLoans();
+  toast('Darlehen ' + newNr + ' gespeichert.', 'ok');
+
+  if (!onlySave) {
+    setTimeout(function(){ openLoanPickerFor(newNr); }, 200);
+  }
+}
+
+// ── Löschen ─────────────────────────────────────────────────
+function deleteLoan(nr){
+  var l = LOANS.find(function(x){ return x.nr === nr; });
+  if (!l) return;
+  if (!confirm('Darlehen ' + nr + ' (' + (l.borrower||'') + ') wirklich löschen?\n\nAktion kann durch Seiten-Reload rückgängig gemacht werden.')) return;
+  var idx = LOANS.findIndex(function(x){ return x.nr === nr; });
+  if (idx >= 0) LOANS.splice(idx, 1);
+  _loanEdits[nr] = '__deleted__';
+  _saveEdits();
+  renderLoans();
+  toast('Darlehen ' + nr + ' gelöscht.', 'warn');
+}
+
+// ══════════════════════════════════════════════════════════════
+// ── Rückzahlung / Tilgung ─────────────────────────────────────
+// ══════════════════════════════════════════════════════════════
+
+var _REPAY_KEY = 'yconn_repayments';
+var _repayData = (function(){
+  try { return JSON.parse(localStorage.getItem(_REPAY_KEY) || '{}'); } catch(e){ return {}; }
+})();
+function _saveRepayData(){ localStorage.setItem(_REPAY_KEY, JSON.stringify(_repayData)); }
+
+var _repayTargetNr = null;
+
+function openRepayModal(nr){
+  var l = LOANS.find(function(x){ return x.nr === nr; });
+  if (!l) return;
+  _repayTargetNr = nr;
+  document.getElementById('rmTitle').textContent = 'Darlehen ' + nr + ' – ' + (l.borrower || '');
+  _updateRepayResidualDisplay(l);
+  document.getElementById('rmBetrag').value = '';
+  document.getElementById('rmCcy').value    = l.currency || 'EUR';
+  document.getElementById('rmDate').value   = new Date().toISOString().slice(0, 10);
+  document.getElementById('rmNote').value   = '';
+  document.getElementById('rmErr').textContent = '';
+  renderRepayHistory(nr);
+  document.getElementById('repayModal').style.display = 'flex';
+}
+
+function closeRepayModal(){
+  document.getElementById('repayModal').style.display = 'none';
+  var selNr = (document.getElementById('lcPickNr')||{}).value;
+  if (selNr) renderCalcRepayList(selNr);
+  _repayTargetNr = null;
+}
+
+function _updateRepayResidualDisplay(l){
+  if (!l) return;
+  var entries = _repayData[l.nr] || [];
+  var totalSameCcy = entries.reduce(function(s, e){
+    return (e.ccy === l.currency) ? s + e.betrag : s;
+  }, 0);
+  var el = document.getElementById('rmResidual');
+  if (el) el.textContent = fmtNum(l.residual, 0) + ' ' + l.currency +
+    (totalSameCcy > 0 ? '  (gesamt getilgt: ' + fmtNum(totalSameCcy, 0) + ' ' + l.currency + ')' : '');
+}
+
+function renderRepayHistory(nr){
+  var entries = (_repayData[nr] || []);
+  var tb = document.getElementById('rmHistBody');
+  if (!tb) return;
+  tb.innerHTML = '';
+  if (!entries.length) {
+    var row = document.createElement('tr');
+    row.innerHTML = '<td colspan="5" style="text-align:center;color:#8b949e;padding:14px;font-size:12px">Noch keine Rückzahlungen erfasst</td>';
+    tb.appendChild(row);
+    var sumEl = document.getElementById('rmHistSummary');
+    if (sumEl) sumEl.textContent = '';
+    return;
+  }
+  var totalByCcy = {};
+  entries.forEach(function(e, i){
+    totalByCcy[e.ccy] = (totalByCcy[e.ccy] || 0) + e.betrag;
+    var tr = document.createElement('tr');
+    tr.style.borderBottom = '1px solid #21262d';
+    tr.innerHTML =
+      '<td style="padding:7px 10px;font-size:12px;color:#c9d1d9">'     + esc(e.date) + '</td>'+
+      '<td style="padding:7px 10px;font-size:13px;text-align:right;font-weight:700;color:#10b981">'
+        + fmtNum(e.betrag,0)+' '+esc(e.ccy)+'</td>'+
+      '<td style="padding:7px 10px;font-size:12px;color:#8b949e;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'
+        + (e.note ? esc(e.note) : '<span style="opacity:.4">–</span>') + '</td>'+
+      '<td style="padding:7px 10px">'+
+        '<button onclick="openZinsplanAfterRepay(\''+nr+'\')" title="Zinsplan mit aktueller Restschuld berechnen" '+
+          'style="background:rgba(31,111,235,.15);border:1px solid rgba(31,111,235,.4);color:#58a6ff;border-radius:5px;padding:2px 8px;font-size:11px;cursor:pointer">'+
+          '📊 Zinsen</button></td>'+
+      '<td style="padding:7px 10px">'+
+        '<button onclick="deleteRepayment(\''+nr+'\','+i+')" title="Rückzahlung entfernen" '+
+          'style="background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.3);color:#ef4444;border-radius:5px;padding:2px 8px;font-size:11px;cursor:pointer">'+
+          '✕</button></td>';
+    tb.appendChild(tr);
+  });
+  var sumParts = Object.keys(totalByCcy).map(function(c){
+    return '<strong style="color:#10b981">'+fmtNum(totalByCcy[c],0)+' '+c+'</strong>';
+  });
+  var sumEl = document.getElementById('rmHistSummary');
+  if (sumEl) sumEl.innerHTML = 'Gesamt getilgt: ' + sumParts.join(' + ');
+}
+
+function saveRepayment(andCalc){
+  var nr     = _repayTargetNr;
+  var betrag = parseFloat(document.getElementById('rmBetrag').value);
+  var ccy    = document.getElementById('rmCcy').value;
+  var date   = document.getElementById('rmDate').value;
+  var note   = document.getElementById('rmNote').value.trim();
+  var errEl  = document.getElementById('rmErr');
+  if (!betrag || betrag <= 0){ errEl.textContent = 'Bitte einen gültigen Betrag eingeben.'; return; }
+  if (!date)                  { errEl.textContent = 'Bitte ein Datum eingeben.';            return; }
+  errEl.textContent = '';
+
+  if (!_repayData[nr]) _repayData[nr] = [];
+  _repayData[nr].push({ betrag: betrag, ccy: ccy, date: date, note: note, ts: Date.now() });
+  _repayData[nr].sort(function(a,b){ return a.date < b.date ? -1 : (a.date > b.date ? 1 : 0); });
+  _saveRepayData();
+
+  var l = LOANS.find(function(x){ return x.nr === nr; });
+  if (l && ccy === l.currency) {
+    l.residual = Math.max(0, (l.residual || 0) - betrag);
+    if (!_loanEdits[nr]) _loanEdits[nr] = Object.assign({}, l);
+    _loanEdits[nr].residual = l.residual;
+    _saveEdits();
+  }
+
+  document.getElementById('rmBetrag').value = '';
+  document.getElementById('rmNote').value   = '';
+  _updateRepayResidualDisplay(l);
+  renderRepayHistory(nr);
+  renderLoans();
+  toast('Rückzahlung ' + fmtNum(betrag,0) + ' ' + ccy + ' am ' + date + ' gespeichert.', 'ok');
+
+  if (andCalc) {
+    closeRepayModal();
+    setTimeout(function(){ openLoanPickerFor(nr); }, 150);
+  }
+}
+
+function deleteRepayment(nr, idx){
+  var entries = _repayData[nr];
+  if (!entries || !entries[idx]) return;
+  var e = entries[idx];
+  if (!confirm('Rückzahlung ' + fmtNum(e.betrag,0) + ' ' + e.ccy + ' vom ' + e.date + ' wirklich entfernen?')) return;
+
+  var l = LOANS.find(function(x){ return x.nr === nr; });
+  if (l && e.ccy === l.currency) {
+    l.residual = (l.residual || 0) + e.betrag;
+    if (!_loanEdits[nr]) _loanEdits[nr] = Object.assign({}, l);
+    _loanEdits[nr].residual = l.residual;
+    _saveEdits();
+  }
+
+  entries.splice(idx, 1);
+  if (!entries.length) delete _repayData[nr];
+  _saveRepayData();
+
+  _updateRepayResidualDisplay(l);
+  renderRepayHistory(nr);
+  renderLoans();
+  toast('Rückzahlung entfernt.', 'warn');
+}
+
+function openZinsplanAfterRepay(nr){
+  closeRepayModal();
+  setTimeout(function(){ openLoanPickerFor(nr); }, 150);
+}
+
+// ══════════════════════════════════════════════════════════════
+// ── Loan Picker & Rechner ──────────────────────────────────────
+// ══════════════════════════════════════════════════════════════
+
+function openLoanPickerFor(nr){
+  show('loans');
+  showLoanView('calc');
+  renderLoanPicker();
+  if (nr) selectLoanPicker(nr);
+  document.getElementById('loanPickerModal').style.display = 'flex';
+}
+
+// ── Rechner: Dropdown mit allen Darlehen befüllen ────────────────────────────
+function populateCalcLoanPicker() {
+  var sel = document.getElementById('lcPickNr');
+  if (!sel) return;
+  var cur = sel.value;
+  sel.innerHTML = '<option value="">— Bestehendes Darlehen wählen —</option>';
+  var today = new Date().toISOString().slice(0,10);
+  LOANS.forEach(function(l) {
+    var expired = l.end && l.end < today;
+    var label = 'Nr.' + l.nr + '  ·  ' + (l.borrower || l.cocode) +
+                '  ·  ' + fmtNum(l.residual || l.amount, 0) + ' ' + l.currency +
+                '  ·  ' + (l.rate ? l.rate.toFixed(2) + '%' : '–') +
+                (expired ? '  [abgelaufen]' : '');
+    var opt = document.createElement('option');
+    opt.value = l.nr;
+    opt.textContent = label;
+    if (expired) opt.style.color = '#6e7681';
+    sel.appendChild(opt);
+  });
+  if (cur) sel.value = cur;
+}
+
+function onCalcLoanPick() {
+  var nr = (document.getElementById('lcPickNr') || {}).value;
+  if (!nr) {
+    document.getElementById('lcInfoStrip').style.display = 'none';
+    document.getElementById('lcRepayList').style.display = 'none';
+    return;
+  }
+  // Load into calc fields
+  loadLoanIntoCalc(nr);
+  // Show info strip
+  var l = LOANS.find(function(x){ return x.nr === nr; });
+  if (l) {
+    document.getElementById('lcInfoStrip').style.display = '';
+    document.getElementById('lcInfoNr').textContent        = 'Nr. ' + l.nr;
+    document.getElementById('lcInfoBorrower').textContent  = l.borrower || l.cocode || '';
+    document.getElementById('lcInfoAmount').textContent    = fmtNum(l.amount, 0) + ' ' + l.currency;
+    document.getElementById('lcInfoResidual').textContent  = fmtNum(l.residual || l.amount, 0) + ' ' + l.currency;
+    document.getElementById('lcInfoRate').textContent      = (l.rate ? l.rate.toFixed(2) : '–') + ' %';
+    document.getElementById('lcInfoEnd').textContent       = l.end ? l.start + ' → ' + l.end : l.start + ' (offen)';
+  }
+  // Make sure calc view is visible
+  var calcDiv = document.getElementById('loanCalc');
+  if (calcDiv) calcDiv.style.display = '';
+  var ovDiv = document.getElementById('loanOverview');
+  if (ovDiv) ovDiv.style.display = 'none';
+  // Show repayments
+  renderCalcRepayList(nr);
+  // Fill Quick-Edit panel
+  var qe = document.getElementById('lcQuickEdit');
+  if (qe) qe.style.display = '';
+  if (l) {
+    var eeEnd = document.getElementById('lcEditEnd');
+    var eeRep = document.getElementById('lcEditRepay');
+    var eeRes = document.getElementById('lcEditResidual');
+    if (eeEnd) { eeEnd.value = l.end || ''; document.getElementById('lcEditEndHint').textContent=''; }
+    if (eeRep) { eeRep.value = l.repay || 0; document.getElementById('lcEditRepayHint').textContent=''; }
+    if (eeRes) { eeRes.value = l.residual || l.amount || 0; document.getElementById('lcEditResidualHint').textContent=''; }
+    // Pre-fill new repayment currency
+    var ccySel = document.getElementById('lcNewRepCcy');
+    if (ccySel) ccySel.value = l.currency || 'EUR';
+    // Pre-fill new repayment date = today
+    var dtEl = document.getElementById('lcNewRepDate');
+    if (dtEl && !dtEl.value) dtEl.value = new Date().toISOString().slice(0,10);
+  }
+  // Auto-calculate
+  calcLoan();
+}
+
+function renderCalcRepayList(nr) {
+  var panel = document.getElementById('lcRepayList');
+  var body  = document.getElementById('lcRepayListBody');
+  if (!panel || !body) return;
+  try {
+    var all = JSON.parse(localStorage.getItem('yconn_repayments') || '{}');
+    var entries = (all[nr] || []).slice().sort(function(a,b){ return a.date.localeCompare(b.date); });
+    if (!entries.length) { panel.style.display = 'none'; return; }
+    panel.style.display = '';
+    var total = entries.reduce(function(s,e){ return s + (parseFloat(e.betrag)||0); }, 0);
+    body.innerHTML = entries.map(function(e, i) {
+      return '<div style="display:flex;align-items:center;gap:10px;padding:5px 0;border-bottom:1px solid #21262d">' +
+        '<span style="color:#8b949e;min-width:90px">' + e.date + '</span>' +
+        '<span style="color:#10b981;font-weight:700;min-width:110px">' + fmtNum(parseFloat(e.betrag)||0, 2) + ' ' + (e.ccy||'EUR') + '</span>' +
+        '<span style="color:#6e7681;font-size:11px;flex:1">' + (e.note || '') + '</span>' +
+        '<button onclick="deleteRepayment(\'' + nr + '\',' + i + ')" title="Löschen" ' +
+          'style="background:none;border:none;color:#6e7681;cursor:pointer;font-size:14px;padding:0 4px">✕</button>' +
+        '</div>';
+    }).join('') +
+    '<div style="padding:6px 0;color:#10b981;font-size:12px;font-weight:700">Summe Tilgungen: ' + fmtNum(total,2) + '</div>';
+  } catch(e) { panel.style.display = 'none'; }
+}
+
+function editCurrentCalcLoan() {
+  var nr = (document.getElementById('lcPickNr') || {}).value || document.getElementById('lcNr').value;
+  if (nr && nr !== 'NEU') openLoanEdit(nr); else alert('Kein Darlehen ausgewählt.');
+}
+
+function repayCurrentCalcLoan() {
+  var nr = (document.getElementById('lcPickNr') || {}).value || document.getElementById('lcNr').value;
+  if (nr && nr !== 'NEU') openRepayModal(nr); else alert('Kein Darlehen ausgewählt.');
+}
+
+function loadLoanFromOverview(){
+  renderLoanPicker();
+  document.getElementById('loanPickerModal').style.display = 'flex';
+}
+
+function closeLoanPicker(){
+  document.getElementById('loanPickerModal').style.display = 'none';
+}
+
+var _lpSelected = null;
+
+function renderLoanPicker(){
+  var q      = (document.getElementById('lpSearch')  || {}).value || '';
+  var ccyF   = (document.getElementById('lpCcy')     || {}).value || 'all';
+  var statF  = (document.getElementById('lpStatus')  || {}).value || 'all';
+  var ql = q.toLowerCase();
+
+  var list = LOANS.filter(function(l){
+    if (ccyF !== 'all' && l.currency !== ccyF) return false;
+    var today = new Date().toISOString().slice(0,10);
+    if (statF === 'active'   && l.end && l.end < today) return false;
+    if (statF === 'expired'  && (!l.end || l.end >= today)) return false;
+    if (ql) {
+      var hay = (l.nr+' '+l.borrower+' '+l.cocode+' '+l.currency).toLowerCase();
+      if (!hay.includes(ql)) return false;
+    }
+    return true;
+  });
+
+  var tb = document.getElementById('lpTableBody');
+  if (!tb) return;
+  tb.innerHTML = '';
+  list.sort(function(a,b){ return a.nr.localeCompare(b.nr); }).forEach(function(l){
+    var today = new Date().toISOString().slice(0,10);
+    var expired = l.end && l.end < today;
+    var tr = document.createElement('tr');
+    tr.style.cursor = 'pointer';
+    if (_lpSelected === l.nr) tr.style.background = 'rgba(31,111,235,.18)';
+    tr.onclick = function(){ selectLoanPicker(l.nr); };
+    tr.innerHTML =
+      '<td style="padding:7px 10px;font-weight:700;color:#58a6ff">'+esc(l.nr)+'</td>'+
+      '<td style="padding:7px 10px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(l.borrower)+'</td>'+
+      '<td style="padding:7px 10px;color:#8b949e">'+esc(l.cocode)+'</td>'+
+      '<td style="padding:7px 10px;text-align:right">'+fmtNum(l.amount,0)+' '+esc(l.currency)+'</td>'+
+      '<td style="padding:7px 10px;text-align:right;font-weight:600;color:#10b981">'+fmtNum(l.residual,0)+'</td>'+
+      '<td style="padding:7px 10px;text-align:right">'+fmtNum(l.rate,2)+' %</td>'+
+      '<td style="padding:7px 10px;color:'+(expired?'#f87171':'#34d399')+'">'+
+        (expired ? 'Abgelaufen' : (l.end ? l.end : 'Offen'))+'</td>'+
+      '<td style="padding:7px 10px">'+
+        '<button onclick="event.stopPropagation();selectLoanPicker(\''+l.nr+'\')" '+
+          'style="padding:3px 10px;border-radius:5px;border:1px solid #1f6feb;background:rgba(31,111,235,.15);color:#58a6ff;font-size:12px;cursor:pointer">'+
+          'Auswählen</button></td>';
+    tb.appendChild(tr);
+  });
+
+  if (!list.length) {
+    var tr = document.createElement('tr');
+    tr.innerHTML = '<td colspan="8" style="text-align:center;color:#8b949e;padding:16px;font-size:13px">Keine Darlehen gefunden</td>';
+    tb.appendChild(tr);
+  }
+}
+
+function selectLoanPicker(nr){
+  _lpSelected = nr;
+  renderLoanPicker();
+  var l = LOANS.find(function(x){ return x.nr===nr; });
+  var panel = document.getElementById('lpSelected');
+  var info  = document.getElementById('lpSelInfo');
+  var repEl = document.getElementById('lpRepay');
+  if (!l || !panel || !info) return;
+  panel.style.display = 'flex';
+  info.innerHTML =
+    '<span style="color:#58a6ff;font-weight:700">'+esc(l.nr)+'</span> '+
+    esc(l.borrower)+' &nbsp;·&nbsp; '+
+    '<span style="color:#10b981;font-weight:700">'+fmtNum(l.residual,0)+' '+esc(l.currency)+'</span> '+
+    '&nbsp;·&nbsp; '+fmtNum(l.rate,2)+' % &nbsp;·&nbsp; '+
+    (l.end ? l.end : 'endfällig');
+  if (repEl) repEl.value = l.repay || 0;
+}
+
+function confirmLoanPick(){
+  if (!_lpSelected) { alert('Bitte zuerst ein Darlehen auswählen.'); return; }
+  var repay = parseFloat((document.getElementById('lpRepay')||{}).value) || 0;
+  closeLoanPicker();
+  loadLoanIntoCalcWithRepay(_lpSelected, repay);
+  // Sync dropdown
+  var sel = document.getElementById('lcPickNr');
+  if (sel) { sel.value = _lpSelected; onCalcLoanPick(); }
+}
+
+function loadLoanIntoCalc(nr){
+  var l = LOANS.find(function(x){ return x.nr===nr; }); if (!l) return;
+  document.getElementById('lcNr').value      = l.nr;
+  document.getElementById('lcBorrower').value= l.borrower  || '';
+  document.getElementById('lcAmount').value  = l.residual  || l.amount;
+  document.getElementById('lcCcy').value     = l.currency  || 'EUR';
+  document.getElementById('lcRate').value    = l.rate      || 0;
+  document.getElementById('lcStart').value   = l.start     || '';
+  document.getElementById('lcEnd').value     = l.end       || '';
+  document.getElementById('lcMethod').value  = l.method    || '360';
+  document.getElementById('lcRepay').value   = l.repay     || 0;
+  showLoanView('calc');
+}
+
+function loadLoanIntoCalcWithRepay(nr, repay){
+  loadLoanIntoCalc(nr);
+  if (repay !== undefined) document.getElementById('lcRepay').value = repay;
+  calcLoan();
+}
+
+// ── Zins- und Tilgungsplan ────────────────────────────────────
+// ── Hilfsfunktion: Datum auf ersten des Monats setzen ────────────────────────
+function _firstOfMonth(d) {
+  return new Date(d.getFullYear(), d.getMonth(), 1);
+}
+// ── ISO date "YYYY-MM-DD" → Date object ───────────────────────────────────────
+function _isoDate(s) {
+  if (!s) return null;
+  // Support both YYYY-MM-DD (ISO) and DD.MM.YYYY (German)
+  if (/^\d{2}\.\d{2}\.\d{4}$/.test(s)) {
+    var p = s.split('.'); return new Date(p[2]+'-'+p[1]+'-'+p[0]+'T00:00:00');
+  }
+  return new Date(s + 'T00:00:00');
+}
+
+function calcLoan(){
+  var nr       = document.getElementById('lcNr').value.trim();
+  var lender   = document.getElementById('lcLender').value;
+  var borrower = document.getElementById('lcBorrower').value;
+  var amount   = parseFloat(document.getElementById('lcAmount').value) || 0;
+  var ccy      = document.getElementById('lcCcy').value;
+  var rate     = parseFloat(document.getElementById('lcRate').value)   || 0;
+  var startStr = document.getElementById('lcStart').value;
+  var endStr   = document.getElementById('lcEnd').value;
+  var method   = document.getElementById('lcMethod').value || '360';
+  var repay    = parseFloat(document.getElementById('lcRepay').value)  || 0;
+
+  if (!amount || !rate || !startStr){
+    var rE = document.getElementById('loanCalcResult');
+    if (rE) rE.innerHTML = '<div class="card" style="color:#ef4444;padding:16px">⚠ Bitte Betrag, Zinssatz und Beginn eingeben.</div>';
+    return;
+  }
+
+  var basis   = parseInt(method, 10);
+  var today   = new Date();
+  var curMonthStart = _firstOfMonth(today);
+  var loanStart     = _isoDate(startStr);
+  var endD          = endStr ? _isoDate(endStr) : null;
+
+  // ── Einzeltilgungen (Sondertilgungen) aus localStorage ───────────────────
+  var sonderTilgungen = [];
+  try {
+    var allRepay = JSON.parse(localStorage.getItem('yconn_repayments') || '{}');
+    var entries  = allRepay[nr] || [];
+    entries.forEach(function(e) {
+      if (e.date && e.betrag) sonderTilgungen.push({ date: e.date, betrag: parseFloat(e.betrag)||0 });
+    });
+    sonderTilgungen.sort(function(a,b){ return a.date.localeCompare(b.date); });
+  } catch(ex){}
+
+  // ── Startpunkt: immer ab Darlehensbeginn (vollständige Historie) ─────────
+  var d     = new Date(loanStart);   // z.B. 2024-03-28
+  var rest  = amount;
+  var rows  = [], totalZins = 0, totalTilg = 0;
+  var maxRows = 600;
+  var todayStr = today.toISOString().slice(0,10);
+  var isFirstPeriod = true;
+
+  while (maxRows-- > 0) {
+    // Letzter Kalendertag des aktuellen Monats
+    var endOfMon = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+    var firstOfNext = new Date(d.getFullYear(), d.getMonth() + 1, 1);
+    var isLastPeriod = false;
+    var periodEnd = endOfMon;
+
+    if (endD && endOfMon >= endD) {
+      periodEnd    = new Date(endD);
+      isLastPeriod = true;
+    }
+
+    // Tage act/360: erster Monat anteilig (Starttag ausgeschlossen), Rest voll
+    var tage;
+    if (isFirstPeriod) {
+      // Verbleibende Tage im Startmonat (ohne Starttag selbst)
+      tage = periodEnd.getDate() - d.getDate();
+      isFirstPeriod = false;
+    } else if (isLastPeriod) {
+      // Letzter Monat: 1. bis Endtag
+      tage = periodEnd.getDate();
+    } else {
+      // Voller Kalendermonat
+      tage = endOfMon.getDate();
+    }
+
+    var vonStr = d.toISOString().slice(0,10);
+    var bisStr = periodEnd.toISOString().slice(0,10);
+
+    var zinsen = tage > 0 ? rest * (rate / 100) * (tage / basis) : 0;
+
+    // Sondertilgungen in diesem Monat?
+    var sonder = 0;
+    sonderTilgungen.forEach(function(st) {
+      if (st.date >= vonStr && st.date <= bisStr) sonder += st.betrag;
+    });
+
+    var tilgung = Math.min(repay + sonder, rest);
+    var total   = zinsen + tilgung;
+    var restNeu = rest - tilgung;
+
+    var isCurrent = (vonStr <= todayStr && bisStr >= todayStr);
+    var isPast    = bisStr < todayStr;
+
+    rows.push({
+      von: vonStr, bis: bisStr, tage: tage,
+      zinsen: zinsen, tilgung: tilgung, sonder: sonder,
+      rate: total, rest: restNeu,
+      current: isCurrent, past: isPast
+    });
+
+    totalZins += zinsen;
+    totalTilg += tilgung;
+    rest       = restNeu;
+
+    if (isLastPeriod) {
+      // Restschuld am Ende begleichen
+      if (rest > 0.01) {
+        rows[rows.length-1].tilgung += rest;
+        rows[rows.length-1].rate    += rest;
+        rows[rows.length-1].rest     = 0;
+        totalTilg += rest;
+        rest = 0;
+      }
+      break;
+    }
+    if (!endD && !repay && !sonder) break; // endfällig, kein Enddatum → eine Zeile
+
+    d = firstOfNext;
+  }
+
+  var resEl = document.getElementById('loanCalcResult');
+  var startLabel = startStr + ' → ' + (endStr || 'offen');
+
+  var out = '<div class="card" style="overflow-x:auto;padding:0">' +
+    // ── KPI-Header ──────────────────────────────────────────────────────────
+    '<div style="display:flex;gap:0;flex-wrap:wrap;border-bottom:1px solid #21262d">' +
+      _kpiCell('Darlehen', '<span style="color:#58a6ff;font-size:16px;font-weight:800">'+esc(nr)+'</span>') +
+      _kpiCell('Darlehensnehmer', esc(borrower)) +
+      _kpiCell('Restschuld / Basis', '<span style="color:#10b981;font-weight:700">'+fmtNum(amount,2)+' '+esc(ccy)+'</span>') +
+      _kpiCell('Zinssatz', rate+' % ('+basis+' Tage)') +
+      _kpiCell('Berechnung', esc(startLabel)) +
+      _kpiCell('Enddatum', endStr ? endStr : '<span style="color:#6e7681">offen / endfällig</span>') +
+      _kpiCell('Zinsen gesamt (Zukunft)', '<span style="color:#f59e0b;font-weight:700">'+fmtNum(totalZins,2)+' '+esc(ccy)+'</span>') +
+      _kpiCell('Tilgung gesamt', '<span style="font-weight:700">'+fmtNum(totalTilg,2)+' '+esc(ccy)+'</span>') +
+    '</div>' +
+    // ── Tabelle ─────────────────────────────────────────────────────────────
+    '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">' +
+    '<thead><tr style="background:#0d1117;border-bottom:1px solid #21262d">' +
+      '<th style="padding:8px 10px;text-align:left;color:#8b949e;font-weight:600;white-space:nowrap">Von</th>' +
+      '<th style="padding:8px 10px;text-align:left;color:#8b949e;font-weight:600;white-space:nowrap">Bis</th>' +
+      '<th style="padding:8px 6px;text-align:right;color:#8b949e;font-weight:600">Tage</th>' +
+      '<th style="padding:8px 10px;text-align:right;color:#f59e0b;font-weight:600">Zinsen ('+esc(ccy)+')</th>' +
+      '<th style="padding:8px 10px;text-align:right;color:#8b949e;font-weight:600">Regeltilgung</th>' +
+      '<th style="padding:8px 10px;text-align:right;color:#10b981;font-weight:600">Sondertilgung</th>' +
+      '<th style="padding:8px 10px;text-align:right;color:#8b949e;font-weight:600">Rate gesamt</th>' +
+      '<th style="padding:8px 10px;text-align:right;color:#8b949e;font-weight:600">Restschuld</th>' +
+    '</tr></thead><tbody>';
+
+  rows.forEach(function(r) {
+    var cur   = r.current;
+    var past  = r.past && !cur;
+    var rowBg = cur  ? 'background:rgba(31,111,235,.12);border-left:3px solid #1f6feb;'
+              : past ? 'opacity:0.55;border-left:3px solid transparent;'
+              :        'border-left:3px solid transparent;';
+    var curTag= cur ? '<span style="margin-left:5px;font-size:10px;background:#1f6feb;color:#fff;padding:1px 5px;border-radius:3px;font-weight:700">AKTUELL</span>' : '';
+    var sonderCell = r.sonder > 0
+      ? '<td style="padding:6px 10px;text-align:right;color:#10b981;font-weight:700">'+fmtNum(r.sonder,2)+'</td>'
+      : '<td style="padding:6px 10px;text-align:right;color:#6e7681">–</td>';
+    out += '<tr style="border-bottom:1px solid #21262d;'+rowBg+'">' +
+      '<td style="padding:6px 10px;white-space:nowrap">'+r.von+curTag+'</td>' +
+      '<td style="padding:6px 10px;white-space:nowrap">'+r.bis+'</td>' +
+      '<td style="padding:6px 6px;text-align:right;color:#6e7681">'+r.tage+'</td>' +
+      '<td style="padding:6px 10px;text-align:right;color:#f59e0b;font-weight:600">'+fmtNum(r.zinsen,2)+'</td>' +
+      '<td style="padding:6px 10px;text-align:right;color:#8b949e">'+fmtNum(r.tilgung - r.sonder, 2)+'</td>' +
+      sonderCell +
+      '<td style="padding:6px 10px;text-align:right;font-weight:700">'+fmtNum(r.rate,2)+'</td>' +
+      '<td style="padding:6px 10px;text-align:right;color:#10b981;font-weight:700">'+fmtNum(r.rest,2)+'</td>' +
+    '</tr>';
+  });
+
+  out += '</tbody></table></div></div>';
+  try {
+    resEl.innerHTML = out;
+  } catch(err) {
+    resEl.innerHTML = '<div class="card" style="color:#ef4444;padding:16px">Fehler beim Rendern: ' + err.message + '</div>';
+  }
+  window._lastCalcRows = rows;
+  window._lastCalcMeta = { nr:nr, lender:lender, borrower:borrower, amount:amount, ccy:ccy, rate:rate };
+  // Scroll result into view
+  if (resEl && rows.length) resEl.scrollIntoView({ behavior:'smooth', block:'nearest' });
+}
+
+function _kpiCell(label, val) {
+  return '<div style="padding:12px 16px;border-right:1px solid #21262d;min-width:120px">' +
+    '<div style="font-size:10px;color:#8b949e;font-weight:600;margin-bottom:3px;text-transform:uppercase;letter-spacing:.04em">'+label+'</div>' +
+    '<div style="font-size:13px;font-weight:600;color:#e6edf3">'+val+'</div></div>';
+}
+
+// ── Darlehen beenden (Laufzeitende setzen + Restschuld = 0) ─────────────────
+function terminateLoan() {
+  var nr   = document.getElementById('lcNr').value.trim();
+  var date = document.getElementById('lcTermDate').value;
+  var res  = parseFloat(document.getElementById('lcTermResidual').value);
+  if (isNaN(res)) res = 0;
+
+  if (!nr || nr === 'NEU') { alert('Kein Darlehen ausgewählt.'); return; }
+  if (!date) { alert('Bitte letzten Zinstag angeben.'); return; }
+
+  var l = LOANS.find(function(x){ return x.nr === nr; });
+  if (!l) return;
+  if (!_loanEdits[nr]) _loanEdits[nr] = Object.assign({}, l);
+
+  _loanEdits[nr].end      = date;
+  _loanEdits[nr].residual = res;
+  _loanEdits[nr].status   = 'closed';
+  l.end      = date;
+  l.residual = res;
+  l.status   = 'closed';
+
+  _saveEdits();
+
+  var hint = document.getElementById('lcTermHint');
+  if (hint) hint.textContent = '✓ Darlehen ' + nr + ' beendet zum ' + date + ' – Restschuld: ' + fmtNum(res,2) + ' ' + l.currency;
+
+  // Sync fields
+  document.getElementById('lcEnd').value    = date;
+  document.getElementById('lcAmount').value = res;
+  if (document.getElementById('lcEditEnd'))      document.getElementById('lcEditEnd').value      = date;
+  if (document.getElementById('lcEditResidual')) document.getElementById('lcEditResidual').value  = res;
+
+  renderLoans();
+  populateCalcLoanPicker();
+  calcLoan();
+}
+
+// ── Stammdaten-Felder direkt im Rechner speichern ─────────────────────────────
+function saveCalcField(field) {
+  var nr = document.getElementById('lcNr').value.trim();
+  if (!nr || nr === 'NEU') { alert('Kein Darlehen ausgewählt.'); return; }
+
+  var l = LOANS.find(function(x){ return x.nr === nr; });
+  if (!l) { alert('Darlehen nicht gefunden.'); return; }
+
+  if (!_loanEdits[nr]) _loanEdits[nr] = Object.assign({}, l);
+
+  if (field === 'end') {
+    var val = document.getElementById('lcEditEnd').value;
+    _loanEdits[nr].end = val;
+    l.end = val;
+    document.getElementById('lcEditEndHint').textContent = '✓ Gespeichert: ' + (val || 'offen');
+    document.getElementById('lcEnd').value = val;
+    document.getElementById('lcInfoEnd').textContent = l.start + ' → ' + (val || 'offen');
+  } else if (field === 'repay') {
+    var val2 = parseFloat(document.getElementById('lcEditRepay').value) || 0;
+    _loanEdits[nr].repay = val2;
+    l.repay = val2;
+    document.getElementById('lcEditRepayHint').textContent = '✓ Gespeichert: ' + fmtNum(val2,2) + ' monatlich';
+    document.getElementById('lcRepay').value = val2;
+  } else if (field === 'residual') {
+    var val3 = parseFloat(document.getElementById('lcEditResidual').value) || 0;
+    _loanEdits[nr].residual = val3;
+    l.residual = val3;
+    document.getElementById('lcEditResidualHint').textContent = '✓ Gespeichert: ' + fmtNum(val3,2) + ' ' + l.currency;
+    document.getElementById('lcAmount').value = val3;
+    document.getElementById('lcInfoResidual').textContent = fmtNum(val3,0) + ' ' + l.currency;
+  }
+
+  _saveEdits();
+  renderLoans();      // Übersicht aktualisieren
+  calcLoan();         // Neu berechnen
+  populateCalcLoanPicker(); // Dropdown aktualisieren
+}
+
+// ── Einzeltilgung direkt im Rechner erfassen ──────────────────────────────────
+function addCalcRepayment() {
+  var nr   = document.getElementById('lcNr').value.trim();
+  var date = document.getElementById('lcNewRepDate').value;
+  var amt  = parseFloat(document.getElementById('lcNewRepAmt').value) || 0;
+  var ccy  = document.getElementById('lcNewRepCcy').value;
+  var note = document.getElementById('lcNewRepNote').value.trim();
+
+  if (!nr || nr === 'NEU') { alert('Kein Darlehen ausgewählt.'); return; }
+  if (!date || amt <= 0)   { alert('Bitte Datum und Betrag angeben.'); return; }
+
+  // In _repayData speichern
+  if (!_repayData[nr]) _repayData[nr] = [];
+  _repayData[nr].push({ date:date, betrag:amt, ccy:ccy, note:note });
+  _repayData[nr].sort(function(a,b){ return a.date.localeCompare(b.date); });
+  _saveRepayData();
+
+  // Restschuld reduzieren (falls gleiche Währung)
+  var l = LOANS.find(function(x){ return x.nr === nr; });
+  if (l && l.currency === ccy) {
+    if (!_loanEdits[nr]) _loanEdits[nr] = Object.assign({}, l);
+    var newResidual = (l.residual || l.amount) - amt;
+    _loanEdits[nr].residual = newResidual;
+    l.residual = newResidual;
+    _saveEdits();
+    // Update lcAmount (Restschuld) + info strip
+    document.getElementById('lcAmount').value = newResidual;
+    document.getElementById('lcInfoResidual').textContent = fmtNum(newResidual,0) + ' ' + l.currency;
+    if (document.getElementById('lcEditResidual'))
+      document.getElementById('lcEditResidual').value = newResidual;
+  }
+
+  // Felder leeren
+  document.getElementById('lcNewRepDate').value = '';
+  document.getElementById('lcNewRepAmt').value  = '';
+  document.getElementById('lcNewRepNote').value = '';
+
+  // Inline-Liste + Kalkulation aktualisieren
+  renderCalcRepayList(nr);
+  renderLoans();
+  calcLoan();
+}
+
+function exportLoanCsv(){
+  var rows = window._lastCalcRows;
+  var meta = window._lastCalcMeta;
+  if (!rows || !rows.length){ alert('Bitte zuerst Plan berechnen.'); return; }
+  var hdr = 'Von;Bis;Tage;Zinsen;Tilgung;Rate;Restschuld\n';
+  var body = rows.map(function(r){
+    return [r.von, r.bis, r.tage,
+      r.zinsen.toFixed(2), r.tilgung.toFixed(2), r.rate.toFixed(2), r.rest.toFixed(2)].join(';');
+  }).join('\n');
+  var blob = new Blob(['﻿'+hdr+body], {type:'text/csv;charset=utf-8'});
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'Zinsplan_' + (meta ? meta.nr : 'NEU') + '.csv';
+  a.click();
+}
+
+// ══════════════════════════════════════════════════════════════
+// ── Robot / Task Management ───────────────────────────────────
+// ═══════════════════════════════════════════════════════════
+
+// ══════════════════════════════════════════════════════════════
+// ── Robot / Task Management ───────────────────────────────────
+// ══════════════════════════════════════════════════════════════
+
+function renderRobots(){
+  var g = document.getElementById('robotsGrid'); if (!g) return;
+  g.innerHTML = '';
+  ROBOTS.forEach(function(r){
+    var ts    = DEFAULT_TASKS.filter(function(t){ return t.robot===r.id; });
+    var count = ts.length;
+    var card  = document.createElement('div');
+    card.className = 'card robot-card';
+    card.innerHTML =
+      "<div style=\"font-size:18px;font-weight:700;color:var(--acc)\">"+esc(r.name)+"</div>"+
+      "<div style=\"color:var(--sub);font-size:12px;margin-bottom:8px\">"+esc(r.domain)+"</div>"+
+      "<div style=\"font-size:12px;margin-bottom:10px\">"+count+" Aufgaben konfiguriert</div>"+
+      "<div class=\"row\">"+
+        "<button class=\"primary small\" onclick=\"runRobot('"+r.id+"')\">&#9654; Starten</button>"+
+        "<button class=\"small\" onclick=\"show('aufgaben');renderTasks('"+r.id+"')\">Aufgaben</button>"+
+      "</div>";
+    g.appendChild(card);
+  });
+}
+
+function renderTasks(rid){
+  // rid kann aus Dropdown kommen oder direkt übergeben werden
+  if (rid === undefined) {
+    var sel = document.getElementById('taskFilter');
+    rid = sel ? sel.value : 'all';
+  }
+  var ts = rid === 'all'
+    ? DEFAULT_TASKS
+    : DEFAULT_TASKS.filter(function(t){ return t.robot===rid; });
+  var rob = ROBOTS.find(function(r){ return r.id===rid; });
+  var el  = document.getElementById('tasksList'); if (!el) return;
+  el.innerHTML = '';
+  if (rid !== 'all' && rob) {
+    var h = document.createElement('h3');
+    h.style.gridColumn='1/-1'; h.style.marginTop='0';
+    h.textContent = rob.name + ' – Aufgaben';
+    el.appendChild(h);
+  }
+  ts.forEach(function(t){
+    var card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML =
+      '<div style="font-weight:700;color:var(--acc);margin-bottom:4px">'+esc(t.name)+'</div>'+
+      '<div style="font-size:11px;color:var(--sub);margin-bottom:8px">'+esc(t.tcode)+' - '+esc(t.method)+'</div>'+
+      '<pre style="font-size:11px;background:var(--bg3);padding:8px;border-radius:6px;overflow-x:auto;max-height:120px">'+esc(JSON.stringify(t.params,null,2))+'</pre>'+
+      '<div class="row" style="margin-top:8px">'+
+        '<button class="primary small" onclick="runTask('+JSON.stringify(t)+',false)">Einzeln starten</button>'+
+      '</div>';
+    el.appendChild(card);
+  });
+}
+
+function runRobot(rid){
+  var ts = state.tasks[rid] || DEFAULT_TASKS.filter(function(t){ return t.robot===rid; });
+  if (!ts.length){ toast('Keine Aufgaben fuer Robot '+rid,'warn'); return; }
+  ts.forEach(function(t){ runTask(t, true); });
+  toast('Robot-' + rid + ' gestartet: ' + ts.length + ' Aufgaben', 'info');
+}
+
+function getCredentials(ctx){
+  return new Promise(function(resolve, reject){
+    document.getElementById('credCtx').textContent = ctx || 'Fuer diese Aufgabe wird ein SAP-Login benoetigt.';
+    document.getElementById('credUser').value = '';
+    document.getElementById('credPw').value   = '';
+    document.getElementById('credClient').value = '';
+    document.getElementById('credModal').style.display = 'flex';
+    window._credOk = function(){
+      var u = document.getElementById('credUser').value.trim();
+      var p = document.getElementById('credPw').value;
+      var c = document.getElementById('credClient').value.trim();
+      document.getElementById('credModal').style.display = 'none';
+      if (!u || !p){ reject('Abgebrochen'); return; }
+      resolve({ user:u, pass:p, client:c });
+    };
+    window._credCancel = function(){
+      document.getElementById('credModal').style.display = 'none';
+      reject('Abgebrochen');
+    };
+  });
+}
+
+function runTask(t, batch){
+  if (!REAL_MODE){
+    log('info', '[SIM] ' + t.name + ' (' + t.tcode + ')');
+    if (!batch) toast('Simulation: ' + t.name, 'info');
+    return;
+  }
+  if (t.method === 'GUI'){
+    getCredentials('Aufgabe: ' + t.name).then(function(creds){
+      fetch(BRIDGE_URL + '/gui', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ tcode:t.tcode, params:t.params, user:creds.user, pass:creds.pass, client:creds.client })
+      }).then(function(r){ return r.json(); }).then(function(d){
+        if (d.status==='ok'){ if (!batch) toast(t.name + ' erfolgreich', 'ok'); log('ok', t.name); }
+        else                { if (!batch) toast(t.name + ' fehlgeschlagen', 'err'); log('err', t.name+': '+d.message); }
+      }).catch(function(){ if (!batch) toast('Bridge-Fehler', 'err'); });
+    }).catch(function(){ if (!batch) toast('Anmeldung abgebrochen', 'info'); });
+  } else if (t.method === 'BAPI' || t.method === 'SQL' || t.method === 'Batch'){
+    fetch(BRIDGE_URL + '/bapi', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ tcode:t.tcode, params:t.params })
+    }).then(function(r){ return r.json(); }).then(function(d){
+      if (d.status==='ok'){ if (!batch) toast(t.name + ' erfolgreich', 'ok'); log('ok', t.name); }
+      else                { if (!batch) toast(t.name + ' fehlgeschlagen', 'err'); log('err', t.name+': '+d.message); }
+    }).catch(function(){ if (!batch) toast('Bridge-Fehler', 'err'); });
+  } else {
+    if (!batch) toast(t.name + ': Handler fehlt ('+t.method+')', 'info');
+    log('warn', t.name + ': kein Handler fuer Methode ' + t.method);
+  }
+}
+
+function clearLogs(){
+  var lb = document.getElementById('logBox');
+  if (lb) lb.innerHTML = 'Logs geleert.';
+}
+
+// ── Verbindungen rendern ──────────────────────────────────────
+function renderConns(){
+  var g = document.getElementById('connsGrid'); if (!g) return;
+  var conns = state.connections || DEFAULT_CONNECTIONS;
+  g.innerHTML = '';
+  conns.forEach(function(c){
+    var card = document.createElement('div');
+    card.className = 'card';
+    var badge = c.env === 'PRD'
+      ? 'background:#7f1d1d;color:#fca5a5'
+      : (c.env === 'QAS' ? 'background:#713f12;color:#fde68a' : 'background:#1a2e05;color:#86efac');
+    var robotList = (c.robots && c.robots.length)
+      ? c.robots.map(function(r){ return '<span style="background:#1f2937;padding:1px 6px;border-radius:4px;font-size:10px;margin-right:2px">'+esc(r)+'</span>'; }).join('')
+      : '<span style="color:#8b949e;font-size:11px">–</span>';
+    var fields = Object.entries(c.fields || {}).map(function(kv){
+      return '<tr><td style="color:#8b949e;font-size:11px;padding:2px 8px 2px 0;white-space:nowrap">'+esc(kv[0])+'</td>'+
+             '<td style="font-size:11px;font-family:monospace;color:#c9d1d9">'+esc(kv[1])+'</td></tr>';
+    }).join('');
+    card.innerHTML =
+      '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'+
+        '<span style="font-weight:700;font-size:15px;color:#58a6ff">'+esc(c.name)+'</span>'+
+        '<span style="padding:2px 8px;border-radius:999px;font-size:10px;font-weight:700;'+badge+'">'+esc(c.env)+'</span>'+
+        '<span style="padding:2px 6px;background:#1f2937;border-radius:4px;font-size:10px;color:#8b949e">'+esc(c.typ)+'</span>'+
+      '</div>'+
+      '<div style="margin-bottom:8px;font-size:11px;color:#8b949e">Robots: '+robotList+'</div>'+
+      '<table style="width:100%">'+fields+'</table>'+
+      '<div style="margin-top:10px" id="connStatus_'+esc(c.id)+'"></div>';
+    g.appendChild(card);
+  });
+}
+
+// ── Logs rendern ──────────────────────────────────────────────
+function loadBookingHistoryCC() {
+  try { return JSON.parse(localStorage.getItem('yconn_booking_history') || '[]'); } catch(e) { return []; }
+}
+
+function populateHistFilters(hist) {
+  function fillSel(id, vals) {
+    var sel = document.getElementById(id);
+    if (!sel) return;
+    var cur = sel.value;
+    // keep first option
+    while (sel.options.length > 1) sel.remove(1);
+    vals.forEach(function(v){ var o=document.createElement('option'); o.value=o.textContent=v; sel.appendChild(o); });
+    sel.value = cur;
+  }
+  var yrs   = [...new Set(hist.map(function(h){ return h.yr; }))].sort().reverse();
+  var mons  = [...new Set(hist.map(function(h){ return (h.mi+1 < 10 ? '0':'') + (h.mi+1) + ' – ' + h.monthName; }))].sort().reverse();
+  var bukrs = [...new Set(hist.map(function(h){ return h.bukrs || h.cocode; }))].sort();
+  fillSel('hFilterYr', yrs);
+  fillSel('hFilterMon', mons);
+  fillSel('hFilterBukrs', bukrs);
+}
+
+function resetHistFilters() {
+  ['hFilterYr','hFilterMon','hFilterBukrs','hFilterStatus','hFilterSource'].forEach(function(id){
+    var el = document.getElementById(id); if (el) el.value = 'all';
+  });
+  renderHistorie();
+}
+
+function renderHistorie() {
+  var hist = loadBookingHistoryCC();
+  populateHistFilters(hist);
+
+  var fYr  = (document.getElementById('hFilterYr')     || {}).value || 'all';
+  var fMon = (document.getElementById('hFilterMon')    || {}).value || 'all';
+  var fBk  = (document.getElementById('hFilterBukrs')  || {}).value || 'all';
+  var fSt  = (document.getElementById('hFilterStatus') || {}).value || 'all';
+  var fSrc = (document.getElementById('hFilterSource') || {}).value || 'all';
+
+  var list = hist.filter(function(h){
+    if (fYr  !== 'all' && h.yr !== fYr) return false;
+    if (fMon !== 'all') {
+      var mNum = parseInt(fMon.split(' ')[0], 10);
+      if (h.mi + 1 !== mNum) return false;
+    }
+    if (fBk  !== 'all' && (h.bukrs || h.cocode) !== fBk) return false;
+    if (fSt  !== 'all' && h.status !== fSt) return false;
+    if (fSrc !== 'all' && h.source !== fSrc) return false;
+    return true;
+  });
+
+  // Sort: newest first – normalisiere DD.MM.YYYY → YYYY-MM-DD für korrekten Vergleich
+  function _tsSort(h) {
+    var t = h.ts || h.date || '';
+    // DD.MM.YYYY → YYYY-MM-DD
+    var m = t.match(/^(\d{2})\.(\d{2})\.(\d{4})/);
+    if (m) return m[3] + '-' + m[2] + '-' + m[1];
+    return t;
+  }
+  list.sort(function(a,b){ return _tsSort(b).localeCompare(_tsSort(a)); });
+
+  var cnt = document.getElementById('hCount');
+  if (cnt) cnt.textContent = list.length + ' Einträge';
+
+  var tbody = document.getElementById('histBody');
+  if (!tbody) return;
+
+  if (!list.length) {
+    tbody.innerHTML = '<tr><td colspan="17" style="padding:28px;text-align:center;color:var(--sub)">Keine Buchungen gefunden.</td></tr>';
+    return;
+  }
+
+  var statusHtml = { ok: '<span style="color:#10b981;font-weight:600">✓ OK</span>', error: '<span style="color:#ef4444">✗ Fehler</span>', storno: '<span style="color:#f59e0b">↲ Storno</span>' };
+  var sourceHtml = { app: '<span style="background:rgba(16,185,129,.12);color:#10b981;padding:1px 6px;border-radius:3px;font-size:11px">App</span>', static: '<span style="background:rgba(99,102,241,.12);color:#818cf8;padding:1px 6px;border-radius:3px;font-size:11px">SAP hist.</span>', scheduler: '<span style="background:rgba(245,158,11,.12);color:#f59e0b;padding:1px 6px;border-radius:3px;font-size:11px">📅 Scheduler</span>' };
+  var currCls = { EUR:'color:#6ee7b7', CNY:'color:#fbbf24', USD:'color:#60a5fa' };
+
+  tbody.innerHTML = list.map(function(h) {
+    var amt = typeof h.amount === 'number' ? h.amount.toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2}) : (h.amount||'');
+    var ccls = currCls[h.curr] || '';
+    var docCell = h.docNr && h.docNr !== '(SAP)' ? '<span style="font-family:monospace;font-size:11px">' + h.docNr + '</span>' : '<span style="color:var(--sub)">–</span>';
+    var ts = h.ts ? h.ts.replace('T',' ').slice(0,16) : h.date || '';
+    return '<tr style="border-bottom:1px solid rgba(255,255,255,.05)">' +
+      '<td style="padding:5px 8px;color:var(--sub);white-space:nowrap">' + ts + '</td>' +
+      '<td style="padding:5px 8px">' + (h.yr||'') + '</td>' +
+      '<td style="padding:5px 8px">' + (h.monthName||'') + '</td>' +
+      '<td style="padding:5px 8px;font-weight:700;color:var(--acc)">' + (h.nr||'') + '</td>' +
+      '<td style="padding:5px 8px">' + (h.bukrs||h.cocode||'') + '</td>' +
+      '<td style="padding:5px 8px;color:var(--sub)">' + (h.company||'') + '</td>' +
+      '<td style="padding:5px 8px;font-family:monospace">' + (h.account||'') + '</td>' +
+      '<td style="padding:5px 8px;font-family:monospace">' + (h.offset||'') + '</td>' +
+      '<td style="padding:5px 8px">' + (h.dtyp||'') + '</td>' +
+      '<td style="padding:5px 8px;' + ccls + ';font-weight:600">' + (h.curr||'') + '</td>' +
+      '<td style="padding:5px 8px;text-align:right;font-family:monospace;font-weight:600">' + amt + '</td>' +
+      '<td style="padding:5px 8px">' + docCell + '</td>' +
+      '<td style="padding:5px 8px;color:var(--sub);font-size:11px">' + (h.system||'') + '</td>' +
+      '<td style="padding:5px 8px">' + (statusHtml[h.status] || h.status||'') + '</td>' +
+      '<td style="padding:5px 8px">' + (sourceHtml[h.source] || h.source||'') + '</td>' +
+      '<td style="padding:5px 8px;color:var(--sub)">' + (h.user||'') + '</td>' +
+      '<td style="padding:5px 8px;color:var(--sub);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + (h.text||'').replace(/"/g,'&quot;') + '">' + (h.text||'') + '</td>' +
+    '</tr>';
+  }).join('');
+}
+
+function exportHistorieCsv() {
+  var hist = loadBookingHistoryCC();
+  var header = ['Datum','Jahr','Monat','Nr','Buchungskreis','Gesellschaft','Konto','Gegenkonto',
+                 'BelTyp','Währung','Betrag','BelegNr','System','Status','Quelle','Benutzer','Text'];
+  var rows = hist.map(function(h){
+    return [
+      h.ts||h.date, h.yr, h.monthName, h.nr, h.bukrs||h.cocode, h.company,
+      h.account, h.offset, h.dtyp, h.curr,
+      typeof h.amount==='number' ? h.amount.toFixed(2).replace('.',',') : '',
+      h.docNr, h.system, h.status, h.source, h.user,
+      '"'+(h.text||'').replace(/"/g,'""')+'"'
+    ].join(';');
+  });
+  var csv = [header.join(';')].concat(rows).join('\r\n');
+  var blob = new Blob(['﻿'+csv], {type:'text/csv;charset=utf-8'});
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'buchungshistorie_' + new Date().toISOString().slice(0,10) + '.csv';
+  a.click();
+}
+
+function renderLogs(){
+  var lb = document.getElementById('logBox'); if (!lb) return;
+  var entries = state.logs || [];
+  if (!entries.length){ lb.innerHTML = 'Keine Logs vorhanden.'; return; }
+  lb.innerHTML = entries.slice().reverse().map(function(e){
+    var col = e.level==='ok'?'#34d399': e.level==='err'?'#f87171': e.level==='warn'?'#fbbf24':'#8b949e';
+    return '<div style="border-bottom:1px solid #21262d;padding:4px 0"><span style="color:'+col+';font-weight:700">['+esc((e.level||'info').toUpperCase())+']</span> '+
+      '<span style="color:#8b949e;font-size:11px">'+(e.ts||'')+' </span>'+esc(e.msg||e)+'</div>';
+  }).join('');
+}
+
+// ── Uebersicht rendern ────────────────────────────────────────
+function renderOverview(){
+  renderRobots();
+}
+
+// ── Reports rendern ───────────────────────────────────────────
+function refreshReports(){
+  var list = document.getElementById('reportsList'); if (!list) return;
+  if (!REAL_MODE){
+    list.innerHTML = '<li style="color:#8b949e;font-size:13px">Reports nur im Echt-Modus verfügbar (Bridge nicht aktiv).</li>';
+    return;
+  }
+  list.innerHTML = '<li style="color:#8b949e;font-size:13px">Lade…</li>';
+  fetch(BRIDGE_URL + '/reports')
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if (!d.files || !d.files.length){
+        list.innerHTML = '<li style="color:#8b949e;font-size:13px">Keine Reports vorhanden.</li>'; return;
+      }
+      list.innerHTML = d.files.map(function(f){
+        return '<li><a href="'+BRIDGE_URL+'/reports/'+encodeURIComponent(f)+'" target="_blank" style="color:#58a6ff">'+esc(f)+'</a></li>';
+      }).join('');
+    })
+    .catch(function(){ list.innerHTML = '<li style="color:#f87171">Bridge nicht erreichbar.</li>'; });
+}
+
+// ── Init ──────────────────────────────────────────────────────
+(function _init(){
+  populateLoanFilters();
+  populateCalcLoanPicker();
+  renderLoans();
+  renderRobots();
+  checkBridge();
+  setInterval(checkBridge, 15000);
+
+  // ── URL-Hash: cockpit.html#darlehen/014 → direkt Zinsplan öffnen ──────────
+  function handleHash() {
+    var hash = location.hash.replace('#','');
+    if (!hash) return;
+    var parts = hash.split('/');
+    var tab   = parts[0];
+    var nr    = parts[1] || null;
+    var btn   = null;
+    document.querySelectorAll('.tab').forEach(function(t){
+      var oc = t.getAttribute('onclick') || '';
+      if (oc.indexOf("'" + tab + "'") !== -1) btn = t;
+    });
+    if (tab === 'darlehen') {
+      show('darlehen', btn);
+      if (nr) {
+        // Switch directly to Rechner view with this loan selected
+        var rechnerBtn = document.querySelector('#darlehen button[onclick*="calc"]');
+        if (rechnerBtn) showLoanView('calc', rechnerBtn);
+        populateCalcLoanPicker();
+        var pickSel = document.getElementById('lcPickNr');
+        if (pickSel) { pickSel.value = nr; onCalcLoanPick(); }
+        // Also set overview filter
+        var selNr = document.getElementById('loanFilterNr');
+        if (selNr) { selNr.value = nr; renderLoans(); }
+      }
+    } else if (btn) {
+      show(tab, btn);
+    }
+  }
+  handleHash();
+  window.addEventListener('hashchange', handleHash);
+})();
+</script>
+<script src="auth.js"></script>
+<script>
+  // AUTH is now defined (auth.js just ran)
+  if (window.AUTH && AUTH.renderHeader) AUTH.renderHeader('headerRight');
+</script>
+</body>
+</html>

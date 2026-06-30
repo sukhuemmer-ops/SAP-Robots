@@ -1,0 +1,380 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>YCONN – SAP Stammdaten</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --bg:#0d1117;--bg2:#161b22;--bg3:#21262d;
+  --border:#30363d;--text:#e6edf3;--muted:#8b949e;
+  --accent:#1f6feb;--ok:#10b981;--warn:#f59e0b;--err:#ef4444;
+}
+html,body{background:var(--bg);color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  font-size:14px;line-height:1.5;min-height:100vh;}
+.wrap{max-width:1280px;margin:0 auto;padding:0 24px 40px;}
+
+/* ── Header ── */
+.page-header{display:flex;align-items:center;justify-content:space-between;gap:12px;
+  flex-wrap:wrap;padding:14px 24px;background:var(--bg2);
+  border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100;}
+.brand{display:flex;align-items:center;gap:0;}
+.header-right{display:flex;align-items:center;gap:8px;}
+.btn-nav{padding:6px 14px;border-radius:7px;border:1px solid var(--border);
+  background:var(--bg3);color:var(--text);font-size:13px;font-weight:500;
+  cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:5px;
+  transition:background .15s;}
+.btn-nav:hover{background:var(--accent);color:#fff;}
+
+/* ── Tabs ── */
+.tab-bar{display:flex;gap:2px;border-bottom:1px solid var(--border);
+  margin:24px 0 0;padding:0;background:var(--bg2);
+  border-radius:12px 12px 0 0;overflow:hidden;}
+.tab-btn{padding:12px 22px;background:none;border:0;border-bottom:3px solid transparent;
+  cursor:pointer;font-size:13px;font-weight:600;color:var(--muted);
+  font-family:inherit;transition:color .15s,border-color .15s;white-space:nowrap;}
+.tab-btn:hover{color:var(--text);}
+.tab-btn.active{color:var(--accent);border-bottom-color:var(--accent);background:rgba(31,111,235,.06);}
+.tab-btn.ext{color:var(--muted);}
+.tab-btn.ext:hover{color:#22d3ee;border-bottom-color:#22d3ee;}
+
+.tab-pane{display:none;padding:28px 0;}
+.tab-pane.active{display:block;}
+
+/* ── Content Cards ── */
+.section-title{font-size:11px;font-weight:700;color:var(--muted);
+  text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px;}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin-bottom:28px;}
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;
+  padding:18px 20px;position:relative;overflow:hidden;}
+.card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;
+  background:linear-gradient(90deg,var(--c1,#1f6feb),var(--c2,#8b5cf6));border-radius:12px 12px 0 0;}
+.card h3{font-size:14px;font-weight:700;margin-bottom:6px;
+  display:flex;align-items:center;gap:8px;}
+.card p{font-size:12px;color:var(--muted);margin-bottom:12px;}
+.card-icon{font-size:20px;}
+.tag{display:inline-flex;align-items:center;gap:4px;
+  padding:3px 9px;border-radius:999px;font-size:11px;font-weight:600;border:1px solid;}
+.tag.ok{color:var(--ok);border-color:rgba(16,185,129,.3);background:rgba(16,185,129,.08);}
+.tag.dev{color:var(--warn);border-color:rgba(245,158,11,.3);background:rgba(245,158,11,.08);}
+.tag.plan{color:var(--muted);border-color:var(--border);background:var(--bg3);}
+
+/* ── Table ── */
+.tbl-wrap{background:var(--bg2);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:24px;}
+.tbl-head{display:flex;align-items:center;justify-content:space-between;
+  padding:14px 18px;border-bottom:1px solid var(--border);}
+.tbl-head h3{font-size:14px;font-weight:700;}
+table{width:100%;border-collapse:collapse;}
+th{text-align:left;font-size:11px;font-weight:700;color:var(--muted);
+  text-transform:uppercase;letter-spacing:.05em;padding:10px 18px;
+  border-bottom:1px solid var(--border);}
+td{padding:10px 18px;border-bottom:1px solid rgba(48,54,61,.5);font-size:13px;}
+tr:last-child td{border-bottom:none;}
+tr:hover td{background:rgba(255,255,255,.02);}
+
+/* ── RFC Params ── */
+.param-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px;}
+@media(max-width:600px){.param-grid{grid-template-columns:1fr;}}
+.param-item{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:12px 14px;}
+.param-label{font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;}
+.param-value{font-size:13px;font-family:monospace;color:#79b8ff;}
+
+/* ── Redirect card ── */
+.redirect-card{background:var(--bg2);border:1px solid var(--border);border-radius:14px;
+  padding:40px;text-align:center;max-width:540px;margin:40px auto;}
+.redirect-card .icon{font-size:48px;margin-bottom:16px;}
+.redirect-card h2{font-size:18px;font-weight:700;margin-bottom:8px;}
+.redirect-card p{color:var(--muted);font-size:13px;margin-bottom:24px;}
+.btn-big{display:inline-flex;align-items:center;gap:8px;padding:12px 28px;
+  border-radius:10px;background:var(--accent);color:#fff;font-size:14px;font-weight:700;
+  text-decoration:none;border:none;cursor:pointer;transition:background .15s;}
+.btn-big:hover{background:#388bfd;}
+.btn-big.cyan{background:#0891b2;}
+.btn-big.cyan:hover{background:#06b6d4;}
+.btn-big.violet{background:#7c3aed;}
+.btn-big.violet:hover{background:#8b5cf6;}
+</style>
+</head>
+<body>
+
+<!-- ═══ HEADER ═══════════════════════════════════════════════ -->
+<header class="page-header">
+  <div class="brand">
+    <a href="startseite.html" title="Startseite" style="display:block;line-height:0">
+      <img src="YCONN-logo_Web.png" width="52" height="52" alt="YCONN Logo" style="display:block;border-radius:8px;"/>
+    </a>
+  </div>
+  <div class="header-right" id="headerRight">
+    <a class="btn-nav" href="startseite.html">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+      Startseite
+    </a>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <!-- Tab-Leiste -->
+  <div class="tab-bar">
+    <button class="tab-btn active" onclick="switchTab('stammdaten',this)">🗃 Stammdaten</button>
+    <button class="tab-btn" onclick="switchTab('schnittstelle',this)">⚙ Schnittstelle</button>
+    <button class="tab-btn ext" onclick="location.href='verbindungen.html'">🔗 Verbindungen ↗</button>
+    <button class="tab-btn ext" onclick="location.href='benutzer.html'">👤 Benutzer-Verwaltung ↗</button>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════
+       TAB 1 – Stammdaten
+  ══════════════════════════════════════════════════════ -->
+  <div class="tab-pane active" id="pane-stammdaten">
+
+    <div class="section-title">SAP Stammdaten Kategorien</div>
+    <div class="grid">
+
+      <div class="card" style="--c1:#1f6feb;--c2:#60a5fa">
+        <div class="card-icon">🏢</div>
+        <h3>Debitoren</h3>
+        <p>Kundenstammdaten – Kontonummer, Zahlungsbedingungen, Buchungskreis-Zuordnung.</p>
+        <span class="tag dev">⚙ In Vorbereitung</span>
+      </div>
+
+      <div class="card" style="--c1:#8b5cf6;--c2:#a78bfa">
+        <div class="card-icon">🏦</div>
+        <h3>Kreditoren</h3>
+        <p>Lieferantenstammdaten – Bankverbindungen, Zahlungsbedingungen, Steuerklassen.</p>
+        <span class="tag dev">⚙ In Vorbereitung</span>
+      </div>
+
+      <div class="card" style="--c1:#10b981;--c2:#34d399">
+        <div class="card-icon">📒</div>
+        <h3>Sachkonten</h3>
+        <p>Kontenplan (SKA1/SKB1) – Kontonummern, Kontobeschreibungen, Kontengruppen.</p>
+        <span class="tag dev">⚙ In Vorbereitung</span>
+      </div>
+
+      <div class="card" style="--c1:#f59e0b;--c2:#fbbf24">
+        <div class="card-icon">📍</div>
+        <h3>Kostenstellen</h3>
+        <p>Kostenstellenhierarchie, Verantwortliche, Gültigkeitszeitraum.</p>
+        <span class="tag dev">⚙ In Vorbereitung</span>
+      </div>
+
+      <div class="card" style="--c1:#06b6d4;--c2:#22d3ee">
+        <div class="card-icon">🔄</div>
+        <h3>Intercompany-Stammdaten</h3>
+        <p>IC-Partner-Zuordnungen, Buchungskreis-Kontenverbindungen, Verrechnungskonten.</p>
+        <span class="tag ok">● Aktiv (zinsen.html)</span>
+      </div>
+
+      <div class="card" style="--c1:#f43f5e;--c2:#fb7185">
+        <div class="card-icon">🏗</div>
+        <h3>Profit Center</h3>
+        <p>Profit-Center-Hierarchie, Zuordnungen zu Buchungskreisen und Konten.</p>
+        <span class="tag plan">○ Geplant</span>
+      </div>
+
+    </div>
+
+    <div class="section-title">IC-Darlehen Kontenrahmen</div>
+    <div class="tbl-wrap">
+      <div class="tbl-head">
+        <h3>Sachkonto-Zuordnungen</h3>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Buchungsseite</th>
+            <th>Sachkonto</th>
+            <th>Gegenkonto</th>
+            <th>Beschreibung</th>
+            <th>Belegtyp EUR</th>
+            <th>Belegtyp FW</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Darlehensgeber (DG)</td>
+            <td style="font-family:monospace;color:#79b8ff">120000</td>
+            <td style="font-family:monospace;color:#79b8ff">570200</td>
+            <td>Zinsertrag IC-Darlehen</td>
+            <td><span class="tag ok">SA</span></td>
+            <td><span class="tag dev">SX</span></td>
+          </tr>
+          <tr>
+            <td>Darlehensnehmer (DN)</td>
+            <td style="font-family:monospace;color:#79b8ff">420200</td>
+            <td style="font-family:monospace;color:#79b8ff">759200</td>
+            <td>Zinsaufwand IC-Darlehen</td>
+            <td><span class="tag ok">SA</span></td>
+            <td><span class="tag dev">SX</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="section-title">Buchungskreise</div>
+    <div class="tbl-wrap">
+      <div class="tbl-head"><h3>Aktive Buchungskreise</h3></div>
+      <table>
+        <thead>
+          <tr>
+            <th>Code</th>
+            <th>Beschreibung</th>
+            <th>System</th>
+            <th>Filter</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="font-family:monospace;color:#79b8ff">0435</td>
+            <td>Darlehensgeber</td>
+            <td>SEQ</td>
+            <td>—</td>
+            <td><span class="tag ok">● Aktiv</span></td>
+          </tr>
+          <tr>
+            <td style="font-family:monospace;color:#79b8ff">VV9</td>
+            <td>Darlehensnehmer</td>
+            <td>SEQ</td>
+            <td>VV9</td>
+            <td><span class="tag ok">● Aktiv</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════
+       TAB 2 – Schnittstelle
+  ══════════════════════════════════════════════════════ -->
+  <div class="tab-pane" id="pane-schnittstelle">
+
+    <div class="section-title">SAP RFC / BAPI Schnittstellen</div>
+    <div class="grid">
+
+      <div class="card" style="--c1:#1f6feb;--c2:#60a5fa">
+        <div class="card-icon">📡</div>
+        <h3>Bridge-Verbindung</h3>
+        <p>YCONN Bridge läuft lokal auf Port 8765 und vermittelt zwischen Browser und SAP RFC.</p>
+        <span class="tag ok">● Aktiv</span>
+      </div>
+
+      <div class="card" style="--c1:#10b981;--c2:#34d399">
+        <div class="card-icon">🔐</div>
+        <h3>Authentifizierung</h3>
+        <p>SAP-Anmeldedaten werden bei jeder Buchung aus der Session gelesen – nie persistent gespeichert.</p>
+        <span class="tag ok">● Sicher</span>
+      </div>
+
+      <div class="card" style="--c1:#f59e0b;--c2:#fbbf24">
+        <div class="card-icon">⚡</div>
+        <h3>RFCPING</h3>
+        <p>Verbindungstest zum SAP-System. Fällt bei fehlenden Berechtigungen auf Service-Account zurück.</p>
+        <span class="tag ok">● Mit Fallback</span>
+      </div>
+
+      <div class="card" style="--c1:#8b5cf6;--c2:#a78bfa">
+        <div class="card-icon">📬</div>
+        <h3>BAPI_ACC_DOCUMENT_POST</h3>
+        <p>Haupt-BAPI für FI-Belegbuchung. Wird für alle IC-Zinsbuchungen verwendet.</p>
+        <span class="tag ok">● Aktiv</span>
+      </div>
+
+    </div>
+
+    <div class="section-title">Verbindungsparameter</div>
+    <div class="param-grid">
+      <div class="param-item">
+        <div class="param-label">Bridge URL</div>
+        <div class="param-value">http://localhost:8765</div>
+      </div>
+      <div class="param-item">
+        <div class="param-label">Timeout</div>
+        <div class="param-value">30 000 ms</div>
+      </div>
+      <div class="param-item">
+        <div class="param-label">SAP System SEP</div>
+        <div class="param-value">172.28.189.8</div>
+      </div>
+      <div class="param-item">
+        <div class="param-label">SAP System SEQ</div>
+        <div class="param-value">172.28.189.11</div>
+      </div>
+      <div class="param-item">
+        <div class="param-label">RFC Destination</div>
+        <div class="param-value">ABAP_AS_POOLED</div>
+      </div>
+      <div class="param-item">
+        <div class="param-label">Buchungskreis ab 06/2026</div>
+        <div class="param-value">SEQ (Produktiv)</div>
+      </div>
+    </div>
+
+    <div class="section-title">Verwendete BAPIs / RFC-Funktionen</div>
+    <div class="tbl-wrap">
+      <div class="tbl-head"><h3>Schnittstellen-Übersicht</h3></div>
+      <table>
+        <thead>
+          <tr>
+            <th>BAPI / RFC</th>
+            <th>Verwendung</th>
+            <th>Modul</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="font-family:monospace;color:#79b8ff">BAPI_ACC_DOCUMENT_POST</td>
+            <td>FI-Belegbuchung (IC-Zinsen)</td>
+            <td>zinsen.html</td>
+            <td><span class="tag ok">● Aktiv</span></td>
+          </tr>
+          <tr>
+            <td style="font-family:monospace;color:#79b8ff">RFCPING</td>
+            <td>Verbindungstest / Bridge-Check</td>
+            <td>Alle Seiten</td>
+            <td><span class="tag ok">● Mit Fallback</span></td>
+          </tr>
+          <tr>
+            <td style="font-family:monospace;color:#79b8ff">BAPI_COMPANYCODE_GETLIST</td>
+            <td>Buchungskreis-Stammdaten</td>
+            <td>—</td>
+            <td><span class="tag plan">○ Geplant</span></td>
+          </tr>
+          <tr>
+            <td style="font-family:monospace;color:#79b8ff">BAPI_GL_GETGLACCOUNTLIST</td>
+            <td>Sachkontenliste</td>
+            <td>—</td>
+            <td><span class="tag plan">○ Geplant</span></td>
+          </tr>
+          <tr>
+            <td style="font-family:monospace;color:#79b8ff">BAPI_COSTCENTER_GETLIST1</td>
+            <td>Kostenstellenliste</td>
+            <td>—</td>
+            <td><span class="tag plan">○ Geplant</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+  </div>
+
+</div><!-- .wrap -->
+
+<script src="auth.js"></script>
+<script>
+AUTH.renderHeader("headerRight");
+
+function switchTab(name, btn) {
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  const pane = document.getElementById('pane-' + name);
+  if (pane) pane.classList.add('active');
+  btn.classList.add('active');
+}
+</script>
+</body>
+</html>

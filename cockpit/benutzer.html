@@ -1,0 +1,604 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>SAP Benutzerverwaltung – YCONN</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+*,*::before,*::after{box-sizing:border-box;}
+:root{
+  --bg:#0d1117;--bg2:#161b22;--bg3:#21262d;
+  --border:#30363d;--text:#e6edf3;--muted:#8b949e;
+  --accent:#1f6feb;--ok:#10b981;--warn:#f59e0b;--err:#ef4444;
+}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  font-size:14px;line-height:1.5;min-height:100vh;}
+.wrap{max-width:1200px;margin:0 auto;padding:20px 24px;}
+
+/* Header */
+.page-header{display:flex;align-items:center;justify-content:space-between;gap:12px;
+  flex-wrap:wrap;margin-bottom:24px;padding-bottom:18px;border-bottom:1px solid var(--border);}
+.brand{display:flex;align-items:center;gap:12px;}
+.brand-icon{width:40px;height:40px;border-radius:10px;
+  background:linear-gradient(135deg,#1f6feb,#8b5cf6);
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.brand-icon svg{width:22px;height:22px;}
+.brand-title{font-size:18px;font-weight:800;letter-spacing:-.4px;}
+.brand-sub{font-size:11px;color:var(--muted);}
+.header-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+
+/* Buttons */
+.btn{padding:7px 16px;border-radius:7px;border:1px solid var(--border);
+  background:var(--bg2);color:var(--text);font-size:13px;font-weight:500;
+  cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:6px;
+  transition:background .15s;font-family:inherit;}
+.btn:hover{background:var(--bg3);}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;}
+.btn.primary:hover{background:#1a60d4;}
+.btn.danger{background:rgba(239,68,68,.08);border-color:rgba(239,68,68,.3);color:var(--err);}
+.btn.danger:hover{background:rgba(239,68,68,.15);}
+.btn.sm{padding:4px 10px;font-size:12px;}
+.btn.success{background:rgba(16,185,129,.1);border-color:rgba(16,185,129,.3);color:var(--ok);}
+
+/* Status chip */
+.chip{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:999px;
+  font-size:11px;font-weight:600;border:1px solid;}
+.chip.ok{background:rgba(16,185,129,.1);border-color:rgba(16,185,129,.3);color:var(--ok);}
+.chip.warn{background:rgba(245,158,11,.1);border-color:rgba(245,158,11,.3);color:var(--warn);}
+.chip.muted{background:var(--bg3);border-color:var(--border);color:var(--muted);}
+
+/* Orchestrator-Status */
+.modebar{display:flex;align-items:center;gap:10px;padding:9px 14px;border-radius:8px;
+  margin-bottom:18px;font-size:12px;font-weight:500;border:1px solid;}
+.modebar.ok{background:rgba(16,185,129,.07);color:var(--ok);border-color:rgba(16,185,129,.2);}
+.modebar.err{background:rgba(239,68,68,.07);color:var(--err);border-color:rgba(239,68,68,.2);}
+.modebar.warn{background:rgba(245,158,11,.07);color:var(--warn);border-color:rgba(245,158,11,.2);}
+
+/* KPI-Leiste */
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:20px;}
+.kpi{background:var(--bg2);border:1px solid var(--border);border-radius:8px;
+  padding:12px 16px;text-align:center;}
+.kpi-val{font-size:26px;font-weight:800;letter-spacing:-1px;}
+.kpi-lbl{font-size:11px;color:var(--muted);margin-top:2px;}
+
+/* Toolbar */
+.toolbar{display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap;}
+.search{flex:1;min-width:180px;padding:7px 12px;border-radius:7px;
+  border:1px solid var(--border);background:var(--bg2);color:var(--text);
+  font-size:13px;font-family:inherit;outline:none;}
+.search:focus{border-color:var(--accent);}
+
+/* Tabelle */
+.table-wrap{background:var(--bg2);border:1px solid var(--border);border-radius:10px;overflow:hidden;}
+table{width:100%;border-collapse:collapse;}
+th{padding:10px 14px;text-align:left;font-size:11px;font-weight:600;
+  color:var(--muted);text-transform:uppercase;letter-spacing:.6px;
+  border-bottom:1px solid var(--border);background:var(--bg3);}
+td{padding:11px 14px;border-bottom:1px solid var(--border);vertical-align:middle;}
+tr:last-child td{border-bottom:none;}
+tr:hover td{background:rgba(255,255,255,.02);}
+.avatar{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;
+  justify-content:center;font-size:13px;font-weight:700;flex-shrink:0;
+  background:linear-gradient(135deg,#1f6feb,#8b5cf6);color:#fff;}
+.user-cell{display:flex;align-items:center;gap:10px;}
+.user-name{font-weight:600;}
+.user-sub{font-size:11px;color:var(--muted);}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;}
+.actions{display:flex;gap:5px;}
+.empty{text-align:center;padding:48px;color:var(--muted);}
+
+/* Modal */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;
+  align-items:center;justify-content:center;z-index:100;padding:16px;}
+.overlay.open{display:flex;}
+.modal{background:var(--bg2);border:1px solid var(--border);border-radius:12px;
+  width:100%;max-width:540px;max-height:90vh;overflow-y:auto;}
+.modal-header{padding:18px 20px 14px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;}
+.modal-title{font-size:16px;font-weight:700;}
+.modal-body{padding:20px;}
+.modal-footer{padding:14px 20px;border-top:1px solid var(--border);
+  display:flex;gap:8px;justify-content:flex-end;}
+.close-btn{background:none;border:none;color:var(--muted);font-size:20px;
+  cursor:pointer;line-height:1;padding:0;}
+.close-btn:hover{color:var(--text);}
+
+/* Formular */
+.form-row{margin-bottom:14px;}
+.form-row label{display:block;font-size:12px;font-weight:600;color:var(--muted);
+  margin-bottom:5px;text-transform:uppercase;letter-spacing:.4px;}
+.form-row input,.form-row select,.form-row textarea{
+  width:100%;padding:8px 12px;border-radius:7px;
+  border:1px solid var(--border);background:var(--bg3);
+  color:var(--text);font-size:13px;font-family:inherit;outline:none;}
+.form-row input:focus,.form-row select:focus,.form-row textarea:focus{border-color:var(--accent);}
+.form-row textarea{resize:vertical;min-height:64px;}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 14px;}
+.hint{font-size:11px;color:var(--muted);margin-top:4px;}
+.required::after{content:" *";color:var(--err);}
+
+/* Toast */
+.toast{position:fixed;bottom:20px;right:20px;padding:10px 18px;border-radius:8px;
+  font-size:13px;font-weight:500;z-index:999;opacity:0;
+  transition:opacity .25s;pointer-events:none;border:1px solid;}
+.toast.ok{background:rgba(16,185,129,.15);border-color:rgba(16,185,129,.4);color:var(--ok);}
+.toast.err{background:rgba(239,68,68,.15);border-color:rgba(239,68,68,.4);color:var(--err);}
+.toast.show{opacity:1;}
+
+/* Passwort-Test-Bereich */
+.pw-section{background:var(--bg3);border:1px solid var(--border);border-radius:8px;
+  padding:14px;margin-top:6px;}
+.pw-section .row{display:flex;gap:8px;align-items:flex-end;}
+.pw-section input{flex:1;}
+
+@keyframes spin{to{transform:rotate(360deg)}}
+.spinner{display:inline-block;width:12px;height:12px;border:2px solid var(--border);
+  border-top-color:var(--accent);border-radius:50%;animation:spin .6s linear infinite;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- Header -->
+  <header class="page-header">
+    <div class="brand">
+      <div class="brand-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+          <circle cx="9" cy="7" r="4"/>
+          <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+          <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+        </svg>
+      </div>
+      <div>
+        <div class="brand-title">Benutzerverwaltung</div>
+        <div class="brand-sub">YCONN · SAP Finance Robots</div>
+      </div>
+    </div>
+    <div class="header-right" id="headerRight">
+      <a class="btn" href="startseite.html">&#8592; Startseite</a>
+      <a class="btn" href="verbindungen.html">Verbindungen</a>
+      <a class="btn" href="zinsen.html">Zinsen</a>
+      <button class="btn primary" onclick="openModal()">+ Benutzer anlegen</button>
+    </div>
+  </header>
+
+  <!-- Orchestrator-Status -->
+  <div class="modebar warn" id="modeBar">
+    <span class="spinner"></span>&nbsp; Verbinde mit Orchestrator…
+  </div>
+
+  <!-- KPI -->
+  <div class="kpi-row">
+    <div class="kpi">
+      <div class="kpi-val" id="kpiTotal">–</div>
+      <div class="kpi-lbl">Benutzer gesamt</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-val" style="color:var(--ok)" id="kpiActive">–</div>
+      <div class="kpi-lbl">Aktiv</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-val" style="color:var(--muted)" id="kpiInactive">–</div>
+      <div class="kpi-lbl">Inaktiv</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-val" style="color:var(--accent)" id="kpiSystems">–</div>
+      <div class="kpi-lbl">SAP-Systeme</div>
+    </div>
+  </div>
+
+  <!-- Toolbar -->
+  <div class="toolbar">
+    <input class="search" type="search" id="searchInput" placeholder="Suche nach Name, Benutzername, System…" oninput="renderTable()">
+    <select class="search" style="flex:0;min-width:130px" id="filterRole" onchange="renderTable()">
+      <option value="">Alle Rollen</option>
+      <option value="Admin">Admin</option>
+      <option value="Buchung">Buchung</option>
+      <option value="Readonly">Readonly</option>
+    </select>
+    <select class="search" style="flex:0;min-width:120px" id="filterActive" onchange="renderTable()">
+      <option value="">Alle Status</option>
+      <option value="1">Aktiv</option>
+      <option value="0">Inaktiv</option>
+    </select>
+    <button class="btn" onclick="loadUsers()" title="Aktualisieren">⟳ Laden</button>
+  </div>
+
+  <!-- Tabelle -->
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Benutzer</th>
+          <th>SAP-Login</th>
+          <th>System</th>
+          <th>Mandant</th>
+          <th>Rolle</th>
+          <th>Status</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="userTableBody">
+        <tr><td colspan="7" class="empty">Wird geladen…</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+</div><!-- /wrap -->
+
+<!-- Modal: Anlegen / Bearbeiten -->
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="modalTitle">Benutzer anlegen</div>
+      <button class="close-btn" onclick="closeModal()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="editId">
+
+      <div class="form-row">
+        <label class="required">Anzeigename</label>
+        <input type="text" id="fDisplayName" placeholder="z. B. Max Mustermann" autocomplete="off">
+      </div>
+
+      <div class="form-grid">
+        <div class="form-row">
+          <label class="required">SAP-Benutzername</label>
+          <input type="text" id="fSapUsername" placeholder="z. B. MMUSTERMANN" style="text-transform:uppercase" autocomplete="off">
+        </div>
+        <div class="form-row">
+          <label>Rolle</label>
+          <select id="fRole">
+            <option value="Admin">Admin</option>
+            <option value="Buchung" selected>Buchung</option>
+            <option value="Readonly">Readonly</option>
+          </select>
+        </div>
+      </div>
+
+      <hr style="border:none;border-top:1px solid var(--border);margin:4px 0 16px">
+      <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;
+                  letter-spacing:.5px;margin-bottom:12px;">SAP-Verbindung</div>
+
+      <div class="form-grid">
+        <div class="form-row">
+          <label class="required">System-ID</label>
+          <input type="text" id="fSapSystem" placeholder="z. B. SEP600" autocomplete="off">
+        </div>
+        <div class="form-row">
+          <label>Mandant</label>
+          <input type="text" id="fClient" placeholder="z. B. 100" maxlength="4" autocomplete="off">
+        </div>
+      </div>
+
+      <div class="form-grid">
+        <div class="form-row">
+          <label>Application Server (ashost)</label>
+          <input type="text" id="fAshost" placeholder="z. B. sap.firma.de" autocomplete="off">
+        </div>
+        <div class="form-row">
+          <label>System-Nr.</label>
+          <input type="text" id="fSysnr" placeholder="00" maxlength="2" autocomplete="off">
+        </div>
+      </div>
+
+      <div class="form-grid">
+        <div class="form-row">
+          <label>Sprache</label>
+          <select id="fLang">
+            <option value="DE" selected>DE – Deutsch</option>
+            <option value="EN">EN – English</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <label>Status</label>
+          <select id="fActive">
+            <option value="1" selected>Aktiv</option>
+            <option value="0">Inaktiv</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <label>Notizen</label>
+        <textarea id="fNotes" placeholder="Zuständigkeitsbereich, Berechtigungen, etc."></textarea>
+      </div>
+
+      <!-- Passwort-Test -->
+      <div class="pw-section" id="pwSection" style="display:none">
+        <div style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:10px;">
+          🔑 Verbindungstest (Passwort wird nicht gespeichert)
+        </div>
+        <div class="row">
+          <input type="password" id="fTestPw" placeholder="SAP-Passwort eingeben…" autocomplete="new-password">
+          <button class="btn success sm" onclick="testConnection()">Testen</button>
+        </div>
+        <div id="testResult" style="margin-top:8px;font-size:12px;"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal()">Abbrechen</button>
+      <button class="btn" onclick="showPwSection()" id="btnTest" style="display:none">🔑 Verbindungstest</button>
+      <button class="btn primary" onclick="saveUser()" id="btnSave">Speichern</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ─── Konfiguration ───────────────────────────────────────────────────────────
+const ORC_URL = 'http://localhost:8000';
+
+// ─── State ───────────────────────────────────────────────────────────────────
+let users = [];
+let orchOk = false;
+
+// ─── Init ────────────────────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', async () => {
+  await checkOrchestrator();
+  if (orchOk) loadUsers();
+});
+
+async function checkOrchestrator() {
+  try {
+    const r = await fetch(ORC_URL + '/health', { signal: AbortSignal.timeout(3000) });
+    if (r.ok) {
+      orchOk = true;
+      setBar('ok', '✓ Orchestrator verbunden – ' + ORC_URL);
+    } else throw new Error('HTTP ' + r.status);
+  } catch(e) {
+    orchOk = false;
+    setBar('err', '✗ Orchestrator nicht erreichbar (' + ORC_URL + ') – Bitte starten');
+  }
+}
+
+function setBar(type, msg) {
+  const b = document.getElementById('modeBar');
+  b.className = 'modebar ' + type;
+  b.textContent = msg;
+}
+
+// ─── Daten laden ─────────────────────────────────────────────────────────────
+async function loadUsers() {
+  try {
+    const r = await fetch(ORC_URL + '/sap-users');
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    users = await r.json();
+    updateKPIs();
+    renderTable();
+  } catch(e) {
+    toast('Fehler beim Laden: ' + e.message, 'err');
+  }
+}
+
+function updateKPIs() {
+  const active   = users.filter(u => u.active == 1);
+  const inactive = users.filter(u => u.active != 1);
+  const systems  = new Set(users.map(u => u.sap_system).filter(Boolean));
+  document.getElementById('kpiTotal').textContent    = users.length;
+  document.getElementById('kpiActive').textContent   = active.length;
+  document.getElementById('kpiInactive').textContent = inactive.length;
+  document.getElementById('kpiSystems').textContent  = systems.size;
+}
+
+// ─── Tabelle rendern ──────────────────────────────────────────────────────────
+function renderTable() {
+  const q      = document.getElementById('searchInput').value.trim().toLowerCase();
+  const role   = document.getElementById('filterRole').value;
+  const active = document.getElementById('filterActive').value;
+
+  let list = users.filter(u => {
+    const matchQ = !q ||
+      (u.display_name  || '').toLowerCase().includes(q) ||
+      (u.sap_username  || '').toLowerCase().includes(q) ||
+      (u.sap_system    || '').toLowerCase().includes(q) ||
+      (u.notes         || '').toLowerCase().includes(q);
+    const matchRole   = !role   || u.role   === role;
+    const matchActive = active === '' || String(u.active) === active;
+    return matchQ && matchRole && matchActive;
+  });
+
+  const tbody = document.getElementById('userTableBody');
+  if (!list.length) {
+    tbody.innerHTML = '<tr><td colspan="7" class="empty">Keine Benutzer gefunden.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = list.map(u => {
+    const initials = (u.display_name || '?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+    const roleChip = u.role === 'Admin'
+      ? `<span class="chip warn">${u.role}</span>`
+      : u.role === 'Readonly'
+      ? `<span class="chip muted">${u.role}</span>`
+      : `<span class="chip ok">${u.role}</span>`;
+    const statusChip = u.active == 1
+      ? `<span class="chip ok">● Aktiv</span>`
+      : `<span class="chip muted">○ Inaktiv</span>`;
+
+    return `<tr>
+      <td>
+        <div class="user-cell">
+          <div class="avatar">${initials}</div>
+          <div>
+            <div class="user-name">${esc(u.display_name)}</div>
+            ${u.notes ? `<div class="user-sub">${esc(u.notes.slice(0,60))}${u.notes.length>60?'…':''}</div>` : ''}
+          </div>
+        </div>
+      </td>
+      <td class="mono">${esc(u.sap_username)}</td>
+      <td><span class="mono">${esc(u.sap_system)}</span>${u.ashost?`<div class="user-sub">${esc(u.ashost)}</div>`:''}</td>
+      <td class="mono">${esc(u.client)}</td>
+      <td>${roleChip}</td>
+      <td>${statusChip}</td>
+      <td>
+        <div class="actions">
+          <button class="btn sm" onclick="openModal(${u.id})" title="Bearbeiten">✏</button>
+          <button class="btn sm" onclick="copyUser(${u.id})" title="Kopieren">⧉</button>
+          <button class="btn sm danger" onclick="deleteUser(${u.id},'${esc(u.display_name)}')" title="Löschen">🗑</button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+// ─── Modal ────────────────────────────────────────────────────────────────────
+function openModal(id) {
+  clearForm();
+  if (id) {
+    const u = users.find(x => x.id === id);
+    if (!u) return;
+    document.getElementById('editId').value         = u.id;
+    document.getElementById('modalTitle').textContent = 'Benutzer bearbeiten';
+    document.getElementById('fDisplayName').value   = u.display_name || '';
+    document.getElementById('fSapUsername').value   = u.sap_username || '';
+    document.getElementById('fSapSystem').value     = u.sap_system   || '';
+    document.getElementById('fClient').value        = u.client       || '';
+    document.getElementById('fAshost').value        = u.ashost       || '';
+    document.getElementById('fSysnr').value         = u.sysnr        || '00';
+    document.getElementById('fLang').value          = u.lang         || 'DE';
+    document.getElementById('fRole').value          = u.role         || 'Buchung';
+    document.getElementById('fActive').value        = String(u.active ?? 1);
+    document.getElementById('fNotes').value         = u.notes        || '';
+    document.getElementById('btnTest').style.display = '';
+  } else {
+    document.getElementById('modalTitle').textContent = 'Benutzer anlegen';
+    document.getElementById('btnTest').style.display = 'none';
+  }
+  document.getElementById('overlay').classList.add('open');
+  setTimeout(()=>document.getElementById('fDisplayName').focus(), 80);
+}
+
+function closeModal() {
+  document.getElementById('overlay').classList.remove('open');
+  document.getElementById('pwSection').style.display = 'none';
+  document.getElementById('testResult').textContent  = '';
+}
+
+function clearForm() {
+  ['fDisplayName','fSapUsername','fSapSystem','fClient','fAshost','fNotes','fTestPw']
+    .forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
+  document.getElementById('fSysnr').value  = '00';
+  document.getElementById('fLang').value   = 'DE';
+  document.getElementById('fRole').value   = 'Buchung';
+  document.getElementById('fActive').value = '1';
+  document.getElementById('editId').value  = '';
+}
+
+function showPwSection() {
+  const s = document.getElementById('pwSection');
+  s.style.display = s.style.display === 'none' ? '' : 'none';
+}
+
+// ─── Speichern ───────────────────────────────────────────────────────────────
+async function saveUser() {
+  const displayName = document.getElementById('fDisplayName').value.trim();
+  const sapUsername = document.getElementById('fSapUsername').value.trim().toUpperCase();
+  if (!displayName || !sapUsername) {
+    toast('Anzeigename und SAP-Benutzername sind Pflichtfelder.', 'err');
+    return;
+  }
+
+  const payload = {
+    display_name: displayName,
+    sap_username: sapUsername,
+    sap_system:   document.getElementById('fSapSystem').value.trim(),
+    ashost:       document.getElementById('fAshost').value.trim(),
+    sysnr:        document.getElementById('fSysnr').value.trim() || '00',
+    client:       document.getElementById('fClient').value.trim(),
+    lang:         document.getElementById('fLang').value,
+    role:         document.getElementById('fRole').value,
+    notes:        document.getElementById('fNotes').value.trim(),
+    active:       parseInt(document.getElementById('fActive').value),
+  };
+
+  const editId = document.getElementById('editId').value;
+  const url    = editId ? `${ORC_URL}/sap-users/${editId}` : `${ORC_URL}/sap-users`;
+  const method = editId ? 'PUT' : 'POST';
+
+  const btn = document.getElementById('btnSave');
+  btn.disabled = true; btn.textContent = 'Speichern…';
+
+  try {
+    const r = await fetch(url, {
+      method, headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(payload)
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status + ' ' + await r.text());
+    closeModal();
+    await loadUsers();
+    toast(editId ? '✓ Benutzer aktualisiert.' : '✓ Benutzer angelegt.', 'ok');
+  } catch(e) {
+    toast('Fehler: ' + e.message, 'err');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Speichern';
+  }
+}
+
+// ─── Löschen ─────────────────────────────────────────────────────────────────
+// ─── Kopieren ────────────────────────────────────────────────────────────────
+function copyUser(id) {
+  const u = users.find(x => x.id === id);
+  if (!u) return;
+  // Modal öffnen wie beim Anlegen, aber Felder vorausfüllen
+  clearForm();
+  document.getElementById('modalTitle').textContent  = 'Benutzer kopieren';
+  document.getElementById('fDisplayName').value = u.display_name + ' (Kopie)';
+  document.getElementById('fSapUsername').value = u.sap_username;
+  document.getElementById('fSapSystem').value   = u.sap_system;
+  document.getElementById('fClient').value      = u.client;
+  document.getElementById('fAshost').value      = u.ashost;
+  document.getElementById('fSysnr').value       = u.sysnr   || '00';
+  document.getElementById('fLang').value        = u.lang    || 'DE';
+  document.getElementById('fRole').value        = u.role    || 'Buchung';
+  document.getElementById('fActive').value      = String(u.active ?? 1);
+  document.getElementById('fNotes').value       = u.notes   || '';
+  document.getElementById('editId').value       = ''; // kein editId → POST (Neuanlage)
+  document.getElementById('btnTest').style.display = 'none';
+  document.getElementById('overlay').classList.add('open');
+  setTimeout(() => document.getElementById('fDisplayName').focus(), 80);
+}
+
+async function deleteUser(id, name) {
+  if (!confirm(`Benutzer "${name}" wirklich löschen?`)) return;
+  try {
+    const r = await fetch(`${ORC_URL}/sap-users/${id}`, { method: 'DELETE' });
+    if (!r.ok && r.status !== 204) throw new Error('HTTP ' + r.status);
+    await loadUsers();
+    toast('✓ Benutzer gelöscht.', 'ok');
+  } catch(e) {
+    toast('Fehler beim Löschen: ' + e.message, 'err');
+  }
+}
+
+// ─── Verbindungstest ─────────────────────────────────────────────────────────
+async function testConnection() {
+  const pw = document.getElementById('fTestPw').value;
+  if (!pw) { toast('Bitte Passwort eingeben.', 'err'); return; }
+
+  const resultEl = document.getElementById('testResult');
+  resultEl.innerHTML = '<span class="spinner"></span> Verbinde…';
+
+  const BRIDGE = 'http://localhost:8765';
+  const conn = {
+    ashost: document.getElementById('fAshost').value.trim(),
+    sysnr:  document.getElementById('fSysnr').value.trim() || '00',
+    client: document.getElementById('fClient').value.trim(),
+    lang:   document.getElementById('fLang').value,
+    user:   document.getElementById('fSapUsername').value.trim().toUpperCase(),
+    passwd: pw
+  };
+
+  try {
+    const r = await fetch(BRIDGE + '/test_rfc', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ _sap_auth: conn
+<script src="auth.js"></script>
+<script>
+  AUTH.requireRole(['Admin']);   // Nur Admins dürfen Benutzer verwalten
+  AUTH.renderHeader("headerRight");
+</script>

@@ -1,0 +1,1636 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rechnungserstellung – YCONN Cockpit</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root {
+  --bg:     #0d1117; --bg2: #161b22; --bg3: #21262d;
+  --border: #30363d; --text: #e6edf3; --muted: #8b949e;
+  --acc:    #58a6ff; --ok:  #3fb950; --err: #f85149;
+  --warn:   #d29922;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:13px;min-height:100vh}
+header{background:var(--bg2);border-bottom:1px solid var(--border);padding:0 20px;height:52px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+.logo{font-weight:700;font-size:15px;color:var(--acc);letter-spacing:-.3px}
+.header-right{display:flex;align-items:center;gap:10px}
+.btn-nav{padding:6px 14px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);color:var(--text);cursor:pointer;font-size:12px;font-weight:600;text-decoration:none;transition:.15s}
+.btn-nav:hover{background:#2d333b;border-color:#8b949e}
+.btn-primary{background:rgba(88,166,255,.15);border-color:rgba(88,166,255,.5);color:var(--acc)}
+.btn-primary:hover{background:rgba(88,166,255,.25)}
+.wrap{max-width:1400px;margin:0 auto;padding:24px 20px;display:flex;flex-direction:column;gap:20px}
+
+/* ── Upload Zone ── */
+.upload-zone{border:2px dashed var(--border);border-radius:14px;padding:36px 24px;text-align:center;cursor:pointer;transition:.2s;background:var(--bg2)}
+.upload-zone:hover{border-color:var(--acc);background:rgba(88,166,255,.04)}
+.upload-zone.drag{border-color:var(--acc);background:rgba(88,166,255,.08)}
+.upload-icon{font-size:40px;margin-bottom:10px}
+.upload-label{font-size:15px;font-weight:600;color:var(--text);margin-bottom:4px}
+.upload-hint{font-size:12px;color:var(--muted)}
+
+/* ── Config Card ── */
+.cfg-card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:16px 20px}
+.cfg-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-top:12px}
+.cfg-item label{font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.06em;display:block;margin-bottom:3px}
+.cfg-item input,.cfg-item select{width:100%;padding:6px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;outline:none;font-family:monospace}
+.cfg-item input:focus,.cfg-item select:focus{border-color:var(--acc)}
+
+/* ── Section ── */
+.section{background:var(--bg2);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+.section-head{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--border);flex-wrap:wrap;gap:8px}
+.section-head h3{font-size:14px;font-weight:700}
+.toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+
+/* ── Badges ── */
+.badge{display:inline-block;padding:2px 8px;border-radius:5px;font-size:11px;font-weight:600}
+.badge-ok{background:rgba(63,185,80,.12);color:var(--ok);border:1px solid rgba(63,185,80,.3)}
+.badge-warn{background:rgba(210,153,34,.12);color:var(--warn);border:1px solid rgba(210,153,34,.3)}
+.badge-err{background:rgba(248,81,73,.12);color:var(--err);border:1px solid rgba(248,81,73,.3)}
+.badge-muted{background:rgba(139,148,158,.12);color:var(--muted);border:1px solid rgba(139,148,158,.3)}
+.badge-new{background:rgba(88,166,255,.12);color:var(--acc);border:1px solid rgba(88,166,255,.3)}
+
+/* ── Table ── */
+.tbl-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse}
+th{padding:9px 12px;text-align:left;font-size:11px;font-weight:600;color:var(--muted);background:var(--bg3);white-space:nowrap;border-bottom:1px solid var(--border)}
+td{padding:8px 12px;border-bottom:1px solid rgba(48,54,61,.6);font-size:12px;vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:rgba(255,255,255,.02)}
+.td-mono{font-family:monospace;letter-spacing:.03em}
+.td-num{text-align:right;font-family:monospace}
+.td-bold{font-weight:700}
+.pos-row{background:rgba(88,166,255,.03);border-left:3px solid rgba(88,166,255,.3)}
+.pos-row td{padding:5px 12px;font-size:11px;color:var(--muted)}
+
+/* ── Modal ── */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:200;align-items:center;justify-content:center;padding:20px}
+.modal-overlay.open{display:flex}
+.modal{background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:28px;max-width:520px;width:100%}
+.modal h3{font-size:16px;font-weight:700;margin-bottom:20px}
+.modal-field{margin-bottom:14px}
+.modal-field label{display:block;font-size:11px;font-weight:600;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.06em}
+.modal-field input,.modal-field select{width:100%;padding:8px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;outline:none}
+.modal-field input:focus,.modal-field select:focus{border-color:var(--acc)}
+.modal-btns{display:flex;gap:10px;margin-top:20px;justify-content:flex-end}
+.status-banner{padding:12px 16px;border-radius:10px;display:flex;align-items:center;gap:10px;font-size:13px;font-weight:600;margin-top:12px}
+.status-banner.ok{background:rgba(63,185,80,.1);border:1px solid rgba(63,185,80,.3);color:var(--ok)}
+.status-banner.err{background:rgba(248,81,73,.08);border:1px solid rgba(248,81,73,.3);color:var(--err)}
+.status-banner.warn{background:rgba(210,153,34,.08);border:1px solid rgba(210,153,34,.3);color:var(--warn)}
+
+/* ── Position Detail ── */
+.pos-detail{display:none;background:var(--bg3);border-top:1px solid var(--border);padding:10px 14px}
+.pos-detail.open{display:block}
+.pos-table{width:100%;border-collapse:collapse;font-size:11px}
+.pos-table th{padding:5px 10px;font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:600;background:var(--bg2)}
+.pos-table td{padding:5px 10px;border-bottom:1px solid rgba(48,54,61,.4);font-size:11px}
+
+input[type=search],input[type=text]{padding:6px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;outline:none}
+input[type=search]:focus,input[type=text]:focus{border-color:var(--acc)}
+select{padding:6px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;outline:none}
+.count-badge{font-size:11px;color:var(--muted);padding:3px 8px;background:var(--bg3);border-radius:6px;border:1px solid var(--border)}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">🧾 Rechnungserstellung</div>
+  <div class="header-right">
+    <a class="btn-nav" href="startseite.html">🏠 Startseite</a>
+    <div id="headerRight"></div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <!-- ── SAP Konfiguration ── -->
+  <div class="cfg-card">
+    <div style="display:flex;align-items:center;justify-content:space-between">
+      <div style="font-size:13px;font-weight:700;color:var(--acc)">⚙ SAP SD Konfiguration</div>
+      <button class="btn-nav" onclick="saveConfig()" style="font-size:11px">💾 Speichern</button>
+    </div>
+    <div class="cfg-grid" id="cfgGrid">
+      <div class="cfg-item"><label>VKOrg (Sales Org)</label><input id="cfgVkorg" value="C060"></div>
+      <div class="cfg-item"><label>Auftragsart</label><input id="cfgDoctype" value="ZTA"></div>
+      <div class="cfg-item"><label>Vertriebsweg</label><input id="cfgDistrchan" value="10"></div>
+      <div class="cfg-item"><label>Sparte</label><input id="cfgDivision" value="10"></div>
+      <div class="cfg-item"><label>Verkaufsbüro</label><input id="cfgSalesoff" value="1000"></div>
+      <div class="cfg-item"><label>Verkaufsgruppe</label><input id="cfgSalesgrp" value="100"></div>
+      <div class="cfg-item"><label>Material-Nr.</label><input id="cfgMaterial" value="000000000000000013"></div>
+      <div class="cfg-item"><label>Werk (Plant)</label><input id="cfgPlant" value="C060"></div>
+      <div class="cfg-item"><label>SAP-System</label>
+        <select id="cfgSystem">
+          <option value="SEP">SEP – Produktivsystem ⚡</option>
+          <option value="SEQ">SEQ – Qualitätssystem 🔬</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Upload Zone ── -->
+  <div class="upload-zone" id="uploadZone"
+       onclick="document.getElementById('xlsmInput').click()"
+       ondragover="event.preventDefault();this.classList.add('drag')"
+       ondragleave="this.classList.remove('drag')"
+       ondrop="event.preventDefault();this.classList.remove('drag');handleDrop(event)">
+    <input type="file" id="xlsmInput" accept=".xlsm,.xlsx" style="display:none"
+           onchange="handleFile(this.files[0])">
+    <div class="upload-icon">📂</div>
+    <div class="upload-label">Excel-Datei hochladen</div>
+    <div class="upload-hint">Create_invoice__SAP_New2026.xlsm · oder Datei hierher ziehen</div>
+    <div id="uploadStatus" style="margin-top:10px;font-size:12px;color:var(--acc)"></div>
+  </div>
+
+  <!-- ── Rechnungs-Tabelle ── -->
+  <div class="section">
+    <div class="section-head">
+      <h3>📋 Rechnungsliste</h3>
+      <div class="toolbar">
+        <input type="text" id="filterSearch" placeholder="🔍 Suche Kunde, Periode…" oninput="onSearchInput()" style="width:200px" autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-form-type="other">
+        <select id="filterStatus" onchange="renderTable()">
+          <option value="">Alle Status</option>
+          <option value="offen">Offen</option>
+          <option value="erstellt">Erstellt ✓</option>
+          <option value="storniert">Storniert</option>
+        </select>
+        <select id="filterPeriode" onchange="renderTable()">
+          <option value="">Alle Perioden</option>
+        </select>
+        <span class="count-badge" id="invCount">0 Einträge</span>
+        <button class="btn-nav" onclick="exportXlsx()" style="font-size:11px">📥 Excel</button>
+        <button class="btn-nav" onclick="openBatchModal()" style="font-size:11px;background:rgba(88,166,255,.12);color:var(--acc);border:1px solid rgba(88,166,255,.3)" id="batchBtn" disabled title="Excel-Datei hochladen um Batch-Buchung zu starten">📦 Batch buchen</button>
+        <button class="btn-nav btn-primary" onclick="clearData()" style="font-size:11px">🗑 Daten löschen</button>
+      </div>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:28px"></th>
+            <th>Kunden-Nr</th>
+            <th>Name</th>
+            <th>Periode</th>
+            <th style="text-align:right">Pos.</th>
+            <th style="text-align:right">Gesamt EUR</th>
+            <th>Leistungsart</th>
+            <th>MWSt-Code</th>
+            <th>Status</th>
+            <th>Rechnungsnr.</th>
+            <th>Auftragsnr.</th>
+            <th style="width:120px"></th>
+          </tr>
+        </thead>
+        <tbody id="invBody">
+          <tr><td colspan="12" style="text-align:center;padding:40px;color:var(--muted)">
+            Bitte XLSM-Datei hochladen, um die Rechnungsliste anzuzeigen.
+          </td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── E-Mail Konfiguration & Historie ── -->
+  <div class="section" style="margin-top:20px">
+    <div class="section-head">
+      <h3>📧 E-Mail Konfiguration</h3>
+      <div class="toolbar">
+        <button class="btn-nav btn-primary" onclick="openEmailCfgModal()" style="font-size:11px">➕ Konfiguration hinzufügen</button>
+      </div>
+    </div>
+    <div class="tbl-wrap">
+      <table id="emailCfgTable">
+        <thead>
+          <tr>
+            <th>Kunden-Nr</th>
+            <th>Name</th>
+            <th>Empfänger</th>
+            <th>Absender</th>
+            <th>SMTP-Host</th>
+            <th>Status</th>
+            <th>Auto-Send</th>
+            <th style="width:120px">Aktionen</th>
+          </tr>
+        </thead>
+        <tbody id="emailCfgBody">
+          <tr><td colspan="8" style="text-align:center;color:var(--muted);padding:20px">Wird geladen…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── E-Mail Versand-Historie ── -->
+  <div class="section" style="margin-top:16px">
+    <div class="section-head">
+      <h3>📬 Versand-Historie</h3>
+      <div class="toolbar">
+        <select id="histKundenFilter" onchange="loadEmailHistory()" style="font-size:11px">
+          <option value="">Alle Kunden</option>
+        </select>
+        <button class="btn-nav" onclick="loadEmailHistory()" style="font-size:11px">🔄 Aktualisieren</button>
+      </div>
+    </div>
+    <div class="tbl-wrap">
+      <table id="emailHistTable">
+        <thead>
+          <tr>
+            <th>Datum</th>
+            <th>Kunden-Nr</th>
+            <th>Faktura-Nr</th>
+            <th>Periode</th>
+            <th>Empfänger</th>
+            <th>Betreff</th>
+            <th>Status</th>
+            <th>Fehlermeldung</th>
+          </tr>
+        </thead>
+        <tbody id="emailHistBody">
+          <tr><td colspan="8" style="text-align:center;color:var(--muted);padding:20px">Wird geladen…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div><!-- .wrap -->
+
+<!-- ── E-Mail Konfig Modal ── -->
+<div class="modal-overlay" id="emailCfgModal">
+  <div class="modal" style="max-width:680px;max-height:90vh;overflow-y:auto">
+    <h3 id="emailCfgModalTitle">📧 E-Mail Konfiguration</h3>
+    <input type="hidden" id="emailCfgId">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="modal-field">
+        <label>Kunden-Nr *</label>
+        <input id="ecKundenNr" placeholder="103052" autocomplete="off">
+      </div>
+      <div class="modal-field">
+        <label>Kundenname</label>
+        <input id="ecName" placeholder="CATENSYS Chain Drive…" autocomplete="off">
+      </div>
+      <div class="modal-field" style="grid-column:1/-1">
+        <label>Empfänger E-Mail *</label>
+        <input id="ecRecipient" type="email" placeholder="empfaenger@kunde.de" autocomplete="off">
+      </div>
+      <div class="modal-field" style="grid-column:1/-1">
+        <label>Absender E-Mail *</label>
+        <input id="ecSender" type="email" placeholder="rechnung@catensys.de" autocomplete="off">
+      </div>
+      <div class="modal-field">
+        <label>SMTP-Host</label>
+        <input id="ecSmtpHost" placeholder="smtp.office365.com" autocomplete="off">
+      </div>
+      <div class="modal-field">
+        <label>SMTP-Port</label>
+        <input id="ecSmtpPort" type="number" value="587" autocomplete="off">
+      </div>
+      <div class="modal-field">
+        <label>SMTP-Benutzer</label>
+        <input id="ecSmtpUser" placeholder="user@catensys.de" autocomplete="off">
+      </div>
+      <div class="modal-field">
+        <label>SMTP-Passwort</label>
+        <input id="ecSmtpPass" type="password" placeholder="••••••••" autocomplete="new-password">
+      </div>
+      <div class="modal-field">
+        <label>Verschlüsselung</label>
+        <select id="ecSmtpTls">
+          <option value="1">STARTTLS (Port 587)</option>
+          <option value="0">SSL/TLS (Port 465)</option>
+        </select>
+      </div>
+      <div class="modal-field">
+        <label>Status</label>
+        <select id="ecStatus">
+          <option value="aktiv">✅ Aktiv</option>
+          <option value="inaktiv">⏸ Inaktiv</option>
+        </select>
+      </div>
+      <div class="modal-field" style="grid-column:1/-1">
+        <label>Auto-Versand nach Rechnungserstellung</label>
+        <select id="ecAutoSend">
+          <option value="0">Manuell (kein Auto-Send)</option>
+          <option value="1">Automatisch senden</option>
+        </select>
+      </div>
+      <div class="modal-field" style="grid-column:1/-1">
+        <label>Betreff-Vorlage</label>
+        <input id="ecSubjectTpl" placeholder="Rechnung {invoice_nr} – {name} – {periode}" autocomplete="off">
+        <div style="font-size:10px;color:var(--muted);margin-top:3px">Platzhalter: {invoice_nr} {name} {periode} {kunden_nr}</div>
+      </div>
+      <div class="modal-field" style="grid-column:1/-1">
+        <label>E-Mail Text-Vorlage</label>
+        <textarea id="ecBodyTpl" rows="5" style="width:100%;padding:8px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;font-family:inherit;resize:vertical"></textarea>
+        <div style="font-size:10px;color:var(--muted);margin-top:3px">Platzhalter: {invoice_nr} {name} {periode} {kunden_nr}</div>
+      </div>
+    </div>
+    <div id="emailCfgResult" style="margin-top:12px"></div>
+    <div class="modal-btns">
+      <button class="btn-nav" onclick="closeEmailCfgModal()">✕ Abbrechen</button>
+      <button class="btn-nav btn-primary" onclick="saveEmailCfg()">💾 Speichern</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Erstellen Modal ── -->
+<div class="modal-overlay" id="createModal">
+  <div class="modal" style="max-width:620px">
+    <h3>📨 Rechnung in SAP erstellen</h3>
+
+    <!-- Daten-Zusammenfassung -->
+    <div id="createSummary" style="background:var(--bg3);border-radius:10px;padding:14px;margin-bottom:12px;font-size:12px;line-height:1.8"></div>
+
+    <!-- ── Vorübergabe-Validierung ── -->
+    <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">🔍 Vorübergabe-Prüfung</div>
+    <div id="createValidation" style="margin-bottom:14px"></div>
+
+    <!-- Passwort (nur sichtbar wenn keine harten Fehler) -->
+    <div class="modal-field" id="createPwdField">
+      <label>SAP-Passwort für <span id="createUser">–</span></label>
+      <input type="password" id="createPwd" placeholder="Passwort eingeben…" onkeydown="if(event.key==='Enter')execCreate()">
+    </div>
+    <div id="createProgress"></div>
+    <div id="createResult"></div>
+    <!-- ── Debug-Schrittanzeige ── -->
+    <div id="createSteps" style="display:none;margin-top:10px"></div>
+    <div class="modal-btns">
+      <button class="btn-nav" id="createCancelBtn" onclick="closeCreateModal()">✕ Abbrechen</button>
+      <button class="btn-nav" id="createDebugBtn" onclick="execCreate(true)" style="background:var(--bg3);color:var(--muted);border:1px solid var(--border)">🔬 Debug-Lauf</button>
+      <button class="btn-nav btn-primary" id="createExecBtn" onclick="execCreate()">📨 Jetzt erstellen</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Beleg-Nr. Modal ── -->
+<!-- versteckter PDF-Upload-Input -->
+<input type="file" id="pdfUploadInput" accept=".pdf" style="display:none" onchange="handlePdfUpload(event)">
+
+<div class="modal-overlay" id="belegModal">
+  <div class="modal" style="max-width:480px">
+    <h3>✏️ SAP-Belegnummer eintragen</h3>
+    <div id="belegSummary" style="background:var(--bg3);border-radius:10px;padding:12px;margin-bottom:14px;font-size:12px;line-height:1.8"></div>
+    <div class="modal-field">
+      <label>Auftragsnr. (VA01) <span style="color:var(--muted);font-weight:400">– optional</span></label>
+      <input type="text" id="belegOrderNr" placeholder="z.B. 90009701" maxlength="20" style="font-family:monospace">
+    </div>
+    <div class="modal-field">
+      <label>Faktura-Nr. (VF01) <span style="color:var(--muted);font-weight:400">– optional</span></label>
+      <input type="text" id="belegInvoiceNr" placeholder="z.B. 90009701" maxlength="20" style="font-family:monospace">
+    </div>
+    <div class="modal-field">
+      <label>Status</label>
+      <select id="belegStatus">
+        <option value="erstellt">✓ Erstellt</option>
+        <option value="offen">● Offen</option>
+        <option value="storniert">↩ Storniert</option>
+      </select>
+    </div>
+    <div id="belegResult" style="margin-top:10px"></div>
+    <div class="modal-btns">
+      <button class="btn-nav" onclick="closeBelegModal()">✕ Abbrechen</button>
+      <button class="btn-nav btn-primary" onclick="saveBelegNr()">💾 Speichern</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Batch-Buchungs-Modal ── -->
+<div class="modal-overlay" id="batchModal">
+  <div class="modal" style="max-width:700px">
+    <h3>📦 Batch-Buchung — Excel Control-Sheet</h3>
+    <div id="batchSummary" style="background:var(--bg3);border-radius:10px;padding:12px;margin-bottom:12px;font-size:12px;line-height:1.8"></div>
+    <div class="modal-field">
+      <label>SAP-Passwort für <span id="batchUser">–</span></label>
+      <input type="password" id="batchPwd" placeholder="Passwort eingeben…" onkeydown="if(event.key==='Enter')execBatch()">
+    </div>
+    <div id="batchProgress"></div>
+    <!-- Ergebnis-Tabelle -->
+    <div id="batchResults" style="display:none;margin-top:12px;max-height:340px;overflow-y:auto">
+      <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Buchungsprotokoll</div>
+      <table style="width:100%;border-collapse:collapse;font-size:11px">
+        <thead><tr style="background:var(--bg3)">
+          <th style="padding:4px 8px;text-align:left">Zeile</th>
+          <th style="padding:4px 8px;text-align:left">Kunde</th>
+          <th style="padding:4px 8px;text-align:left">Buchungstext</th>
+          <th style="padding:4px 8px;text-align:right">Betrag</th>
+          <th style="padding:4px 8px;text-align:left">Status</th>
+          <th style="padding:4px 8px;text-align:left">Auftrag</th>
+        </tr></thead>
+        <tbody id="batchResultRows"></tbody>
+      </table>
+    </div>
+    <div class="modal-btns">
+      <button class="btn-nav" id="batchCancelBtn" onclick="document.getElementById('batchModal').style.display='none'">✕ Schließen</button>
+      <button class="btn-nav" id="batchDebugBtn" onclick="execBatch(true)" style="background:var(--bg3);color:var(--muted);border:1px solid var(--border)">🔬 Debug (1. Zeile)</button>
+      <button class="btn-nav btn-primary" id="batchExecBtn" onclick="execBatch()">📦 Alle buchen</button>
+    </div>
+  </div>
+</div>
+
+<script src="auth.js"></script>
+<script>
+AUTH.renderHeader('headerRight');
+
+// ─── Konstanten ────────────────────────────────────────────
+var BRIDGE_URL = 'http://localhost:8765';
+var ORCH_URL   = 'http://localhost:8000';
+var SAP_SYSTEMS = {
+  SEQ: { ashost:'172.28.189.11', sysnr:'05', client:'600', lang:'DE' },
+  SEP: { ashost:'172.28.189.8',  sysnr:'06', client:'600', lang:'DE' }
+};
+
+// MWSt-Code je Leistungsart (aus Config-Sheet)
+var MWST_BY_TYPE = {
+  'SPI':              'Z4',
+  'Management-Service': 'Z4',
+  'Rental':           'ZM',
+  'Tooling':          'ZT',
+  'Simulation':       'Z4',
+  'Cost-Allocation':  'Z4',
+  'Trading-Good':     'Z1',
+};
+
+// ─── State ─────────────────────────────────────────────────
+var _invoices  = [];     // Array of invoice groups (gespiegelt aus DB)
+var _createCtx = null;   // aktuell zu buchende Rechnung
+
+// ─── DB: Laden ─────────────────────────────────────────────
+async function loadFromDb() {
+  try {
+    var resp = await fetch(ORCH_URL + '/invoice_records');
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    var records = await resp.json();
+    _invoices = records.map(function(r) {
+      return {
+        id:           r.id,
+        _key:         r.group_key,
+        kunden_nr:    r.kunden_nr,
+        name:         r.name,
+        periode:      r.periode,
+        sap_date:     r.sap_date,
+        leistungsart: r.leistungsart,
+        mwst_code:    r.mwst_code,
+        waehrung:     r.waehrung,
+        payterm:      '0000',
+        total:        r.total,
+        status:       r.status,
+        invoice_nr:   r.invoice_nr,
+        order_nr:     r.order_nr,
+        positions:    Array.isArray(r.positions) ? r.positions : [],
+        is_storno:    !!r.is_storno,
+      };
+    });
+    populatePeriodeFilter();
+    renderTable();
+    return true;
+  } catch(e) {
+    console.warn('Orchestrator nicht erreichbar:', e);
+    return false;
+  }
+}
+
+// ─── DB: Speichern (Bulk-Upsert nach Excel-Import) ─────────
+async function saveToDb(invoices) {
+  var records = invoices.map(function(inv) {
+    return {
+      group_key:    inv._key,
+      kunden_nr:    inv.kunden_nr,
+      name:         inv.name,
+      periode:      inv.periode,
+      sap_date:     inv.sap_date,
+      leistungsart: inv.leistungsart,
+      mwst_code:    inv.mwst_code,
+      waehrung:     inv.waehrung,
+      total:        inv.total,
+      status:       inv.status,
+      invoice_nr:   inv.invoice_nr,
+      order_nr:     inv.order_nr,
+      positions:    inv.positions,
+      is_storno:    inv.is_storno ? 1 : 0,
+    };
+  });
+  var resp = await fetch(ORCH_URL + '/invoice_records/bulk', {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify(records),
+  });
+  if (!resp.ok) throw new Error('DB-Speicherung fehlgeschlagen: HTTP ' + resp.status);
+  return await resp.json();
+}
+
+// ─── DB: Status aktualisieren nach SAP-Buchung ─────────────
+async function patchInvoiceStatus(inv, status, invoiceNr, orderNr) {
+  if (!inv.id) return;
+  try {
+    await fetch(ORCH_URL + '/invoice_records/' + inv.id, {
+      method:  'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ status: status, invoice_nr: invoiceNr, order_nr: orderNr }),
+    });
+  } catch(e) {
+    console.warn('DB-PATCH fehlgeschlagen:', e);
+  }
+}
+
+// ─── Config speichern/laden ─────────────────────────────────
+function loadConfig() {
+  var c = {};
+  try { c = JSON.parse(localStorage.getItem('yconn_rechnung_cfg') || '{}'); } catch(_){}
+  if (c.vkorg)    document.getElementById('cfgVkorg').value    = c.vkorg;
+  if (c.doctype)  document.getElementById('cfgDoctype').value  = c.doctype;
+  if (c.distrchan)document.getElementById('cfgDistrchan').value= c.distrchan;
+  if (c.division) document.getElementById('cfgDivision').value = c.division;
+  if (c.salesoff) document.getElementById('cfgSalesoff').value = c.salesoff;
+  if (c.salesgrp) document.getElementById('cfgSalesgrp').value = c.salesgrp;
+  if (c.material) document.getElementById('cfgMaterial').value = c.material;
+  if (c.plant)    document.getElementById('cfgPlant').value    = c.plant;
+  if (c.system)   document.getElementById('cfgSystem').value   = c.system;
+}
+function saveConfig() {
+  localStorage.setItem('yconn_rechnung_cfg', JSON.stringify({
+    vkorg:    document.getElementById('cfgVkorg').value,
+    doctype:  document.getElementById('cfgDoctype').value,
+    distrchan:document.getElementById('cfgDistrchan').value,
+    division: document.getElementById('cfgDivision').value,
+    salesoff: document.getElementById('cfgSalesoff').value,
+    salesgrp: document.getElementById('cfgSalesgrp').value,
+    material: document.getElementById('cfgMaterial').value,
+    plant:    document.getElementById('cfgPlant').value,
+    system:   document.getElementById('cfgSystem').value,
+  }));
+  showUploadStatus('✓ Konfiguration gespeichert', '#3fb950');
+}
+function getCfg() {
+  return {
+    vkorg:    document.getElementById('cfgVkorg').value    || 'C060',
+    doctype:  document.getElementById('cfgDoctype').value  || 'ZTA',
+    distrchan:document.getElementById('cfgDistrchan').value|| '10',
+    division: document.getElementById('cfgDivision').value || '10',
+    salesoff: document.getElementById('cfgSalesoff').value || '1000',
+    salesgrp: document.getElementById('cfgSalesgrp').value || '100',
+    material: document.getElementById('cfgMaterial').value || '000000000000000013',
+    plant:    document.getElementById('cfgPlant').value    || 'C060',
+    system:   document.getElementById('cfgSystem').value   || 'SEQ',
+  };
+}
+
+// ─── Excel-Datum → JS Date ─────────────────────────────────
+function _xlToDate(val) {
+  if (!val && val !== 0) return null;
+  // SheetJS cellDates:true → JS Date
+  if (val instanceof Date) return val;
+  var s = String(val).trim();
+  // Bereits Periode-String (06/2023, 06/23)
+  if (/^\d{2}\/\d{2,4}$/.test(s)) return null; // handled separately
+  // ISO-String aus SheetJS cellDates
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return new Date(s);
+  // Excel-Serial
+  var n = parseFloat(s);
+  if (!isNaN(n) && n > 40000) return new Date((n - 25569) * 86400 * 1000);
+  return null;
+}
+
+function xlDateToPeriod(val) {
+  // Immer MM/YYYY (4-stelliges Jahr) zurückgeben — konsistentes Format
+  if (!val && val !== 0) return '';
+  var s = String(val).trim();
+  // Bereits "MM/YY" (2-stellig) → auf 4-stellig normalisieren
+  if (/^\d{2}\/\d{2}$/.test(s)) {
+    return s.slice(0,3) + '20' + s.slice(3);  // "06/26" → "06/2026"
+  }
+  // Bereits "MM/YYYY" (4-stellig) → direkt zurückgeben
+  if (/^\d{2}\/\d{4}$/.test(s)) return s;
+  // Date-Objekt oder Serial
+  var d = _xlToDate(val);
+  if (!d) return s;
+  var mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+  var yyyy = String(d.getUTCFullYear());
+  return mm + '/' + yyyy;
+}
+
+function xlDateToSap(val) {
+  if (!val && val !== 0) return '';
+  var s = String(val).trim();
+  if (/^\d{2}\/\d{2,4}$/.test(s)) {
+    var parts = s.split('/');
+    var yr = parts[1].length === 2 ? '20' + parts[1] : parts[1];
+    return yr + parts[0] + '01';
+  }
+  var d = _xlToDate(val);
+  if (d) {
+    return d.getUTCFullYear() +
+      String(d.getUTCMonth()+1).padStart(2,'0') +
+      String(d.getUTCDate()).padStart(2,'0');
+  }
+  return '';
+}
+
+// ─── Leistungsart aus Buchungstext ableiten ─────────────────
+function detectLeistungsart(buchText) {
+  var t = (buchText || '').toLowerCase();
+  if (/rental|miete/.test(t))       return 'Rental';
+  if (/tooling/.test(t))            return 'Tooling';
+  if (/trading.good|trading good/.test(t)) return 'Trading-Good';
+  if (/simulation/.test(t))         return 'Simulation';
+  if (/spi/.test(t))                return 'SPI';
+  if (/cost.alloc|costs-alloc/.test(t)) return 'Cost-Allocation';
+  return 'Management-Service';
+}
+
+// ─── XLSM Parsing ──────────────────────────────────────────
+function handleDrop(e) {
+  var file = e.dataTransfer.files[0];
+  if (file) handleFile(file);
+}
+
+function handleFile(file) {
+  if (!file) return;
+  if (typeof XLSX === 'undefined') {
+    alert('SheetJS nicht geladen. Bitte Internetverbindung prüfen.');
+    return;
+  }
+  showUploadStatus('⏳ Lese Datei…', 'var(--warn)');
+  var reader = new FileReader();
+  reader.onload = async function(e) {
+    try {
+      // cellDates:true → JS-Date-Objekte statt Excel-Serials für Datumszellen
+      var wb = XLSX.read(e.target.result, { type: 'array', cellDates: true });
+      // "Control"-Sheet suchen (Index 0 als Fallback)
+      var sheetName = wb.SheetNames.find(function(n){ return n.toLowerCase()==='control'; }) || wb.SheetNames[0];
+      var ws = wb.Sheets[sheetName];
+      var rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+      await parseInvoiceRows(rows, file.name);
+    } catch(err) {
+      showUploadStatus('✗ Fehler: ' + err.message, 'var(--err)');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+async function parseInvoiceRows(rows, fileName) {
+  // Header row is row index 3 (Row 4 in Excel: Kunden-Nr, Name, Datum, ...)
+  // Data starts at row index 4 (Row 5)
+  var invoices = [];
+  var currentInv = null;
+
+  for (var i = 4; i < rows.length; i++) {
+    var row = rows[i];
+    var kundenNr  = String(row[0] || '').trim();
+    var name      = String(row[1] || '').trim();
+    var datum     = row[2];
+    var buchTxt   = String(row[3] || '').trim();
+    var betrag    = parseFloat(String(row[4] || '0').replace(',', '.')) || 0;
+    var leistung  = String(row[5] || '').trim();
+    var waehrung  = String(row[6] || 'EUR').trim() || 'EUR';
+    var payterm   = String(row[7] || 'sofort').trim();
+    var mwst      = String(row[8] || '0').trim();
+    var invoiceNr = String(row[9] || '').trim();
+    var status    = String(row[10] || '').trim().toLowerCase();
+    var mwstCode  = String(row[11] || '').trim();  // Col L = MWST Storno-Flag
+    var action    = String(row[12] || '').trim();  // Col M
+
+    if (!buchTxt) continue;
+
+    // Neue Gruppe wenn Kunden-Nr vorhanden
+    if (kundenNr && /^\d+$/.test(kundenNr)) {
+      var periode = xlDateToPeriod(datum);
+      // Leistungsart: aus Spalte F, sonst aus Buchungstext ableiten
+      var detectedLeistung = leistung || detectLeistungsart(buchTxt);
+      var mwstCd = MWST_BY_TYPE[detectedLeistung] || 'Z4';
+
+      var sapDate = xlDateToSap(datum);
+      // group_key: kunden_nr|YYYYMMDD|buchText_30chars — eindeutig pro Rechnung
+      var keyBuch = buchTxt.replace(/[^A-Za-z0-9]/g, '_').substring(0, 30);
+      var groupKey = kundenNr + '|' + sapDate + '|' + keyBuch;
+      currentInv = {
+        id:         null,   // wird nach DB-Speicherung gesetzt
+        _key:       groupKey,
+        kunden_nr:  kundenNr,
+        name:       name,
+        periode:    periode,
+        sap_date:   sapDate,
+        leistungsart: detectedLeistung,
+        mwst_code:  mwstCd,
+        waehrung:   waehrung,
+        payterm:    payterm,
+        positions:  [],
+        total:      0,
+        status:     mapExcelStatus(status),
+        invoice_nr: invoiceNr,
+        order_nr:   '',
+        is_storno:  mwstCode.toLowerCase() === 'storno' || action.toLowerCase() === 'x',
+      };
+      invoices.push(currentInv);
+    }
+
+    if (currentInv) {
+      currentInv.positions.push({ buchungstext: buchTxt, betrag: betrag });
+      currentInv.total += betrag;
+      // Rechnungsnr. und Status vom letzten Positions-Row übernehmen
+      if (invoiceNr && !currentInv.invoice_nr) currentInv.invoice_nr = invoiceNr;
+      if (status)    currentInv.status = mapExcelStatus(status);
+    }
+  }
+
+  // Beträge runden
+  invoices.forEach(function(inv) {
+    inv.total = Math.round(inv.total * 100) / 100;
+    if (!inv.status) {
+      inv.status = inv.invoice_nr ? 'erstellt' : 'offen';
+    }
+  });
+
+  // ── In Datenbank speichern, dann neu laden ────────────────
+  showUploadStatus('⏳ Speichere in Datenbank…', 'var(--warn)');
+  var savedResult = null;
+  var dbOk = false;
+  try {
+    savedResult = await saveToDb(invoices);
+    // Nur wenn Save OK: aus DB neu laden (holt IDs + bestehende Status)
+    showUploadStatus('⏳ Lade aus Datenbank…', 'var(--warn)');
+    dbOk = await loadFromDb();
+  } catch(e) {
+    console.warn('DB nicht erreichbar:', e.message);
+  }
+
+  // Fallback: In-Memory, wenn DB nicht funktioniert hat
+  if (!dbOk) {
+    _invoices = invoices;
+    populatePeriodeFilter();
+  }
+
+  var src = _invoices;  // loadFromDb oder Fallback hat _invoices gesetzt
+  var openCount     = src.filter(function(i){ return i.status === 'offen'; }).length;
+  var erstelltCount = src.filter(function(i){ return i.status === 'erstellt'; }).length;
+  var dbInfo = savedResult
+    ? ' (DB: +' + (savedResult.inserted||0) + ' neu)'
+    : ' (lokal – Orchestrator nicht erreichbar)';
+
+  showUploadStatus(
+    '✓ ' + src.length + ' Rechnungen · ' +
+    openCount + ' offen · ' + erstelltCount + ' erstellt' + dbInfo,
+    'var(--ok)'
+  );
+
+  // Filter setzen, Suchfeld leeren
+  document.getElementById('filterSearch').value = '';
+  document.getElementById('filterStatus').value = 'offen';
+  var perioden = [...new Set(
+    src.filter(function(i){ return i.status === 'offen'; })
+       .map(function(i){ return i.periode; })
+  )].sort();
+  if (perioden.length > 0) {
+    document.getElementById('filterPeriode').value = perioden[perioden.length - 1];
+  }
+  renderTable();
+  document.getElementById('uploadZone').style.borderColor = 'rgba(63,185,80,.5)';
+  // Batch-Button aktivieren sobald Daten geladen
+  document.getElementById('batchBtn').disabled = (_invoices.length === 0);
+}
+
+function mapExcelStatus(s) {
+  s = (s || '').toLowerCase().replace(/\s+/g, ' ').trim();
+  if (s === 'done' || s === 'ready created' ||
+      s === 're. geschrieben' || s === 're.geschrieben' ||
+      s === 'done (re. geschrieben)') return 'erstellt';
+  if (s === 'storniert' || s === 'to be canceled-done' ||
+      s === 'canceled' || s === 'cancelled') return 'storniert';
+  return '';
+}
+
+// ─── Filter + Render ────────────────────────────────────────
+function populatePeriodeFilter() {
+  var sel = document.getElementById('filterPeriode');
+  var cur = sel.value;
+  while (sel.options.length > 1) sel.remove(1);
+  var perioden = [...new Set(_invoices.map(function(i){ return i.periode; }))].sort();
+  perioden.forEach(function(p) {
+    var o = document.createElement('option');
+    o.value = o.textContent = p;
+    sel.appendChild(o);
+  });
+  if (cur) sel.value = cur;
+}
+
+function renderTable() {
+  var search  = (document.getElementById('filterSearch').value || '').toLowerCase();
+  var status  = document.getElementById('filterStatus').value || '';
+  var periode = document.getElementById('filterPeriode').value || '';
+
+  var list = _invoices.filter(function(inv) {
+    if (status  && inv.status   !== status)  return false;
+    if (periode && inv.periode  !== periode) return false;
+    if (search) {
+      var hay = (inv.kunden_nr + ' ' + inv.name + ' ' + inv.periode + ' ' +
+                 inv.invoice_nr + ' ' + inv.leistungsart).toLowerCase();
+      if (!hay.includes(search)) return false;
+    }
+    return true;
+  });
+
+  document.getElementById('invCount').textContent = list.length + ' Einträge';
+
+  var statusBadge = {
+    'offen':     '<span class="badge badge-warn">● Offen</span>',
+    'erstellt':  '<span class="badge badge-ok">✓ Erstellt</span>',
+    'storniert': '<span class="badge badge-err">↩ Storniert</span>',
+  };
+
+  var tbody = document.getElementById('invBody');
+  if (!list.length) {
+    if (_invoices.length > 0) {
+      // Daten geladen, aber Filter ergibt 0 → Reset-Button anbieten
+      tbody.innerHTML = '<tr><td colspan="12" style="text-align:center;padding:40px">' +
+        '<div style="color:var(--muted);margin-bottom:12px">Kein Treffer für aktuelle Filter.</div>' +
+        '<button onclick="resetFilters()" style="padding:7px 18px;background:rgba(88,166,255,.15);border:1px solid rgba(88,166,255,.4);border-radius:8px;color:var(--acc);font-size:12px;font-weight:700;cursor:pointer">↺ Filter zurücksetzen</button>' +
+        '</td></tr>';
+    } else {
+      tbody.innerHTML = '<tr><td colspan="12" style="text-align:center;padding:40px;color:var(--muted)">Bitte XLSM-Datei hochladen, um die Rechnungsliste anzuzeigen.</td></tr>';
+    }
+    return;
+  }
+
+  tbody.innerHTML = list.map(function(inv) {
+    var key    = esc(inv._key);
+    var badge  = statusBadge[inv.status] || '<span class="badge badge-muted">–</span>';
+    var invNr  = inv.invoice_nr ? '<span style="font-family:monospace;color:var(--acc)">' + esc(inv.invoice_nr) + '</span>' : '<span style="color:var(--muted)">–</span>';
+    var ordNr  = inv.order_nr   ? '<span style="font-family:monospace;font-size:11px;color:var(--muted)">' + esc(inv.order_nr) + '</span>' : '<span style="color:var(--muted)">–</span>';
+    var total  = inv.total.toLocaleString('de-DE', {minimumFractionDigits:2, maximumFractionDigits:2});
+    var storno = inv.is_storno ? ' <span class="badge badge-err" style="font-size:9px">Storno</span>' : '';
+    var pdfBtn = inv.has_pdf
+      ? '<a href="' + ORCH_URL + '/invoice_records/' + inv.id + '/pdf" target="_blank" title="Rechnung PDF herunterladen" style="padding:5px 10px;background:rgba(74,222,128,.12);border:1px solid rgba(74,222,128,.4);border-radius:8px;color:#4ade80;font-size:11px;font-weight:700;cursor:pointer;text-decoration:none">📄</a> '
+      : '<button onclick="uploadPdfFor(\'' + key + '\')" title="PDF hochladen" style="padding:5px 10px;background:rgba(156,163,175,.1);border:1px solid rgba(156,163,175,.3);border-radius:8px;color:var(--muted);font-size:11px;font-weight:700;cursor:pointer">📤</button> ';
+    var actionBtn =
+      (inv.status === 'offen'
+        ? '<button onclick="openCreateModal(\'' + key + '\')" style="padding:5px 12px;background:rgba(88,166,255,.15);border:1px solid rgba(88,166,255,.4);border-radius:8px;color:var(--acc);font-size:11px;font-weight:700;cursor:pointer">📨 In SAP</button> '
+        : '') +
+      pdfBtn +
+      (inv.invoice_nr && emailCfgs.some(function(c){ return c.kunden_nr === inv.kunden_nr && c.status === 'aktiv'; })
+        ? '<button onclick="sendEmailForInvoice(' + inv.id + ',\'' + esc(inv.invoice_nr) + '\')" title="Rechnung per E-Mail senden" style="padding:5px 10px;background:rgba(88,166,255,.12);border:1px solid rgba(88,166,255,.4);border-radius:8px;color:var(--acc);font-size:11px;font-weight:700;cursor:pointer">📧</button> '
+        : '') +
+      '<button onclick="openBelegModal(\'' + key + '\')" title="SAP-Belegnummer manuell eintragen" style="padding:5px 10px;background:rgba(251,191,36,.12);border:1px solid rgba(251,191,36,.4);border-radius:8px;color:#f59e0b;font-size:11px;font-weight:700;cursor:pointer">✏️</button>';
+
+    return '<tr id="inv_' + key + '">' +
+      '<td><button onclick="togglePos(\'' + key + '\')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px" id="togBtn_' + key + '">▶</button></td>' +
+      '<td class="td-mono td-bold">' + esc(inv.kunden_nr) + '</td>' +
+      '<td>' + esc(inv.name) + storno + '</td>' +
+      '<td class="td-mono" style="color:var(--acc)">' + esc(inv.periode) + '</td>' +
+      '<td class="td-num">' + inv.positions.length + '</td>' +
+      '<td class="td-num td-bold">' + total + '</td>' +
+      '<td><span style="font-size:11px;background:rgba(88,166,255,.08);color:var(--acc);padding:2px 7px;border-radius:4px">' + esc(inv.leistungsart) + '</span></td>' +
+      '<td class="td-mono">' + esc(inv.mwst_code) + '</td>' +
+      '<td>' + badge + '</td>' +
+      '<td>' + invNr + '</td>' +
+      '<td>' + ordNr + '</td>' +
+      '<td style="text-align:right">' + actionBtn + '</td>' +
+    '</tr>' +
+    '<tr id="pos_' + key + '" style="display:none"><td colspan="12" style="padding:0">' +
+      '<div class="pos-detail" id="posDetail_' + key + '">' +
+        '<table class="pos-table"><thead><tr>' +
+          '<th>#</th><th>Buchungstext</th><th style="text-align:right">Betrag EUR</th>' +
+        '</tr></thead><tbody>' +
+        inv.positions.map(function(p, i) {
+          return '<tr><td style="color:var(--muted)">' + (i+1) + '</td>' +
+            '<td>' + esc(p.buchungstext) + '</td>' +
+            '<td style="text-align:right;font-family:monospace">' +
+            p.betrag.toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2}) + '</td></tr>';
+        }).join('') +
+        '</tbody></table>' +
+      '</div>' +
+    '</td></tr>';
+  }).join('');
+}
+
+function togglePos(key) {
+  var row  = document.getElementById('pos_'     + key);
+  var det  = document.getElementById('posDetail_' + key);
+  var btn  = document.getElementById('togBtn_'  + key);
+  if (!row) return;
+  var open = row.style.display !== 'none';
+  row.style.display = open ? 'none' : '';
+  if (det) det.classList.toggle('open', !open);
+  if (btn) btn.textContent = open ? '▶' : '▼';
+}
+
+// ─── Erstellen Modal ────────────────────────────────────────
+function openCreateModal(key) {
+  var inv = _invoices.find(function(i){ return i._key === key; });
+  if (!inv) return;
+  _createCtx = inv;
+
+  var creds = AUTH.user || {};
+  document.getElementById('createUser').textContent = creds.sap_username || '?';
+  document.getElementById('createPwd').value = creds.passwd || '';
+
+  var total = inv.total.toLocaleString('de-DE', {minimumFractionDigits:2,maximumFractionDigits:2});
+  document.getElementById('createSummary').innerHTML =
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">' +
+    _sfld('Kunden-Nr',    inv.kunden_nr) +
+    _sfld('Name',         inv.name) +
+    _sfld('Periode',      inv.periode) +
+    _sfld('Positionen',   inv.positions.length + ' Zeile(n)') +
+    _sfld('Gesamtbetrag', total + ' ' + inv.waehrung, true) +
+    _sfld('Leistungsart', inv.leistungsart) +
+    _sfld('MWSt-Code',    inv.mwst_code) +
+    _sfld('System',       getCfg().system, false, inv.status === 'erstellt' ? '#f59e0b' : '') +
+    '</div>';
+
+  document.getElementById('createProgress').innerHTML = '';
+  document.getElementById('createResult').innerHTML   = '';
+
+  // ── Vorübergabe-Validierung ──
+  var cfg = getCfg();
+  var valResult = validateInvoice(inv, cfg);
+  document.getElementById('createValidation').innerHTML = renderValidationPanel(valResult);
+
+  var hasErrors = valResult.errors.length > 0;
+  document.getElementById('createPwdField').style.display = hasErrors ? 'none' : '';
+  document.getElementById('createExecBtn').disabled   = hasErrors;
+  document.getElementById('createExecBtn').textContent = hasErrors ? '⛔ Bitte Fehler beheben' : '📨 Jetzt erstellen';
+
+  document.getElementById('createModal').classList.add('open');
+  if (!hasErrors) setTimeout(function(){ document.getElementById('createPwd').focus(); }, 100);
+}
+
+function _sfld(label, val, bold, col) {
+  return '<div><span style="font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.06em">' + label + '</span>' +
+    '<br><span style="font-size:13px;font-weight:' + (bold?'700':'600') + ';' + (col?'color:'+col:'')+'">' + esc(String(val||'–')) + '</span></div>';
+}
+
+function closeCreateModal() {
+  document.getElementById('createModal').classList.remove('open');
+  _createCtx = null;
+  var creds = AUTH.user || {};
+  if (!creds.passwd) creds.passwd = '';
+}
+
+// ─── Beleg-Nr. Modal ────────────────────────────────────────
+var _belegCtx = null;
+
+function openBelegModal(key) {
+  var inv = _invoices.find(function(i){ return i._key === key; });
+  if (!inv) return;
+  _belegCtx = inv;
+
+  var total = inv.total.toLocaleString('de-DE', {minimumFractionDigits:2, maximumFractionDigits:2});
+  document.getElementById('belegSummary').innerHTML =
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">' +
+    _sfld('Kunden-Nr',    inv.kunden_nr) +
+    _sfld('Name',         inv.name) +
+    _sfld('Periode',      inv.periode) +
+    _sfld('Gesamtbetrag', total + ' ' + inv.waehrung, true) +
+    '</div>';
+
+  document.getElementById('belegOrderNr').value   = inv.order_nr   || '';
+  document.getElementById('belegInvoiceNr').value  = inv.invoice_nr || '';
+  document.getElementById('belegStatus').value     = inv.status     || 'erstellt';
+  document.getElementById('belegResult').innerHTML = '';
+
+  document.getElementById('belegModal').classList.add('open');
+  setTimeout(function(){ document.getElementById('belegOrderNr').focus(); }, 100);
+}
+
+function closeBelegModal() {
+  document.getElementById('belegModal').classList.remove('open');
+  _belegCtx = null;
+}
+
+async function saveBelegNr() {
+  var inv = _belegCtx;
+  if (!inv) return;
+
+  var orderNr   = document.getElementById('belegOrderNr').value.trim();
+  var invoiceNr = document.getElementById('belegInvoiceNr').value.trim();
+  var status    = document.getElementById('belegStatus').value;
+  var res       = document.getElementById('belegResult');
+
+  res.innerHTML = '<span style="color:var(--muted)">Speichere…</span>';
+
+  try {
+    var resp = await fetch(ORCH_URL + '/invoice_records/' + inv.id, {
+      method:  'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ status: status, invoice_nr: invoiceNr, order_nr: orderNr }),
+    });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+
+    // Lokalen State aktualisieren
+    inv.status     = status;
+    inv.invoice_nr = invoiceNr;
+    inv.order_nr   = orderNr;
+
+    res.innerHTML = '<span style="color:#4ade80">✓ Gespeichert</span>';
+    setTimeout(function(){
+      closeBelegModal();
+      renderTable();
+    }, 800);
+  } catch(e) {
+    res.innerHTML = '<span style="color:#f87171">⚠ Fehler: ' + esc(String(e)) + '</span>';
+  }
+}
+
+// ─── PDF Upload ─────────────────────────────────────────────
+var _pdfUploadKey = null;
+
+function uploadPdfFor(key) {
+  _pdfUploadKey = key;
+  document.getElementById('pdfUploadInput').value = '';
+  document.getElementById('pdfUploadInput').click();
+}
+
+async function handlePdfUpload(evt) {
+  var file = evt.target.files[0];
+  if (!file) return;
+  var key = _pdfUploadKey;
+  var inv = _invoices.find(function(i){ return i._key === key; });
+  if (!inv) return;
+
+  if (!inv.id) { alert('Kein DB-Eintrag vorhanden.'); return; }
+  if (!inv.invoice_nr) {
+    alert('Bitte zuerst die Faktura-Nr. über ✏️ eintragen, dann PDF hochladen.');
+    return;
+  }
+
+  var fd = new FormData();
+  fd.append('file', file, file.name);
+
+  try {
+    var resp = await fetch(ORCH_URL + '/invoice_records/' + inv.id + '/pdf', {
+      method: 'POST',
+      body:   fd,
+    });
+    var data = await resp.json();
+    if (!resp.ok) throw new Error(data.detail || 'HTTP ' + resp.status);
+
+    inv.has_pdf = true;
+    renderTable();
+    // kurze Bestätigung
+    var row = document.getElementById('inv_' + key);
+    if (row) {
+      var flash = document.createElement('span');
+      flash.textContent = ' ✓ PDF gespeichert';
+      flash.style.cssText = 'color:#4ade80;font-size:11px;font-weight:700';
+      row.querySelector('td:last-child').appendChild(flash);
+      setTimeout(function(){ renderTable(); }, 1500);
+    }
+  } catch(e) {
+    alert('PDF-Upload fehlgeschlagen: ' + e);
+  }
+}
+
+// ─── 1×/Monat-Duplikat-Prüfung (App-Regel R-11) ────────────
+function checkDuplicateRule(inv) {
+  return _invoices.filter(function(other) {
+    return other !== inv &&
+           other.kunden_nr === inv.kunden_nr &&
+           other.periode   === inv.periode &&
+           other.status    === 'erstellt';
+  });
+}
+
+// ─── Vorübergabe-Validierung ─────────────────────────────────
+var VALID_MWST     = ['Z1','Z4','ZM','ZT'];
+var VALID_LEISTUNG = ['Management-Service','Management Service','Servicepauschale','Verwaltungsleistung'];
+
+function validateInvoice(inv, cfg) {
+  var errors = [], warnings = [], infos = [];
+
+  // ── Harte Fehler (blockieren Buchung) ──
+  if (!inv.kunden_nr || !/^\d+$/.test(String(inv.kunden_nr).trim())) {
+    errors.push('Kunden-Nr fehlt oder enthält nicht-numerische Zeichen (' + (inv.kunden_nr||'leer') + ')');
+  }
+  if (!inv.positions || inv.positions.length === 0) {
+    errors.push('Keine Buchungspositionen vorhanden');
+  }
+  if (!inv.total || inv.total <= 0) {
+    errors.push('Gesamtbetrag muss größer 0 sein (aktuell: ' +
+      (inv.total||0).toLocaleString('de-DE',{minimumFractionDigits:2}) + ' ' + (inv.waehrung||'EUR') + ')');
+  }
+  if (!inv.sap_date || String(inv.sap_date).length !== 8 || !/^\d{8}$/.test(inv.sap_date)) {
+    errors.push('SAP-Buchungsdatum ungültig oder fehlt (erwartet YYYYMMDD, aktuell: "' + (inv.sap_date||'') + '")');
+  }
+  if (!inv.leistungsart) {
+    errors.push('Leistungsart nicht angegeben');
+  }
+  // Positionen ohne Buchungstext
+  var emptyText = (inv.positions||[]).filter(function(p){ return !p.buchungstext || !String(p.buchungstext).trim(); });
+  if (emptyText.length) {
+    errors.push(emptyText.length + ' Position(en) ohne Buchungstext');
+  }
+
+  // ── App-Regel R-11: Duplikat ──
+  var dups = checkDuplicateRule(inv);
+  if (dups.length > 0) {
+    var dupNrs = dups.map(function(d){ return d.invoice_nr || '?'; }).join(', ');
+    errors.push('R-11: Bereits erstellte Rechnung für Kunde ' + inv.kunden_nr +
+      ' / Periode ' + inv.periode + ' (Nr. ' + dupNrs + ')');
+  }
+
+  // ── Warnungen (erlauben Buchung, aber Hinweis) ──
+  // Produktivsystem-Warnung
+  if (cfg && cfg.system === 'SEP') {
+    warnings.push('⚡ Buchung geht in PRODUKTIVSYSTEM (SEP) — kann nicht rückgängig gemacht werden, nur durch SAP-Storno!');
+  }
+  // MWSt-Code unbekannt
+  if (inv.mwst_code && VALID_MWST.indexOf(inv.mwst_code) === -1) {
+    warnings.push('MWSt-Code "' + inv.mwst_code + '" unbekannt (übliche Werte: ' + VALID_MWST.join(', ') + ')');
+  }
+  // Buchungstext > 40 Zeichen (SAP-Limit)
+  var longText = (inv.positions||[]).filter(function(p){ return p.buchungstext && p.buchungstext.length > 40; });
+  if (longText.length) {
+    warnings.push(longText.length + ' Buchungstext(e) überschreiten 40 Zeichen — werden von SAP automatisch gekürzt');
+  }
+  // Positionen mit Betrag 0
+  var zeroBtr = (inv.positions||[]).filter(function(p){ return !p.betrag || Number(p.betrag) === 0; });
+  if (zeroBtr.length) {
+    warnings.push(zeroBtr.length + ' Position(en) mit Betrag 0,00');
+  }
+  // Periode-Format
+  if (inv.periode && !/^\d{2}\/\d{4}$/.test(inv.periode)) {
+    warnings.push('Periode "' + inv.periode + '" nicht im Format MM/YYYY');
+  }
+
+  // ── Infos ──
+  infos.push('SAP-Datum: ' + (inv.sap_date||'–') + ' · MWSt: ' + (inv.mwst_code||'–') +
+    ' · Leistungsart: ' + (inv.leistungsart||'–'));
+  infos.push((inv.positions||[]).length + ' Position(en) · Gesamt: ' +
+    (inv.total||0).toLocaleString('de-DE',{minimumFractionDigits:2}) + ' ' + (inv.waehrung||'EUR'));
+  if (cfg) {
+    var sysLabel = cfg.system === 'SEP' ? 'SEP – Produktivsystem ⚡' : 'SEQ – Qualitätssystem 🔬';
+    infos.push('Zielsystem: ' + sysLabel);
+  }
+
+  return { errors: errors, warnings: warnings, infos: infos };
+}
+
+function renderValidationPanel(result) {
+  var s = '';
+  if (result.errors.length) {
+    s += '<div style="background:rgba(248,81,73,.08);border:1px solid rgba(248,81,73,.35);border-radius:8px;padding:10px 14px;margin-bottom:8px">';
+    s += '<div style="font-size:11px;font-weight:700;color:var(--err);margin-bottom:5px">✗ FEHLER — Buchung blockiert</div>';
+    result.errors.forEach(function(e){
+      s += '<div style="font-size:12px;color:var(--err);margin-bottom:2px">✗ ' + esc(e) + '</div>';
+    });
+    s += '</div>';
+  }
+  if (result.warnings.length) {
+    s += '<div style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.35);border-radius:8px;padding:10px 14px;margin-bottom:8px">';
+    s += '<div style="font-size:11px;font-weight:700;color:#f59e0b;margin-bottom:5px">⚠ WARNUNGEN</div>';
+    result.warnings.forEach(function(w){
+      s += '<div style="font-size:12px;color:#f59e0b;margin-bottom:2px">⚠ ' + esc(w) + '</div>';
+    });
+    s += '</div>';
+  }
+  if (result.infos.length) {
+    s += '<div style="background:rgba(88,166,255,.06);border:1px solid rgba(88,166,255,.2);border-radius:8px;padding:8px 14px;margin-bottom:8px">';
+    result.infos.forEach(function(i){
+      s += '<div style="font-size:11px;color:var(--muted);margin-bottom:1px">ℹ ' + esc(i) + '</div>';
+    });
+    s += '</div>';
+  }
+  if (!result.errors.length && !result.warnings.length) {
+    s = '<div style="background:rgba(63,185,80,.08);border:1px solid rgba(63,185,80,.3);border-radius:8px;padding:10px 14px;margin-bottom:8px">' +
+        '<span style="font-size:12px;color:#3fb950;font-weight:600">✓ Alle Prüfungen bestanden — Buchung kann ausgeführt werden</span></div>';
+  }
+  return s;
+}
+
+// ─── Debug-Schrittanzeige ───────────────────────────────────
+function renderSteps(steps, title) {
+  if (!steps || !steps.length) return '';
+  var rows = steps.map(function(s) {
+    var ok    = s.status === '✓';
+    var fail  = s.status === '✗';
+    var wait  = s.status === '⏳';
+    var bg    = fail ? 'rgba(239,68,68,.08)' : ok ? 'rgba(34,197,94,.06)' : '';
+    var icon  = fail ? '✗' : ok ? '✓' : '⏳';
+    var color = fail ? 'var(--err)' : ok ? 'var(--ok)' : 'var(--muted)';
+    var detail = '';
+    if (s.sap_msg) detail += '<div style="color:var(--muted);font-size:10px;margin-top:2px">SAP: ' + esc(s.sap_msg) + '</div>';
+    if (s.error)   detail += '<div style="color:var(--err);font-size:10px;margin-top:2px;font-weight:600">✗ ' + esc(s.error) + '</div>';
+    if (s.warning) detail += '<div style="color:var(--warn);font-size:10px;margin-top:2px">⚠ ' + esc(s.warning) + '</div>';
+    return '<tr style="background:' + bg + ';border-bottom:1px solid var(--border)">' +
+      '<td style="padding:4px 8px;font-weight:700;color:' + color + ';white-space:nowrap">' + icon + ' S' + s.nr + '</td>' +
+      '<td style="padding:4px 8px;font-size:11px">' + esc(s.name) + detail + '</td>' +
+      '</tr>';
+  }).join('');
+  return '<div style="margin-top:10px">' +
+    '<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">' +
+    '🔬 ' + esc(title || 'Ausführungsprotokoll') + '</div>' +
+    '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:11px">' +
+    '<tbody>' + rows + '</tbody></table></div></div>';
+}
+
+// ─── SAP-Buchung ────────────────────────────────────────────
+async function execCreate(debugMode) {
+  var inv = _createCtx;
+  if (!inv) return;
+  debugMode = !!debugMode;
+
+  var pwd = document.getElementById('createPwd').value;
+  if (!pwd) { alert('Bitte SAP-Passwort eingeben.'); return; }
+
+  // App-Regel R-11: 1 Rechnung pro Töchtergesellschaft pro Monat
+  var dups = checkDuplicateRule(inv);
+  if (dups.length > 0) {
+    var dupNrs = dups.map(function(d){ return d.invoice_nr || '?'; }).join(', ');
+    document.getElementById('createProgress').innerHTML =
+      '<div class="status-banner err">⛔ App-Regel R-11: Für Kunde ' + esc(inv.kunden_nr) +
+      ' (' + esc(inv.name) + ') existiert in Periode ' + esc(inv.periode) +
+      ' bereits eine erstellte Rechnung (Nr. ' + esc(dupNrs) + ').<br>' +
+      'Nur eine Rechnung pro Tochtergesellschaft pro Monat erlaubt.</div>';
+    document.getElementById('createExecBtn').disabled = false;
+    document.getElementById('createExecBtn').textContent = '📨 Jetzt erstellen';
+    return;
+  }
+
+  var creds  = AUTH.user || {};
+  var cfg    = getCfg();
+  var sys    = SAP_SYSTEMS[cfg.system] || SAP_SYSTEMS.SEQ;
+
+  document.getElementById('createExecBtn').disabled   = true;
+  document.getElementById('createExecBtn').textContent = '⏳ Bitte warten…';
+  document.getElementById('createDebugBtn').disabled  = true;
+  document.getElementById('createSteps').style.display = 'none';
+  document.getElementById('createSteps').innerHTML    = '';
+  document.getElementById('createProgress').innerHTML  =
+    '<div class="status-banner warn"><span>⏳</span> ' +
+    (debugMode ? '🔬 Debug-Lauf läuft – BAPI-Aufruf ohne Commit…' :
+                 'Verbinde mit SAP ' + cfg.system + ' (BAPI)…') + '</div>';
+
+  var payload = {
+    _sap_auth: {
+      ashost: sys.ashost,
+      sysnr:  sys.sysnr,
+      client: sys.client,
+      lang:   sys.lang,
+      user:   creds.sap_username || '',
+      passwd: pwd,
+    },
+    sales_org:    cfg.vkorg,
+    doc_type:     cfg.doctype,
+    distr_chan:   cfg.distrchan,
+    division:     cfg.division,
+    sales_office: cfg.salesoff,
+    sales_group:  cfg.salesgrp,
+    material:     cfg.material,
+    plant:        cfg.plant,
+    customer:     inv.kunden_nr,
+    currency:     inv.waehrung,
+    payment_terms: inv.payment_terms || inv.zterm || '',
+    doc_date:     inv.sap_date || '',
+    // BAPI-spezifische Felder
+    inco1:        'FCA',
+    inco2:        'Germany',
+    augru:        'Z06',
+    bstkd:        'Service Level Agreement',
+    item_category: 'ZTAD',
+    items: inv.positions.map(function(p, i) {
+      return {
+        buchungstext: p.buchungstext.substring(0, 40),
+        betrag:      p.betrag,
+      };
+    }),
+  };
+
+  try {
+    var ctrl  = new AbortController();
+    var timer = setTimeout(function(){ ctrl.abort(); }, 90000);
+    var resp  = await fetch(BRIDGE_URL + '/run', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ method: 'GUI', tcode: 'SD_INVOICE_MULTI', payload: Object.assign({}, payload, debugMode ? {debug: true} : {}) }),
+      signal:  ctrl.signal,
+    });
+    clearTimeout(timer);
+
+    var rawText = await resp.text();
+    var data;
+    try { data = JSON.parse(rawText); } catch(_) {
+      throw new Error('Bridge antwortet nicht korrekt: ' + rawText.substring(0, 200));
+    }
+
+    if (!resp.ok || (data.error && data.status !== 'debug_error'))
+      throw new Error(data.error || data.detail || 'HTTP ' + resp.status);
+
+    // ── Schritte immer anzeigen (Debug- und Produktiv-Lauf) ──
+    var steps = Array.isArray(data.steps) ? data.steps : [];
+    if (steps.length) {
+      var stepsEl = document.getElementById('createSteps');
+      stepsEl.innerHTML = renderSteps(steps,
+        data.status === 'debug_ok'    ? 'Debug-Lauf – Schrittprotokoll (KEIN Speichern)' :
+        data.status === 'debug_error' ? 'Debug-Lauf – Schrittprotokoll (Fehler)' :
+                                        'Ausführungsprotokoll');
+      stepsEl.style.display = '';
+    }
+
+    // ── Debug-Modus: nur Protokoll zeigen, nicht buchen ──
+    if (data.status === 'debug_ok') {
+      document.getElementById('createProgress').innerHTML =
+        '<div class="status-banner warn" style="background:rgba(99,102,241,.12);border-color:#6366f1">' +
+        '🔬 Debug-Lauf abgeschlossen – Auftrag <strong>' + esc(data.sales_order || '?') + '</strong> ' +
+        'wurde angelegt aber NICHT als Rechnung gebucht. SAP-Auftrag ggf. manuell löschen.</div>';
+      document.getElementById('createExecBtn').disabled    = false;
+      document.getElementById('createExecBtn').textContent = '📨 Jetzt erstellen';
+      document.getElementById('createDebugBtn').disabled   = false;
+      return;
+    }
+    if (data.status === 'debug_error') {
+      document.getElementById('createProgress').innerHTML =
+        '<div class="status-banner err">🔬 Debug-Lauf: Fehler in Schritt ' +
+        (steps.filter(function(s){return s.status==='✗';}).map(function(s){return 'S'+s.nr+' ('+esc(s.name)+')';}).join(', ')||'?') +
+        '</div>';
+      document.getElementById('createExecBtn').disabled    = false;
+      document.getElementById('createExecBtn').textContent = '📨 Erneut versuchen';
+      document.getElementById('createDebugBtn').disabled   = false;
+      return;
+    }
+
+    // ── Normaler Produktiv-Lauf ──
+    var isOk    = data.status === 'ok';
+    var invNr   = data.invoice_nr   || data.doc_number || '';
+    var orderNr = data.sales_order  || data.order_nr   || '';
+    var msgs    = Array.isArray((data.result||{}).RETURN) ? data.result.RETURN : [];
+    var hasErr  = msgs.some(function(m){ return m.TYPE === 'E' || m.TYPE === 'A'; });
+
+    if (isOk || (invNr && !hasErr)) {
+      inv.status     = 'erstellt';
+      inv.invoice_nr = invNr;
+      inv.order_nr   = orderNr;
+      await patchInvoiceStatus(inv, 'erstellt', invNr, orderNr);
+
+      document.getElementById('createProgress').innerHTML =
+        '<div class="status-banner ok"><span>✓</span> Rechnung erstellt!' +
+        (invNr   ? ' <strong>Rechnungsnr.: ' + esc(invNr)   + '</strong>' : '') +
+        (orderNr ? ' · Auftrag: ' + esc(orderNr) : '') + '</div>';
+
+      document.getElementById('createExecBtn').style.display = 'none';
+      document.getElementById('createDebugBtn').style.display = 'none';
+      renderTable();
+      setTimeout(function(){ closeCreateModal(); }, 2500);
+    } else {
+      var errMsg = data.error || data.message ||
+        msgs.filter(function(m){ return m.TYPE==='E'||m.TYPE==='A'; }).map(function(m){ return m.MESSAGE; }).join(' | ');
+      throw new Error(errMsg || 'Unbekannter Fehler');
+    }
+
+    if (msgs.length) {
+      var typeCol = {'S':'var(--ok)','I':'#60a5fa','W':'var(--warn)','E':'var(--err)','A':'var(--err)'};
+      document.getElementById('createResult').innerHTML =
+        '<div style="overflow-x:auto;margin-top:10px"><table style="font-size:11px;width:100%;border-collapse:collapse">' +
+        '<thead><tr style="background:var(--bg3)"><th style="padding:4px 8px">Typ</th><th style="padding:4px 8px">Meldung</th></tr></thead><tbody>' +
+        msgs.map(function(m) {
+          return '<tr><td style="padding:3px 8px;font-weight:700;color:' + (typeCol[m.TYPE]||'var(--muted)') + '">' + esc(m.TYPE) + '</td>' +
+            '<td style="padding:3px 8px">' + esc(m.MESSAGE||'') + '</td></tr>';
+        }).join('') + '</tbody></table></div>';
+    }
+  } catch(e) {
+    var isBridgeDown = e.name === 'AbortError' || String(e.message).includes('Failed to fetch') || String(e.message).includes('nicht erreichbar');
+    document.getElementById('createProgress').innerHTML =
+      '<div class="status-banner err"><span>✗</span> ' +
+      esc(isBridgeDown ? '🔌 Bridge nicht erreichbar (localhost:8765)' : e.message) + '</div>';
+    document.getElementById('createExecBtn').disabled    = false;
+    document.getElementById('createExecBtn').textContent = '📨 Erneut versuchen';
+    document.getElementById('createDebugBtn').disabled   = false;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// E-MAIL KONFIGURATION & HISTORIE
+// ═══════════════════════════════════════════════════════════════
+
+var emailCfgs = [];
+
+function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+async function loadEmailConfigs() {
+  try {
+    var r = await fetch(ORCH_URL + '/invoice_email_configs');
+    emailCfgs = await r.json();
+    renderEmailCfgTable();
+    // Kundenfilter für Historie befüllen
+    var sel = document.getElementById('histKundenFilter');
+    var cur = sel.value;
+    sel.innerHTML = '<option value="">Alle Kunden</option>';
+    emailCfgs.forEach(function(c){
+      var opt = document.createElement('option');
+      opt.value = c.kunden_nr;
+      opt.textContent = c.kunden_nr + (c.name ? ' – ' + c.name : '');
+      sel.appendChild(opt);
+    });
+    sel.value = cur;
+  } catch(e) {
+    document.getElementById('emailCfgBody').innerHTML =
+      '<tr><td colspan="8" style="color:var(--err);text-align:center;padding:14px">Fehler beim Laden: ' + esc(e.message) + '</td></tr>';
+  }
+}
+
+function renderEmailCfgTable() {
+  var tbody = document.getElementById('emailCfgBody');
+  if (!emailCfgs.length) {
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:20px">Noch keine Konfigurationen vorhanden.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = emailCfgs.map(function(c) {
+    var statusBadge = c.status === 'aktiv'
+      ? '<span class="badge-ok" style="padding:2px 7px;border-radius:5px;font-size:10px">✅ Aktiv</span>'
+      : '<span class="badge-muted" style="padding:2px 7px;border-radius:5px;font-size:10px">⏸ Inaktiv</span>';
+    var autoSend = c.auto_send
+      ? '<span style="color:var(--ok);font-size:11px">✓ Auto</span>'
+      : '<span style="color:var(--muted);font-size:11px">Manuell</span>';
+    return '<tr>' +
+      '<td style="font-family:monospace">' + esc(c.kunden_nr) + '</td>' +
+      '<td>' + esc(c.name) + '</td>' +
+      '<td>' + esc(c.recipient_email) + '</td>' +
+      '<td style="color:var(--muted);font-size:11px">' + esc(c.sender_email) + '</td>' +
+      '<td style="color:var(--muted);font-size:11px">' + esc(c.smtp_host || '–') + ':' + (c.smtp_port||587) + '</td>' +
+      '<td>' + statusBadge + '</td>' +
+      '<td>' + autoSend + '</td>' +
+      '<td>' +
+        '<button class="btn-nav" style="font-size:10px;padding:3px 8px;margin-right:4px" onclick="editEmailCfg(' + c.id + ')">✏ Edit</button>' +
+        '<button class="btn-nav" style="font-size:10px;padding:3px 8px;background:rgba(248,81,73,.1);border-color:rgba(248,81,73,.4);color:var(--err)" onclick="deleteEmailCfg(' + c.id + ',\'' + esc(c.kunden_nr) + '\')">🗑</button>' +
+      '</td>' +
+    '</tr>';
+  }).join('');
+}
+
+async function loadEmailHistory() {
+  var kunden_nr = document.getElementById('histKundenFilter').value;
+  var url = ORCH_URL + '/invoice_email_history?limit=100' + (kunden_nr ? '&kunden_nr=' + encodeURIComponent(kunden_nr) : '');
+  try {
+    var r = await fetch(url);
+    var rows = await r.json();
+    var tbody = document.getElementById('emailHistBody');
+    if (!rows.length) {
+      tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:20px">Keine E-Mails versendet.</td></tr>';
+      return;
+    }
+    var statusColor = { 'gesendet': 'var(--ok)', 'fehler': 'var(--err)', 'ausstehend': 'var(--warn)' };
+    var statusIcon  = { 'gesendet': '✓', 'fehler': '✗', 'ausstehend': '⏳' };
+    tbody.innerHTML = rows.map(function(h) {
+      var dt = h.sent_at ? new Date(h.sent_at).toLocaleString('de-DE') : '–';
+      var st = h.status || 'ausstehend';
+      return '<tr>' +
+        '<td style="font-size:11px;white-space:nowrap">' + esc(dt) + '</td>' +
+        '<td style="font-family:monospace">' + esc(h.kunden_nr) + '</td>' +
+        '<td style="font-family:monospace;color:var(--acc)">' + esc(h.invoice_nr || '–') + '</td>' +
+        '<td>' + esc(h.periode || '–') + '</td>' +
+        '<td style="font-size:11px">' + esc(h.recipient_email) + '</td>' +
+        '<td style="font-size:11px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + esc(h.subject) + '">' + esc(h.subject) + '</td>' +
+        '<td style="font-weight:700;color:' + (statusColor[st]||'var(--muted)') + '">' + (statusIcon[st]||'?') + ' ' + esc(st) + '</td>' +
+        '<td style="font-size:10px;color:var(--err);max-width:160px;overflow:hidden;text-overflow:ellipsis" title="' + esc(h.error_msg) + '">' + esc(h.error_msg || '') + '</td>' +
+      '</tr>';
+    }).join('');
+  } catch(e) {
+    document.getElementById('emailHistBody').innerHTML =
+      '<tr><td colspan="8" style="color:var(--err);text-align:center;padding:14px">Fehler: ' + esc(e.message) + '</td></tr>';
+  }
+}
+
+// ── Modal öffnen/schließen ───────────────────────────────────
+
+function openEmailCfgModal(cfg) {
+  document.getElementById('emailCfgModalTitle').textContent = cfg ? '✏ Konfiguration bearbeiten' : '📧 E-Mail Konfiguration hinzufügen';
+  document.getElementById('emailCfgId').value       = cfg ? cfg.id : '';
+  document.getElementById('ecKundenNr').value        = cfg ? cfg.kunden_nr        : '';
+  document.getElementById('ecName').value            = cfg ? cfg.name             : '';
+  document.getElementById('ecRecipient').value       = cfg ? cfg.recipient_email  : '';
+  document.getElementById('ecSender').value          = cfg ? cfg.sender_email     : '';
+  document.getElementById('ecSmtpHost').value        = cfg ? cfg.smtp_host        : '';
+  document.getElementById('ecSmtpPort').value        = cfg ? cfg.smtp_port        : 587;
+  document.getElementById('ecSmtpUser').value        = cfg ? cfg.smtp_user        : '';
+  document.getElementById('ecSmtpPass').value        = '';  // Passwort nie vorab füllen
+  document.getElementById('ecSmtpTls').value         = cfg ? String(cfg.smtp_tls) : '1';
+  document.getElementById('ecStatus').value          = cfg ? cfg.status           : 'aktiv';
+  document.getElementById('ecAutoSend').value        = cfg ? String(cfg.auto_send): '0';
+  document.getElementById('ecSubjectTpl').value      = cfg ? cfg.subject_template : 'Rechnung {invoice_nr} – {name} – {periode}';
+  document.getElementById('ecBodyTpl').value         = cfg ? cfg.body_template    :
+    'Sehr geehrte Damen und Herren,\n\nim Anhang finden Sie unsere Rechnung {invoice_nr} für den Zeitraum {periode}.\n\nMit freundlichen Grüßen\nCatensys Germany GmbH';
+  document.getElementById('ecKundenNr').disabled     = !!cfg;  // KdNr bei Edit gesperrt
+  document.getElementById('emailCfgResult').innerHTML = '';
+  document.getElementById('emailCfgModal').classList.add('open');
+}
+
+function closeEmailCfgModal() {
+  document.getElementById('emailCfgModal').classList.remove('open');
+}
+
+function editEmailCfg(id) {
+  var cfg = emailCfgs.find(function(c){ return c.id === id; });
+  if (cfg) openEmailCfgModal(cfg);
+}
+
+async function deleteEmailCfg(id, kundenNr) {
+  if (!confirm('Konfiguration für Kd. ' + kundenNr + ' löschen?')) return;
+  try {
+    var r = await fetch(ORCH_URL + '/invoice_email_configs/' + id, { method: 'DELETE' });
+    if (r.ok || r.status === 204) {
+      await loadEmailConfigs();
+    } else {
+      alert('Fehler beim Löschen: ' + r.status);
+    }
+  } catch(e) { alert('Fehler: ' + e.message); }
+}
+
+async function saveEmailCfg() {
+  var id       = document.getElementById('emailCfgId').value;
+  var resEl    = document.getElementById('emailCfgResult');
+  var payload  = {
+    kunden_nr:        document.getElementById('ecKundenNr').value.trim(),
+    name:             document.getElementById('ecName').value.trim(),
+    recipient_email:  document.getElementById('ecRecipient').value.trim(),
+    sender_email:     document.getElementById('ecSender').value.trim(),
+    smtp_host:        document.getElementById('ecSmtpHost').value.trim(),
+    smtp_port:        parseInt(document.getElementById('ecSmtpPort').value) || 587,
+    smtp_user:        document.getElementById('ecSmtpUser').value.trim(),
+    smtp_pass:        document.getElementById('ecSmtpPass').value,
+    smtp_tls:         parseInt(document.getElementById('ecSmtpTls').value),
+    subject_template: document.getElementById('ecSubjectTpl').value,
+    body_template:    document.getElementById('ecBodyTpl').value,
+    status:           document.getElementById('ecStatus').value,
+    auto_send:        parseInt(document.getElementById('ecAutoSend').value),
+  };
+  if (!payload.kunden_nr || !payload.recipient_email || !payload.sender_email) {
+    resEl.innerHTML = '<div class="status-banner err">Kunden-Nr, Empfänger und Absender sind Pflichtfelder.</div>';
+    return;
+  }
+  resEl.innerHTML = '<div style="color:var(--muted);font-size:11px">⏳ Wird gespeichert…</div>';
+  try {
+    var url    = id ? ORCH_URL + '/invoice_email_configs/' + id : ORCH_URL + '/invoice_email_configs';
+    var method = id ? 'PUT' : 'POST';
+    var r = await fetch(url, { method: method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+    var rawText = await r.text();
+    if (r.ok) {
+      resEl.innerHTML = '<div class="status-banner ok">✓ Gespeichert</div>';
+      await loadEmailConfigs();
+      setTimeout(closeEmailCfgModal, 900);
+    } else {
+      var detail = '';
+      try { detail = JSON.parse(rawText).detail || rawText; } catch(_){ detail = rawText; }
+      resEl.innerHTML = '<div class="status-banner err">HTTP ' + r.status + ': ' + esc(String(detail).slice(0,300)) + '</div>';
+      resEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  } catch(e) {
+    var msg = e.name === 'TypeError' ? '🔌 Orchestrator nicht erreichbar (localhost:8000)' : e.message;
+    resEl.innerHTML = '<div class="status-banner err">' + esc(msg) + '</div>';
+    resEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+}
+
+// ── E-Mail senden (manuell aus Rechnungsliste) ───────────────
+
+async function sendEmailForInvoice(recordId, invoiceNr) {
+  if (!confirm('Rechnung ' + invoiceNr + ' per E-Mail versenden?')) return;
+  try {
+    var r = await fetch(ORCH_URL + '/invoice_records/' + recordId + '/send_email', { method: 'POST' });
+    var data = await r.json();
+    if (data.ok) {
+      alert('✓ E-Mail erfolgreich versendet!');
+      loadEmailHistory();
+    } else {
+      alert('✗ Fehler: ' + (data.error || 'Unbekannt'));
+    }
+  } catch(e) { alert('Fehler: ' + e.message); }
+}
+
+// ── Init: E-Mail-Daten beim Seitenstart laden ────────────────
+(function initEmailModule() {
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function(){ loadEmailConfigs(); loadEmailHistory(); });
+  } else {
+    loadEmailConfigs(); loadEmailHistory();
+  }
+})();
+
+</script>
+</body>
+</html>
+} catch(e) { alert('Fehler: ' + e.message); }
+}
+
+// ── Init: E-Mail-Daten beim Seitenstart laden ────────────────
+
+(function initEmailModule() {
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function(){ loadEmailConfigs(); loadEmailHistory(); });
+  } else {
+    loadEmailConfigs(); loadEmailHistory();
+  }
+})();
+
+</script>
+</body>
+</html>
+────────
+loadConfig();
+// Beim Seitenaufruf: Rechnungsdaten aus DB laden (browserstate-unabhängig)
+loadFromDb().then(function(ok) {
+  if (!ok) {
+    // Orchestrator nicht erreichbar → leere Tabelle mit Hinweis
+    document.getElementById('invBody').innerHTML =
+      '<tr><td colspan="12" style="text-align:center;padding:40px;color:var(--warn)">' +
+      '⚠ Orchestrator (localhost:8000) nicht erreichbar – bitte starten, dann Seite neu laden.</td></tr>';
+  }
+});
+</script>
+</body>
+</html>

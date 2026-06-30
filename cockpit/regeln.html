@@ -1,0 +1,970 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>YCONN — App-Regeln</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg:      #0d1117;
+  --bg2:     #161b22;
+  --bg3:     #21262d;
+  --border:  #30363d;
+  --text:    #e6edf3;
+  --muted:   #8b949e;
+  --accent:  #1f6feb;
+  --ok:      #10b981;
+  --warn:    #f59e0b;
+  --err:     #ef4444;
+
+  /* Modul-Farben */
+  --c-global:    #8b5cf6;
+  --c-payroll:   #34d399;
+  --c-zinsen:    #3b82f6;
+  --c-rechnung:  #fbbf24;
+  --c-future:    #f59e0b;
+}
+html, body {
+  background: #0a1628;
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  min-height: 100vh;
+}
+body::before {
+  content: '';
+  position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background:
+    radial-gradient(ellipse 80% 50% at 20% 10%,  rgba(14,60,140,.22) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 40% at 80% 80%,  rgba(10,40,100,.18) 0%, transparent 55%),
+    #0a1628;
+}
+
+/* ─── Layout ── */
+.wrap { position:relative;z-index:1;max-width:1100px;margin:0 auto;padding:24px 24px 60px; }
+
+/* ─── Header ── */
+header {
+  display:flex;align-items:center;justify-content:space-between;
+  gap:16px;margin-bottom:28px;
+  padding-bottom:18px;border-bottom:1px solid var(--border);
+}
+.header-left h1 { font-size:20px;font-weight:700;margin-bottom:3px; }
+.header-left p  { font-size:12px;color:var(--muted); }
+.btn-nav {
+  display:inline-flex;align-items:center;gap:6px;
+  padding:7px 14px;border-radius:8px;font-size:12px;font-weight:600;
+  background:var(--bg3);border:1px solid var(--border);
+  color:var(--text);text-decoration:none;cursor:pointer;
+}
+.btn-nav:hover { border-color:var(--accent);color:#79b8ff; }
+.header-right { display:flex;gap:8px;flex-wrap:wrap; }
+
+/* ─── Filter Bar ── */
+.filter-bar {
+  display:flex;gap:8px;flex-wrap:wrap;margin-bottom:24px;align-items:center;
+}
+.filter-chip {
+  padding:5px 14px;border-radius:20px;border:1px solid var(--border);
+  font-size:12px;font-weight:600;cursor:pointer;background:var(--bg3);
+  color:var(--muted);transition:all .15s;
+}
+.filter-chip.active, .filter-chip:hover { border-color:var(--accent);color:#79b8ff;background:rgba(31,111,235,.1); }
+.filter-chip.fc-all.active   { border-color:var(--text);color:var(--text); }
+.filter-chip.fc-global.active { border-color:var(--c-global);color:var(--c-global);background:rgba(139,92,246,.1); }
+.filter-chip.fc-payroll.active  { border-color:var(--c-payroll);  color:var(--c-payroll);  background:rgba(52,211,153,.08); }
+.filter-chip.fc-zinsen.active   { border-color:var(--c-zinsen);   color:var(--c-zinsen);   background:rgba(59,130,246,.1);  }
+.filter-chip.fc-rechnung.active { border-color:var(--c-rechnung); color:var(--c-rechnung); background:rgba(251,191,36,.08); }
+.filter-chip.fc-future.active { border-color:var(--c-future);color:var(--c-future);background:rgba(245,158,11,.08); }
+
+/* ─── Section ── */
+.section { margin-bottom:32px; }
+.section-header {
+  display:flex;align-items:center;gap:12px;
+  padding:14px 18px;border-radius:12px 12px 0 0;
+  border:1px solid var(--border);border-bottom:none;
+}
+.section-dot {
+  width:10px;height:10px;border-radius:50%;flex-shrink:0;
+}
+.section-title { font-size:14px;font-weight:700; }
+.section-sub   { font-size:11px;color:var(--muted);margin-left:auto; }
+.section-body  {
+  border:1px solid var(--border);border-radius:0 0 12px 12px;
+  overflow:hidden;
+}
+
+/* ─── Regel-Karte ── */
+.rule-card {
+  display:grid;
+  grid-template-columns: 52px 1fr auto;
+  gap:0;
+  border-bottom:1px solid var(--border);
+  background:var(--bg2);
+  transition:background .12s;
+}
+.rule-card:last-child { border-bottom:none; }
+.rule-card:hover { background:var(--bg3); }
+
+.rule-id {
+  display:flex;align-items:flex-start;justify-content:center;
+  padding:14px 0 14px 14px;
+  font-family:monospace;font-size:11px;font-weight:700;color:var(--muted);
+  padding-top:17px;
+}
+.rule-body { padding:14px 12px; }
+.rule-name { font-size:13px;font-weight:700;margin-bottom:4px; }
+.rule-desc { font-size:12px;color:var(--muted);margin-bottom:8px;line-height:1.6; }
+.rule-tech {
+  display:flex;flex-wrap:wrap;gap:6px;align-items:center;
+}
+.tech-chip {
+  font-family:monospace;font-size:10px;padding:2px 8px;border-radius:5px;
+  border:1px solid var(--border);background:var(--bg3);color:#79b8ff;
+}
+.tech-chip.locked {
+  border-color:rgba(239,68,68,.35);color:#ef4444;background:rgba(239,68,68,.06);
+}
+.tech-chip.auto {
+  border-color:rgba(249,115,22,.35);color:#f97316;background:rgba(249,115,22,.06);
+}
+.tech-chip.ok {
+  border-color:rgba(16,185,129,.35);color:#34d399;background:rgba(16,185,129,.06);
+}
+.rule-badges { padding:14px 14px 14px 4px;display:flex;flex-direction:column;gap:6px;align-items:flex-end;justify-content:flex-start; }
+.badge {
+  display:inline-flex;align-items:center;gap:4px;
+  font-size:10px;font-weight:700;padding:3px 8px;border-radius:12px;
+  white-space:nowrap;
+}
+.badge-active  { background:rgba(16,185,129,.12);border:1px solid rgba(16,185,129,.35);color:#34d399; }
+.badge-dev     { background:rgba(245,158,11,.10);border:1px solid rgba(245,158,11,.35);color:#f59e0b; }
+.badge-module  { font-size:9px;padding:2px 7px;border-radius:10px;font-weight:700;border:1px solid; }
+.bm-global  { color:var(--c-global); border-color:rgba(139,92,246,.4); background:rgba(139,92,246,.08); }
+.bm-payroll   { color:var(--c-payroll);  border-color:rgba(52,211,153,.4);  background:rgba(52,211,153,.06); }
+.bm-zinsen    { color:var(--c-zinsen);   border-color:rgba(59,130,246,.4);   background:rgba(59,130,246,.08); }
+.bm-rechnung  { color:var(--c-rechnung); border-color:rgba(251,191,36,.4);   background:rgba(251,191,36,.07); }
+
+/* ─── Skalierbarkeit-Tabelle ── */
+.scale-table { width:100%;border-collapse:collapse; }
+.scale-table th {
+  text-align:left;font-size:10px;font-weight:700;color:var(--muted);
+  text-transform:uppercase;letter-spacing:.06em;
+  padding:10px 14px;background:var(--bg3);border-bottom:1px solid var(--border);
+}
+.scale-table td {
+  padding:11px 14px;font-size:12px;border-bottom:1px solid rgba(48,54,61,.6);
+  vertical-align:top;
+}
+.scale-table tr:last-child td { border-bottom:none; }
+.scale-table tr:hover td { background:rgba(255,255,255,.02); }
+.scale-table code {
+  font-family:monospace;font-size:11px;color:#79b8ff;
+  background:var(--bg3);padding:1px 6px;border-radius:4px;
+  border:1px solid var(--border);
+}
+.scale-table .req { color:var(--err);font-weight:700; }
+.scale-table .opt { color:var(--warn); }
+
+/* ─── Legende ── */
+.legend {
+  display:flex;gap:18px;flex-wrap:wrap;align-items:center;
+  padding:12px 16px;background:var(--bg3);border:1px solid var(--border);
+  border-radius:10px;margin-bottom:24px;font-size:11px;
+}
+.legend-item { display:flex;align-items:center;gap:6px;color:var(--muted); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ═══ HEADER ═════════════════════════════════════════════════════════ -->
+  <header>
+    <div class="header-left">
+      <h1>📋 App-Regeln</h1>
+      <p>Verbindliche Regeln und Konfigurationsparameter je Modul · Stand: 2026</p>
+    </div>
+    <div class="header-right">
+      <a class="btn-nav" href="startseite.html">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+        Startseite
+      </a>
+      <a class="btn-nav" href="payroll.html">💼 PayRoll</a>
+      <a class="btn-nav" href="zinsen.html">💶 Darlehen</a>
+    </div>
+  </header>
+
+  <!-- ═══ LEGENDE ════════════════════════════════════════════════════════ -->
+  <div class="legend">
+    <strong style="color:var(--text);font-size:12px">Legende:</strong>
+    <div class="legend-item"><span class="tech-chip locked" style="font-size:9px">gesperrt</span> Fest kodiert, nicht änderbar</div>
+    <div class="legend-item"><span class="tech-chip auto"   style="font-size:9px">auto</span> Automatisch gesetzt/korrigiert</div>
+    <div class="legend-item"><span class="tech-chip ok"     style="font-size:9px">validiert</span> Wird aktiv geprüft</div>
+    <div class="legend-item"><span class="tech-chip"        style="font-size:9px">Feld = Wert</span> Technischer Parameter</div>
+    <div class="legend-item"><span class="badge badge-active">● Aktiv</span> In Betrieb</div>
+    <div class="legend-item"><span class="badge badge-dev">⚙ Geplant</span> In Entwicklung</div>
+  </div>
+
+  <!-- ═══ FILTER ══════════════════════════════════════════════════════════ -->
+  <div class="filter-bar">
+    <span style="font-size:12px;color:var(--muted);margin-right:4px">Filter:</span>
+    <button class="filter-chip fc-all active"    onclick="filterRules('all',this)">Alle Module</button>
+    <button class="filter-chip fc-global"  onclick="filterRules('global',this)">🔒 Global</button>
+    <button class="filter-chip fc-payroll"   onclick="filterRules('payroll',this)">💼 PayRoll</button>
+    <button class="filter-chip fc-zinsen"   onclick="filterRules('zinsen',this)">💶 Darlehen / Zinsen</button>
+    <button class="filter-chip fc-rechnung" onclick="filterRules('rechnung',this)">🧾 Rechnungserstellung</button>
+    <button class="filter-chip fc-future"   onclick="filterRules('future',this)">🏗 Zukünftige Module</button>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════════════
+       1. GLOBALE APP-REGELN
+  ═══════════════════════════════════════════════════════════════════════ -->
+  <div class="section" data-module="global">
+    <div class="section-header" style="background:rgba(139,92,246,.08);border-color:rgba(139,92,246,.4)">
+      <div class="section-dot" style="background:var(--c-global)"></div>
+      <div class="section-title" style="color:var(--c-global)">🔒 Globale App-Regeln</div>
+      <div class="section-sub">Gelten für alle Module und Gesellschaften</div>
+    </div>
+    <div class="section-body">
+
+      <div class="rule-card">
+        <div class="rule-id">G-1</div>
+        <div class="rule-body">
+          <div class="rule-name">Login-Pflicht auf allen Seiten</div>
+          <div class="rule-desc">Jede Cockpit-Seite prüft beim Laden, ob ein gültiger Benutzer in <code>localStorage</code> vorhanden ist. Ohne Login → automatische Weiterleitung zu <code>login.html</code>.</div>
+          <div class="rule-tech">
+            <span class="tech-chip locked">Login-Guard aktiv</span>
+            <span class="tech-chip">auth.js · AUTH.require()</span>
+          </div>
+        </div>
+        <div class="rule-badges">
+          <span class="badge badge-active">● Aktiv</span>
+          <span class="badge-module bm-global">Global</span>
+        </div>
+      </div>
+
+      <div class="rule-card">
+        <div class="rule-id">G-2</div>
+        <div class="rule-body">
+          <div class="rule-name">SAP-Benutzer muss verknüpft sein</div>
+          <div class="rule-desc">Jeder App-Benutzer muss einen verknüpften SAP-Login (<code>sap_username</code>) haben. Dieser SAP-User wird bei allen BAPI-Aufrufen als USERNAME übergeben — nie der Anzeigename.</div>
+          <div class="rule-tech">
+            <span class="tech-chip locked">AUTH.user.sap_username</span>
+            <span class="tech-chip ok">validiert</span>
+            <span class="tech-chip auto">kein Display-Name erlaubt</span>
+          </div>
+        </div>
+        <div class="rule-badges">
+          <span class="badge badge-active">● Aktiv</span>
+          <span class="badge-module bm-global">Global</span>
+        </div>
+      </div>
+
+      <div class="rule-card">
+        <div class="rule-id">G-3</div>
+        <div class="rule-body">
+          <div class="rule-name">Passwörter werden nie in der Datenbank gespeichert</div>
+          <div class="rule-desc">SAP-Passwörter werden ausschließlich zur Laufzeit der Session im Browser gehalten (<code>sessionStorage</code> oder In-Memory). Kein Passwort wird im Orchestrator, in der SQLite-DB oder in Logs gespeichert.</div>
+          <div class="rule-tech">
+            <span class="tech-chip locked">DB-Speicherung verboten</span>
+            <span class="tech-chip">.env-Dateien: nur Service-Accounts</span>
+          </div>
+        </div>
+        <div class="rule-badges">
+          <span class="badge badge-active">● Aktiv</span>
+          <span class="badge-module bm-global">Global</span>
+        </div>
+      </div>
+
+      <div class="rule-card">
+        <div class="rule-id">G-4</div>
+        <div class="rule-body">
+          <div class="rule-name">RFCPING-Fallback auf Service-Account</div>
+          <div class="rule-desc">Hat der App-Benutzer keine <code>S_RFC</code>-Berechtigung für RFCPING, fällt <code>handlers.py</code> automatisch auf den in <code>.env</code> konfigurierten Service-Account zurück.</div>
+          <div class="rule-tech">
+            <span class="tech-chip auto">auto-Fallback</span>
+            <span class="tech-chip">handlers.py · RFC_COFACE</span>
+          </div>
+        </div>
+        <div class="rule-badges">
+          <span class="badge badge-active">● Aktiv</span>
+          <span class="badge-module bm-global">Global</span>
+        </div>
+      </div>
+
+      <div class="rule-card" style="border-color:rgba(59,130,246,.4)">
+        <div class="rule-id" style="background:rgba(59,130,246,.12);color:#60a5fa">G-6</div>
+        <div class="rule-body">
+          <div class="rule-name">🖥 SAP-Systemdefinition: SEP = Produktivsystem · SEQ = Qualitätssystem</div>
+          <div class="rule-desc">
+            Im YCONN Cockpit werden zwei SAP-Systeme unterschieden:
+            <br><br>
+            <table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:4px">
+              <thead>
+                <tr style="background:var(--bg3)">
+                  <th style="padding:6px 10px;text-align:left;border:1px solid var(--border)">Kürzel</th>
+                  <th style="padding:6px 10px;text-align:left;border:1px solid var(--border)">Systemtyp</th>
+                  <th style="padding:6px 10px;text-align:left;border:1px solid var(--border)">Host</th>
+                  <th style="padding:6px 10px;text-align:left;border:1px solid var(--border)">SysNr</th>
+                  <th style="padding:6px 10px;text-align:left;border:1px solid var(--border)">Mandant</th>
+                  <th style="padding:6px 10px;text-align:left;border:1px solid var(--border)">Zweck</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style="padding:6px 10px;border:1px solid var(--border);font-weight:700;color:#f59e0b;font-family:monospace">SEP</td>
+                  <td style="padding:6px 10px;border:1px solid var(--border);font-weight:700;color:#f59e0b">⚡ Produktivsystem</td>
+                  <td style="padding:6px 10px;border:1px solid var(--border);font-family:monospace">172.28.189.8</td>
+                  <td style="padding:6px 10px;border:1px solid var(--border);font-family:monospace">06</td>
+                  <td style="padding:6px 10px;border:1px solid var(--border);font-family:monospace">600</td>
+                  <td style="padding:6px 10px;border:1px solid var(--border)">Echte Buchungen — nicht rückgängig ohne Storno</td>
+                </tr>
+                <tr>
+                  <td style="padding:6px 10px;border:1px solid var(--border);font-weight:700;color:#10b981;font-family:monospace">SEQ</td>
+                  <td style="padding:6px 10px;border:1px solid var(--border);font-weight:700;color:#10b981">🔬 Qualitätssystem</td>
+                  <td style="padding:6px 10px;border:1px solid var(--border);font-family:monospace">172.28.189.11</td>
+                  <td style="padding:6px 10px;border:1px solid var(--border);font-family:monospace">05</td>
+                  <td style="padding:6px 10px;border:1px solid var(--border);font-family:monospace">600</td>
+                  <td style="padding:6px 10px;border:1px solid var(--border)">Tests und Qualitätssicherung — kein Produktivbetrieb</td>
+                </tr>
+              </tbody>
+            </table>
+            <br>
+            <strong>Achtung:</strong> Buchungen im Produktivsystem (SEP) sind real und können nur durch Storno rückgängig gemacht werden. Vor jeder Buchung in SEP muss das System klar als Produktivsystem erkennbar sein. Die Applikation zeigt bei SEP-Buchungen stets eine hervorgehobene Warnung.
+          </div>
+          <div class="rule-tech">
+            <span class="tech-chip locked" style="color:#f59e0b;border-color:rgba(245,158,11,.4)">SEP = PRODUKTION ⚡</span>
+            <span class="tech-chip ok">SEQ = Qualitätssystem 🔬</span>
+            <span class="tech-chip">ashost SEP: 172.28.189.8:06</span>
+            <span class="tech-chip">ashost SEQ: 172.28.189.11:05</span>
+          </div>
+        </div>
+        <div class="rule-badges">
+          <span class="badge badge-active">● Aktiv</span>
+          <span class="badge-module bm-global">Global</span>
+        </div>
+      </div>
+
+      <div class="rule-card" style="border-color:rgba(239,68,68,.4)">
+        <div class="rule-id" style="background:rgba(239,68,68,.12);color:#ef4444">G-7</div>
+        <div class="rule-body">
+          <div class="rule-name">🔐 RFC-Username = verknüpfter SAP-Benutzer des App-Benutzers — unveränderlich</div>
+          <div class="rule-desc">
+            Der SAP-RFC-Benutzername (<code>USERNAME</code> im DOCUMENTHEADER, <code>user</code> in <code>_sap_auth</code>)
+            wird für <strong>jede SAP-Schnittstellenoperation</strong> ausschließlich aus dem verknüpften SAP-Benutzer
+            des angemeldeten App-Benutzers übernommen (<code>session.sap_username</code> → <code>getSapLinkedUser()</code>).
+            <br><br>
+            Manuelle Eingaben im Login-Modal, gespeicherte Credentials (localStorage) oder RFC-Default-User
+            der System-Konfiguration dürfen den RFC-Username <strong>niemals überschreiben</strong>.
+            Das Benutzername-Feld im Login-Modal ist schreibgeschützt (nur Anzeige).
+            <br><br>
+            <strong>Grund:</strong> SAP protokolliert den <code>USERNAME</code> im Buchungsbeleg (FI-Dokument).
+            Falsche Benutzer führen zu fehlerhafter Revisionsspur und RFC-Logon-Fehlern
+            wenn der eingegebene Name kein gültiger SAP-RFC-User ist.
+          </div>
+          <div class="rule-tech">
+            <span class="tech-chip locked">Username readonly</span>
+            <span class="tech-chip ok">Buchung · Storno · SAP-Übergabe</span>
+            <span class="tech-chip">getSapLinkedUser()</span>
+            <span class="tech-chip">session.sap_username</span>
+          </div>
+        </div>
+        <div class="rule-badges">
+          <span class="badge badge-active">● Aktiv</span>
+          <span class="badge-module bm-global">Global</span>
+        </div>
+      </div>
+
+      <div class="rule-card" style="border-color:rgba(251,191,36,.4)">
+        <div class="rule-id" style="background:rgba(251,191,36,.15);color:#fbbf24">G-5</div>
+        <div class="rule-body">
+          <div class="rule-name">⚠ SAP-System = angemeldetes Benutzersystem — für ALLE Operationen</div>
+          <div class="rule-desc">
+            Das SAP-Zielsystem (SEP/SEQ, ashost, sysnr, client) wird für <strong>jede SAP-Operation</strong> ausschließlich aus dem angemeldeten Benutzer-Session-Objekt (<code>AUTH.user.sap_system</code> → <code>getUserSapSystemId()</code>) abgeleitet.
+            <br><br>
+            Dies gilt ohne Ausnahme für: <strong>Buchung</strong>, <strong>Storno</strong>, RFC-Tests und alle zukünftigen SAP-Integrationen.
+            <br><br>
+            <strong>Verboten:</strong>
+            <ul style="margin:6px 0 0 16px;padding:0;font-size:12px;color:var(--muted)">
+              <li>System aus Datenbankfeld (<code>payroll_imports.sap_system</code>) lesen</li>
+              <li>System manuell durch UI-Dropdown überschreiben</li>
+              <li>System aus URL-Parameter oder localStorage lesen</li>
+              <li>Hartkodiertes SAP-System in Buchungs- oder Storno-Logik</li>
+            </ul>
+            <br>
+            <strong>Hintergrund:</strong> Ein Beleg existiert immer nur in dem System, in dem der buchende Benutzer angemeldet war. Storno oder Nachbuchungen auf einem anderen System führen zwingend zu einem Fehler (FU_NOT_FOUND, Beleg nicht gefunden).
+          </div>
+          <div class="rule-tech">
+            <span class="tech-chip locked">getUserSapSystemId() — einzige Quelle</span>
+            <span class="tech-chip ok">Buchung ✓ · Storno ✓ · RFC-Test ✓</span>
+            <span class="tech-chip">AUTH.user.sap_system</span>
+          </div>
+        </div>
+        <div class="rule-badges">
+          <span class="badge badge-active">● Aktiv</span>
+          <span class="badge-module bm-global">Global</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════════════
+       2. PAYROLL-MODUL
+  ═══════════════════════════════════════════════════════════════════════ -->
+  <div class="section" data-module="payroll">
+    <div class="section-header" style="background:rgba(52,211,153,.06);border-color:rgba(52,211,153,.4)">
+      <div class="section-dot" style="background:var(--c-payroll)"></div>
+      <div class="section-title" style="color:var(--c-payroll)">💼 PayRoll-Buchungsmodul</div>
+      <div class="section-sub">payroll.html · BAPI_ACC_DOCUMENT_POST · Buchungskreis 0435</div>
+    </div>
+    <div class="section-body">
+
+      <div class="rule-card">
+        <div class="rule-id">P-1</div>
+        <div class="rule-body">
+          <div class="rule-name">Sofortige DB-Persistierung nach CSV-Import</div>
+          <div class="rule-desc">Nach dem Einlesen der FIBU-LOGA-Datei werden alle Buchungszeilen unmittelbar über den Orchestrator in der SQLite-Datenbank gespeichert (Tabelle <code>payroll_imports</code> + <code>payroll_import_lines</code>). Der Import ist auch bei Bridge-Ausfall nachvollziehbar.</div>
+          <div class="rule-tech">
+            <span class="tech-chip auto">auto nach Upload</span>
+            <span class="tech-chip">POST /payroll/imports</span>
+            <span class="tech-chip">Status: imported → booked</span>
+          </div>
+        </div>
+        <div class="rule-badges">
+          <span class="badge badge-active">● Aktiv</span>
+          <span class="badge-module bm-payroll">PayRoll</span>
+        </div>
+      </div>
+
+      <div class="rule-card">
+        <div class="rule-id">P-2</div>
+        <div class="rule-body">
+          <div class="rule-name">SAP-System = System des angemeldeten Benutzers (Buchung &amp; Storno)</div>
+          <div class="rule-desc">Das Zielsystem für <code>BAPI_ACC_DOCUMENT_POST</code> (Buchung) und <code>BAPI_ACC_DOCUMENT_REV</code> (Storno) wird ausschließlich aus der Login-Session des Benutzers bestimmt (<code>getUserSapSystemId()</code>). Das Dropdown im SAP-Übergabe-Tab ist schreibgeschützt. Der gespeicherte Wert <code>sap_system</code> in der Datenbank dient nur zur Information und wird nie für die Verbindungsparameter verwendet. Siehe globale Regel <strong>G-5</strong>.</div>
+          <div class="rule-tech">
+            <span class="tech-chip locked">Dropdown readonly</span>
+            <span class="tech-chip ok">Buchung · Storno · Vorschau</span>
+            <span class="tech-chip">getUserSapSystemId()</span>
+          </div>
+        </div>
+        <div class="rule-badges">
+          <span class="badge badge-active">● Aktiv</span>
+          <span class="badge-module bm-payroll">PayRoll</span>
+        </div>
+      </div>
+
+      <div class="rule-card">
+        <div class="rule-id">P-3</div>
+        <div class="rule-body">
+          <div class="rule-name">SAP-Benutzer im BAPI = verknüpfter SAP-User</div>
+          <div class="rule-desc">Das Feld <code>DOCUMENTHEADER.USERNAME</code> erhält ausschließlich den Wert aus <code>AUTH.user.sap_username</code>. Anzeigenamen oder abweichende User-IDs sind unzulässig.</div>
+          <div class="rule-tech">
+            <span class="tech-chip locked">USERNAME = sap_username</span>
+            <span class="tech-chip ok">validiert · Regel 3</span>
+          </div>
+        </div>
+        <div class="rule-badges">
+          <span class="badge badge-active">● Aktiv</span>
+          <span class="badge-module bm-payroll">PayRoll</span>
+        </div>
+      </div>
+
+      <div class="rule-card">
+        <div class="rule-id">P-4</div>
+        <div class="rule-body">
+          <div class="rule-name">Sachkonten-Prüfung im Kontenrahmen ZIKR</div>
+          <div class="rule-desc">Alle im LOGA-File enthaltenen Sachkonten müssen im Kontenrahmen ZIKR vorhanden sein (Buchungskreis 0435). Prüfung erfolgt per <code>RFC_READ_TABLE</code> auf Tabelle <code>SKB1</code> über den Bridge-Server.</div>
+          <div class="rule-tech">
+            <span class="tech-chip ok">validiert · Regel 2a</span>
+            <span class="tech-chip">RFC_READ_TABLE · SKB1</span>
+            <span class="tech-chip">KTOPL = ZIKR</span>
+          </div>
+        </div>
+        <div class="rule-badges">
+          <span class="badge badge-active">● Aktiv</span>
+          <span class="badge-module bm-payroll">PayRoll</span>
+        </div>
+      </div>
+
+      <div class="rule-card">
+        <div class="rule-id">P-5</div>
+        <div class="rule-body">
+          <div class="rule-name">Kostenstellen-Pflicht für Konten 6* und 7*</div>
+          <div class="rule-desc">Alle Buchungszeilen mit einem Sachkonto der Klasse 6 (Aufwand) oder 7 (Kosten) müssen eine gültige Kostenstelle enthalten. Fehlt die Kostenstelle, erfolgt eine visuelle Fehlermarkierung und der Benutzer wird aufgefordert, die KST zu bestätigen oder manuell einzutragen.</div>
+          <div class="rule-tech">
+            <span class="tech-chip auto">Fallback: 0435-5013</span>
+            <span class="tech-chip ok">validiert bei Import</span>
+            <span class="tech-chip">Manuelle Korrektur möglich</span>
+          </div>
+        </div>
+        <div class="rule-badges">
+          <span class="badge badge-active">● Aktiv</span>
+          <span class="badge-module bm-payroll">PayRoll</span>
+        </div>
+      </div>
+
+      <div class="rule-card">
+        <div class="rule-id">P-6</div>
+        <div class="rule-body">
+          <div class="rule-name">Belegtyp immer SA (Sachbuchung)</div>
+          <div class="rule-desc">PayRoll-Buchungen werden ausschließlich mit Belegtyp <code>SA</code> an SAP übergeben. Der Wert ist fest kodiert und kann nicht durch den Benutzer geändert werden.</div>
+          <div class="rule-tech">
+            <span class="tech-chip locked">DOC_TYPE = 'SA'</span>
+            <span class="tech-chip ok">validiert · Regel 4</span>
+            <span class="tech-chip">BAPI_ACC_DOCUMENT_POST</span>
+          </div>
+        </div>
+        <div class="rule-badges">
+          <span class="badge badge-active">● Aktiv</span>
+          <span class="badge-module bm-payroll">PayRoll</span>
+        </div>
+      </div>
+
+      <div class="rule-card">
+        <div class="rule-id">P-7</div>
+        <div class="rule-body">
+          <div class="rule-name">Ohne Ledger-Gruppe buchen (LDGRP leer)</div>
+          <div class="rule-desc">Das Feld <code>LDGRP</code> im DOCUMENTHEADER wird leer übergeben. SAP bucht damit ledgerneutral in alle für den Buchungskreis relevanten Ledger — keine Einschränkung auf ein bestimmtes Ledger.</div>
+          <div class="rule-tech">
+            <span class="tech-chip locked">LDGRP = '' (leer)</span>
+            <span class="tech-chip ok">validiert · Regel 5</span>
+            <span class="tech-chip">ledgerneutral</span>
+          </div>
+        </div>
+        <div class="rule-badges">
+          <span class="badge badge-active">● Aktiv</span>
+          <span class="badge-module bm-payroll">PayRoll</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════════════
+       3. DARLEHEN / ZINSEN-MODUL
+  ═══════════════════════════════════════════════════════════════════════ -->
+  <div class="section" data-module="zinsen">
+    <div class="section-header" style="background:rgba(59,130,246,.08);border-color:rgba(59,130,246,.4)">
+      <div class="section-dot" style="background:var(--c-zinsen)"></div>
+      <div class="section-title" style="color:var(--c-zinsen)">💶 Darlehen &amp; IC-Zinsbuchungsmodul</div>
+      <div class="section-sub">zinsen.html · BAPI_ACC_DOCUMENT_POST · IC-Buchungen DG (0435) ↔ DN (VV9)</div>
+    </div>
+    <div class="section-body">
+
+      <div class="rule-card">
+        <div class="rule-id">Z-1</div>
+        <div class="rule-body">
+          <div class="rule-name">Ab 06/2026 ausschließlich SEP (Produktivsystem)</div>
+          <div class="rule-desc">Zinsbuchungen dürfen ab Periode 06/2026 nur noch im Produktivsystem SEP (172.28.189.8) durchgeführt werden. SEQ ist das Qualitätssystem und ist für Produktivbuchungen nicht vorgesehen. Siehe Regel G-6.</div>
+          <div class="rule-tech">
+            <span class="tech-chip locked">SEQ-Produktivbuchung gesperrt</span>
+            <span class="tech-chip">SEP: 172.28.189.8, sysnr=06</span>
+          </div>
+        </div>
+        <div class="rule-badges">
+          <span class="badge badge-active">● Aktiv</span>
+          <span class="badge-module bm-zinsen">Darlehen</span>
+        </div>
+      </div>
+
+      <div class="rule-card">
+        <div class="rule-id">Z-2</div>
+        <div class="rule-body">
+          <div class="rule-name">IC-Buchung sequenziell: erst DG (0435), dann DN (VV9)</div>
+          <div class="rule-desc">Intercompany-Zinsbuchungen werden in definierter Reihenfolge ausgeführt: zuerst die Darlehensgeber-Seite (Buchungskreis 0435), dann die Darlehensnehmer-Seite (Buchungskreis VV9). Ein Fehler im ersten Schritt verhindert den zweiten.</div>
+          <div class="rule-tech">
+            <span class="tech-chip locked">Reihenfolge: DG → DN</span>
+            <span class="tech-chip">COMP_CODE: 0435 / VV9</span>
+            <span class="tech-chip auto">sequenziell, nicht parallel</span>
+          </div>
+        </div>
+        <div class="rule-badges">
+          <span class="badge badge-active">● Aktiv</span>
+          <span class="badge-module bm-zinsen">Darlehen</span>
+        </div>
+      </div>
+
+      <div class="rule-card">
+        <div class="rule-id">Z-3</div>
+        <div class="rule-body">
+          <div class="rule-name">Ledger-Gruppe 0L für Zinsbuchungen</div>
+          <div class="rule-desc">Im Gegensatz zum PayRoll-Modul werden Zinsbuchungen mit <code>LDGRP = '0L'</code> gebucht, um ausschließlich im führenden Ledger zu buchen.</div>
+          <div class="rule-tech">
+            <span class="tech-chip locked">LDGRP = '0L'</span>
+            <span class="tech-chip">führendes Ledger</span>
+          </div>
+        </div>
+        <div class="rule-badges">
+          <span class="badge badge-active">● Aktiv</span>
+          <span class="badge-module bm-zinsen">Darlehen</span>
+        </div>
+      </div>
+
+      <div class="rule-card" style="border-color:rgba(16,185,129,.4)">
+        <div class="rule-id" style="background:rgba(16,185,129,.12);color:#10b981">Z-5</div>
+        <div class="rule-body">
+          <div class="rule-name">💶 Zinsberechnungsformel: Actual/360 (deutsches Banktageverfahren)</div>
+          <div class="rule-desc">
+            Alle Zinsen werden nach der Actual/360-Methode berechnet:<br><br>
+            <code>Zins = (Restschuld × Zinssatz% / 100) / 360 × Anzahl Tage im Monat</code><br><br>
+            Die tatsächliche Anzahl der Kalendertage des jeweiligen Monats wird verwendet (28–31 Tage). Januar und März ergeben damit leicht höhere Zinsbeträge als Februar.
+            Für den <strong>Startmonat</strong> gilt SAP-Konvention: Zinsen starten <em>am Tag nach dem Valutatag</em>
+            → <code>daysActive = Tage im Monat − Startdag</code>.<br><br>
+            Manuell eingetragene Monatsbeträge (Feld «Monatlicher Zinsbetrag» im Darlehen-Dialog) überschreiben die Formel und werden für alle 12 Monate gleich verwendet.
+          </div>
+          <div class="rule-tech">
+            <span class="tech-chip locked">Formel fest verdrahtet</span>
+            <span class="tech-chip">calcMonthlyForPeriod()</span>
+            <span class="tech-chip">Actual/360</span>
+            <span class="tech-chip">Startmonat anteilig</span>
+          </div>
+        </div>
+        <div class="rule-badges">
+          <span class="badge badge-active">● Aktiv</span>
+          <span class="badge-module bm-zinsen">Darlehen</span>
+        </div>
+      </div>
+
+      <div class="rule-card">
+        <div class="rule-id">Z-4</div>
+        <div class="rule-body">
+          <div class="rule-name">Buchungshistorie im lokalen Speicher</div>
+          <div class="rule-desc">Alle erfolgreich gesendeten Zinsbuchungen werden in <code>yconn_booking_history</code> (localStorage) gespeichert und im Buchungshistorie-Tab angezeigt. Enthält Belegdatum, SAP-Belegnummer, Buchungskreis und Betrag.</div>
+          <div class="rule-tech">
+            <span class="tech-chip auto">auto nach Buchung</span>
+            <span class="tech-chip">localStorage: yconn_booking_history</span>
+          </div>
+        </div>
+        <div class="rule-badges">
+          <span class="badge badge-active">● Aktiv</span>
+          <span class="badge-module bm-zinsen">Darlehen</span>
+        </div>
+      </div>
+
+      <div class="rule-card">
+        <div class="rule-id">P-8</div>
+        <div class="rule-body">
+          <div class="rule-name">Einmal pro Monat je Buchungskreis (Upload-Sperre)</div>
+          <div class="rule-desc">Pro Buchungskreis und Abrechnungsmonat darf nur eine FIBU-LOGA-Datei importiert werden. Beim Hochladen prüft die App alle bestehenden Importe. Ist für denselben Monat und Buchungskreis bereits ein Eintrag vorhanden (Status ≠ Fehler), erscheint ein Warndialog. Der Benutzer kann entweder abbrechen oder den Import trotzdem als neuen DB-Eintrag speichern.</div>
+          <div class="rule-tech">
+            <span class="tech-chip ok">validiert vor Upload</span>
+            <span class="tech-chip">GET /payroll/imports → Monat-Key-Vergleich</span>
+            <span class="tech-chip auto">runDate MM.YYYY + comp_code</span>
+            <span class="tech-chip">Warndialog mit Override-Option</span>
+          </div>
+        </div>
+        <div class="rule-badges">
+          <span class="badge badge-active">● Aktiv</span>
+          <span class="badge-module bm-payroll">PayRoll</span>
+        </div>
+      </div>
+
+      <div class="rule-card">
+        <div class="rule-id">P-9</div>
+        <div class="rule-body">
+          <div class="rule-name">SAP OBJ_KEY-Format — 18-stellige Belegnummer</div>
+          <div class="rule-desc">SAP gibt nach erfolgreicher Buchung einen 18-stelligen OBJ_KEY zurück, der alle für einen Storno notwendigen Informationen enthält:
+            <br><br>
+            <code style="font-size:13px;letter-spacing:.05em">BELNR[10] + BUKRS[4] + GJAHR[4]</code>
+            <br><br>
+            Beispiel: <code>230000964704352026</code> → BELNR <strong>2300009647</strong> · BUKRS <strong>0435</strong> · GJAHR <strong>2026</strong>
+            <br><br>
+            Die App speichert stets die vollständige 18-stellige Nummer in der Datenbank (<code>booking_doc_nr</code>). In der Importhistorie wird für die Lesbarkeit nur die 10-stellige BELNR angezeigt; der vollständige OBJ_KEY ist als Tooltip sichtbar.
+            <br><br>
+            Beim Storno werden BELNR, BUKRS und GJAHR automatisch aus dem gespeicherten OBJ_KEY abgeleitet — der Benutzer muss kein Geschäftsjahr manuell eingeben. Bei älteren Einträgen mit nur 10-stelliger Nummer wird GJAHR per Abfrage ergänzt.
+          </div>
+          <div class="rule-tech">
+            <span class="tech-chip ok">auto-Parsing beim Storno</span>
+            <span class="tech-chip">BELNR = OBJ_KEY[0:10]</span>
+            <span class="tech-chip">BUKRS = OBJ_KEY[10:14]</span>
+            <span class="tech-chip">GJAHR = OBJ_KEY[14:18]</span>
+            <span class="tech-chip auto">18-stellig in DB · 10-stellig angezeigt</span>
+          </div>
+        </div>
+        <div class="rule-badges">
+          <span class="badge badge-active">● Aktiv</span>
+          <span class="badge-module bm-payroll">PayRoll</span>
+        </div>
+      </div>
+
+      <div class="rule-card">
+        <div class="rule-id">P-10</div>
+        <div class="rule-body">
+          <div class="rule-name">RESY Steuerkennzeichen → SAP Vorsteuerkennzeichen (Buchungskreis 0435)</div>
+          <div class="rule-desc">RESY-Reisekostenabrechnungen verwenden eigene Steuerkennzeichen, die beim Import in die PayRoll-Buchungsliste auf SAP-Vorsteuerkennzeichen umgeschlüsselt werden müssen.
+            <br><br>
+            <table style="font-size:12px;border-collapse:collapse;margin:8px 0">
+              <tr style="color:var(--muted);border-bottom:1px solid var(--border)">
+                <th style="text-align:left;padding:4px 12px 4px 0">RESY-Kennzeichen</th>
+                <th style="text-align:left;padding:4px 12px">SAP-Vorsteuerkennzeichen</th>
+                <th style="text-align:left;padding:4px 0">Bedeutung</th>
+              </tr>
+              <tr>
+                <td style="padding:4px 12px 4px 0"><code>ohne VSt (NONE)</code></td>
+                <td style="padding:4px 12px"><code>V0</code></td>
+                <td style="padding:4px 0;color:var(--muted)">Steuerfrei: Tagegeld, Verpflegungsmehraufwand</td>
+              </tr>
+              <tr>
+                <td style="padding:4px 12px 4px 0"><code>V0</code></td>
+                <td style="padding:4px 12px"><code>V0</code></td>
+                <td style="padding:4px 0;color:var(--muted)">Vorsteuerfrei: steuerfreie Auslandsreisekosten</td>
+              </tr>
+              <tr>
+                <td style="padding:4px 12px 4px 0"><code>V1</code></td>
+                <td style="padding:4px 12px"><code>V1</code></td>
+                <td style="padding:4px 0;color:var(--muted)">19 % Vorsteuer: Inland-Hotels, Taxis</td>
+              </tr>
+              <tr>
+                <td style="padding:4px 12px 4px 0"><code>V7</code></td>
+                <td style="padding:4px 12px"><code>V4</code></td>
+                <td style="padding:4px 0;color:var(--muted)">7 % Vorsteuer: ÖPNV-Tickets (RESY V7 ≠ SAP V7!)</td>
+              </tr>
+            </table>
+            <br>
+            RESY <code>NONE</code> und <code>V0</code> werden zu einem SAP-V0-Posten zusammengefasst. Die Gesamtsumme der Zeile „RESY Gesamt" (Konto 685100) wird durch Hochladen der RESY-TXT-Datei automatisch auf die drei SAP-Teilbeträge aufgeteilt.
+          </div>
+          <div class="rule-tech">
+            <span class="tech-chip ok">NONE+V0 → SAP V0</span>
+            <span class="tech-chip ok">V1 → SAP V1</span>
+            <span class="tech-chip ok">V7 → SAP V4</span>
+            <span class="tech-chip">Buchungskreis 0435</span>
+            <span class="tech-chip auto">RESY-TXT-Upload · automatische Aufteilung</span>
+          </div>
+        </div>
+        <div class="rule-badges">
+          <span class="badge badge-active">● Aktiv</span>
+          <span class="badge-module bm-payroll">PayRoll</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════════════
+       3b. RECHNUNGSERSTELLUNG — SD-MODUL
+  ═══════════════════════════════════════════════════════════════════════ -->
+  <div class="section" data-module="rechnung">
+    <div class="section-header" style="background:rgba(251,191,36,.07);border-color:rgba(251,191,36,.4)">
+      <div class="section-dot" style="background:var(--c-rechnung)"></div>
+      <div class="section-title" style="color:var(--c-rechnung)">🧾 Rechnungserstellung — SAP SD</div>
+      <div class="section-sub">Geschäftsregeln für die Erstellung von Ausgangsrechnungen an Töchtergesellschaften</div>
+    </div>
+    <div class="section-body">
+
+      <div class="rule-card">
+        <div class="rule-id" style="color:var(--c-rechnung);border-color:rgba(251,191,36,.35)">R-11</div>
+        <div class="rule-body">
+          <div class="rule-name">1 Ausgangsrechnung pro Töchtergesellschaft pro Monat</div>
+          <div class="rule-desc">
+            Im Modul Rechnungserstellung darf pro Töchtergesellschaft (Kunden-Nr.) und Abrechnungsperiode (MM/YY) nur <strong>eine</strong> Ausgangsrechnung in SAP SD erstellt werden.
+            <br><br>
+            Vor jeder Buchung prüft die App, ob für denselben Kunden + Periode bereits eine Rechnung mit Status <em>erstellt</em> im Browser-Speicher vorhanden ist. Wird ein Duplikat erkannt, wird die Buchung blockiert und eine Fehlermeldung angezeigt.
+            <br><br>
+            Die Prüfung erfolgt <strong>clientseitig</strong> anhand der in <code>localStorage('yconn_rechnung_data')</code> persistierten Status-Einträge. Eine Rechnung mit Status <em>offen</em> oder <em>storniert</em> blockiert nicht.
+            <br><br>
+            <strong>Hintergrund:</strong> Intercompany-Rechnungen werden monatlich pro Gesellschaft konsolidiert. Doppelbuchungen würden SAP-seitig zwei offene Posten erzeugen und den IC-Abstimmungsprozess stören.
+          </div>
+          <div class="rule-tech">
+            <span class="tech-chip ok">Duplikat-Prüfung vor SD-Buchung</span>
+            <span class="tech-chip">Key: Kunden-Nr. + MM/YY</span>
+            <span class="tech-chip">localStorage: yconn_rechnung_data</span>
+            <span class="tech-chip auto">blockiert bei status=erstellt</span>
+          </div>
+        </div>
+        <div class="rule-badges">
+          <span class="badge badge-active">● Aktiv</span>
+          <span class="badge-module bm-rechnung">Rechnungserstellung</span>
+        </div>
+      </div>
+
+      <div class="rule-card">
+        <div class="rule-id" style="color:var(--c-rechnung);border-color:rgba(251,191,36,.35)">R-12</div>
+        <div class="rule-body">
+          <div class="rule-name">SAP SD Konfiguration — Intercompany-Rechnungen</div>
+          <div class="rule-desc">
+            Alle Ausgangsrechnungen an Töchtergesellschaften werden über SAP SD mit folgenden Parametern erstellt:
+            <br><br>
+            <table style="font-size:12px;border-collapse:collapse;margin:8px 0">
+              <tr style="color:var(--muted);border-bottom:1px solid var(--border)">
+                <th style="text-align:left;padding:4px 14px 4px 0">Parameter</th>
+                <th style="text-align:left;padding:4px 14px">Wert</th>
+                <th style="text-align:left;padding:4px 0">Beschreibung</th>
+              </tr>
+              <tr><td style="padding:4px 14px 4px 0">VKOrg</td><td style="padding:4px 14px"><code>ZTA</code></td><td style="color:var(--muted)">Verkaufsorganisation</td></tr>
+              <tr><td style="padding:4px 14px 4px 0">Auftragsart</td><td style="padding:4px 14px"><code>C060</code></td><td style="color:var(--muted)">IC-Auftragstyp</td></tr>
+              <tr><td style="padding:4px 14px 4px 0">Vertriebsweg</td><td style="padding:4px 14px"><code>10</code></td><td style="color:var(--muted)"></td></tr>
+              <tr><td style="padding:4px 14px 4px 0">Sparte</td><td style="padding:4px 14px"><code>10</code></td><td style="color:var(--muted)"></td></tr>
+              <tr><td style="padding:4px 14px 4px 0">Verkaufsbüro</td><td style="padding:4px 14px"><code>1000</code></td><td style="color:var(--muted)"></td></tr>
+              <tr><td style="padding:4px 14px 4px 0">Verkaufsgruppe</td><td style="padding:4px 14px"><code>1000</code></td><td style="color:var(--muted)"></td></tr>
+              <tr><td style="padding:4px 14px 4px 0">Material</td><td style="padding:4px 14px"><code>000000000000000013</code></td><td style="color:var(--muted)">IC-Service-Material</td></tr>
+            </table>
+            <br>
+            MWSt-Kennzeichen nach Leistungsart: Management-Service/SPI/Simulation/Cost-Allocation → <code>Z4</code> | Rental → <code>ZM</code> | Tooling → <code>ZT</code> | Trading-Good → <code>Z1</code>.
+            <br><br>
+            Nach dem SD-Auftrag (<code>BAPI_SALESORDER_CREATEFROMDAT2</code>) wird unmittelbar die Faktura via <code>BAPI_BILLINGDOC_CREATEMULTIPLE</code> erstellt.
+          </div>
+          <div class="rule-tech">
+            <span class="tech-chip">BAPI_SALESORDER_CREATEFROMDAT2</span>
+            <span class="tech-chip">BAPI_BILLINGDOC_CREATEMULTIPLE</span>
+            <span class="tech-chip auto">MWSt-Code nach Leistungsart</span>
+          </div>
+        </div>
+        <div class="rule-badges">
+          <span class="badge badge-active">● Aktiv</span>
+          <span class="badge-module bm-rechnung">Rechnungserstellung</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════════════
+       4. SKALIERBARKEIT — NEUE GESELLSCHAFTEN / MODULE
+  ═══════════════════════════════════════════════════════════════════════ -->
+  <div class="section" data-module="future">
+    <div class="section-header" style="background:rgba(245,158,11,.07);border-color:rgba(245,158,11,.4)">
+      <div class="section-dot" style="background:var(--c-future)"></div>
+      <div class="section-title" style="color:var(--c-future)">🏗 Skalierbarkeit — Neue Gesellschaften &amp; Module</div>
+      <div class="section-sub">Was muss angepasst werden, wenn eine neue SAP-Gesellschaft hinzukommt?</div>
+    </div>
+    <div class="section-body">
+
+      <div style="padding:16px 18px;background:var(--bg2)">
+        <p style="font-size:12px;color:var(--muted);margin-bottom:16px;line-height:1.8">
+          Die App ist so konzipiert, dass neue Buchungskreise oder SAP-Systeme mit minimalem Aufwand integriert werden können.
+          Die folgende Tabelle zeigt, welche Parameter pro Gesellschaft konfiguriert werden müssen.
+        </p>
+
+        <div style="overflow-x:auto;border:1px solid var(--border);border-radius:10px;margin-bottom:20px">
+          <table class="scale-table">
+            <thead>
+              <tr>
+                <th>Parameter</th>
+                <th>Aktuell (0435)</th>
+                <th>Neue Gesellschaft</th>
+                <th>Wo anpassen</th>
+                <th>Pflicht</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Buchungskreis</strong> <code>COMP_CODE</code></td>
+                <td><code>0435</code></td>
+                <td>z.B. <code>0450</code>, <code>VV9</code></td>
+                <td>LOGA-CSV · BAPI-Payload</td>
+                <td class="req">Pflicht</td>
+              </tr>
+              <tr>
+                <td><strong>Kontenrahmen</strong></td>
+                <td><code>ZIKR</code></td>
+                <td>Kontenrahmen der Gesellschaft</td>
+                <td><code>checkZikr()</code> · SKB1-Abfrage</td>
+                <td class="req">Pflicht</td>
+              </tr>
+              <tr>
+                <td><strong>SAP-System</strong></td>
+                <td>SEQ / SEP</td>
+                <td>ashost, sysnr, client</td>
+                <td><code>SAP_SYSTEMS</code>-Objekt in JS · <code>.env</code></td>
+                <td class="req">Pflicht</td>
+              </tr>
+              <tr>
+                <td><strong>Standard-Kostenstelle</strong></td>
+                <td><code>0435-5013</code></td>
+                <td>KST der neuen Gesellschaft</td>
+                <td><code>KST_DEFAULT</code> in payroll.html</td>
+                <td class="req">Pflicht</td>
+              </tr>
+              <tr>
+                <td><strong>Belegtyp</strong> <code>DOC_TYPE</code></td>
+                <td><code>SA</code></td>
+                <td>ggf. abweichend (z.B. <code>AA</code>)</td>
+                <td>Modul-Konstante · App-Regel P-6</td>
+                <td class="opt">Optional</td>
+              </tr>
+              <tr>
+                <td><strong>Ledger-Gruppe</strong> <code>LDGRP</code></td>
+                <td><code>'' (leer)</code> / <code>'0L'</code></td>
+                <td>Je nach Ledger-Konfiguration</td>
+                <td>Modul-Konstante · App-Regel P-7 / Z-3</td>
+                <td class="opt">Optional</td>
+              </tr>
+              <tr>
+                <td><strong>Benutzer-Verknüpfung</strong></td>
+                <td>HUEMMKMA u.a.</td>
+                <td>SAP-User der neuen Gesellschaft</td>
+                <td>Benutzerverwaltung (benutzer.html)</td>
+                <td class="req">Pflicht</td>
+              </tr>
+              <tr>
+                <td><strong>Fiskalperiode / Geschäftsjahr</strong></td>
+                <td>Standard</td>
+                <td>Bei abweichendem Geschäftsjahr</td>
+                <td><code>cfgFiscYear</code> / <code>cfgPeriod</code></td>
+                <td class="opt">Optional</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Geplante Module -->
+        <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">Geplante Module</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px">
+
+          <div style="background:var(--bg3);border:1px solid rgba(251,113,133,.3);border-radius:10px;padding:14px">
+            <div style="font-size:18px;margin-bottom:6px">📌</div>
+            <div style="font-weight:700;margin-bottom:3px">Rückstellungsbuchungen</div>
+            <div style="font-size:11px;color:var(--muted)">Rückstellungen planen, genehmigen und buchen</div>
+            <div style="margin-top:8px"><span class="badge badge-dev">⚙ In Entwicklung</span></div>
+          </div>
+
+          <div style="background:var(--bg3);border:1px solid rgba(196,181,253,.3);border-radius:10px;padding:14px">
+            <div style="font-size:18px;margin-bottom:6px">📉</div>
+            <div style="font-weight:700;margin-bottom:3px">Afa-Lauf</div>
+            <div style="font-size:11px;color:var(--muted)">Abschreibungslauf automatisieren und überwachen</div>
+            <div style="margin-top:8px"><span class="badge badge-dev">⚙ In Entwicklung</span></div>
+          </div>
+
+          <div style="background:var(--bg3);border:1px solid rgba(34,211,238,.3);border-radius:10px;padding:14px">
+            <div style="font-size:18px;margin-bottom:6px">🧾</div>
+            <div style="font-weight:700;margin-bottom:3px">AR-Ausgangsrechnungen</div>
+            <div style="font-size:11px;color:var(--muted)">Automatische Erstellung von Ausgangsrechnungen</div>
+            <div style="margin-top:8px"><span class="badge badge-dev">⚙ In Entwicklung</span></div>
+          </div>
+
+          <div style="background:var(--bg3);border:1px solid rgba(245,158,11,.3);border-radius:10px;padding:14px">
+            <div style="font-size:18px;margin-bottom:6px">🏢</div>
+            <div style="font-weight:700;margin-bottom:3px">Neue Gesellschaft</div>
+            <div style="font-size:11px;color:var(--muted)">Weitere SAP-Buchungskreise / Mandanten anbinden</div>
+            <div style="margin-top:8px"><span class="badge badge-dev">⚙ Geplant</span></div>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</div><!-- /wrap -->
+
+<script src="auth.js"></script>
+<script>
+AUTH.require();
+AUTH.renderHeader && AUTH.renderHeader();
+
+function filterRules(module, btn) {
+  // Chips aktualisieren
+  document.querySelectorAll('.filter-chip').forEach(function(c) { c.classList.remove('active'); });
+  btn.classList.add('active');
+
+  // Sektionen ein-/ausblenden
+  document.querySelectorAll('.section[data-module]').forEach(function(s) {
+    s.style.display = (module === 'all' || s.dataset.module === module) ? '' : 'none';
+  });
+}
+</script>
+</body>
+</html>

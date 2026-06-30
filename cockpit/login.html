@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>YCONN – Anmeldung</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+*,*::before,*::after{box-sizing:border-box;}
+:root{
+  --bg:#0d1117;--bg2:#161b22;--bg3:#21262d;
+  --border:#30363d;--text:#e6edf3;--muted:#8b949e;
+  --accent:#1f6feb;--ok:#10b981;--warn:#f59e0b;--err:#ef4444;
+}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  font-size:14px;line-height:1.5;min-height:100vh;
+  display:flex;align-items:center;justify-content:center;}
+
+/* Card */
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:16px;
+  width:100%;max-width:400px;padding:36px 32px;box-shadow:0 24px 64px rgba(0,0,0,.4);}
+
+/* Logo */
+.logo{display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:28px;}
+.logo-icon{width:48px;height:48px;border-radius:14px;flex-shrink:0;
+  background:linear-gradient(135deg,#1f6feb 0%,#8b5cf6 100%);
+  display:flex;align-items:center;justify-content:center;}
+.logo-icon svg{width:26px;height:26px;}
+.logo-text .title{font-size:22px;font-weight:800;letter-spacing:-.5px;}
+.logo-text .sub{font-size:12px;color:var(--muted);}
+
+h2{font-size:16px;font-weight:700;margin:0 0 20px;text-align:center;color:var(--muted);}
+
+/* Form */
+.field{margin-bottom:16px;}
+.field label{display:block;font-size:11px;font-weight:600;color:var(--muted);
+  text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;}
+.field select,.field input{
+  width:100%;padding:10px 12px;border-radius:8px;
+  border:1px solid var(--border);background:var(--bg3);
+  color:var(--text);font-size:14px;font-family:inherit;outline:none;
+  transition:border-color .15s;}
+.field select:focus,.field input:focus{border-color:var(--accent);}
+.field select option[value=""]{color:var(--muted);}
+
+/* User card preview */
+.user-preview{display:none;align-items:center;gap:10px;
+  background:var(--bg3);border:1px solid var(--border);border-radius:8px;
+  padding:10px 12px;margin-bottom:16px;}
+.user-preview.show{display:flex;}
+.avatar{width:36px;height:36px;border-radius:50%;flex-shrink:0;
+  background:linear-gradient(135deg,#1f6feb,#8b5cf6);
+  display:flex;align-items:center;justify-content:center;
+  font-size:13px;font-weight:700;color:#fff;}
+.user-info .name{font-weight:600;font-size:14px;}
+.user-info .meta{font-size:11px;color:var(--muted);}
+.role-badge{margin-left:auto;padding:2px 8px;border-radius:999px;font-size:11px;
+  font-weight:600;border:1px solid;}
+.role-admin{background:rgba(245,158,11,.1);border-color:rgba(245,158,11,.3);color:var(--warn);}
+.role-buchung{background:rgba(16,185,129,.1);border-color:rgba(16,185,129,.3);color:var(--ok);}
+.role-readonly{background:var(--bg);border-color:var(--border);color:var(--muted);}
+
+/* Button */
+.btn-login{width:100%;padding:11px;border-radius:8px;border:none;
+  background:var(--accent);color:#fff;font-size:14px;font-weight:600;
+  cursor:pointer;font-family:inherit;transition:background .15s;margin-top:4px;}
+.btn-login:hover{background:#1a60d4;}
+.btn-login:disabled{background:var(--bg3);color:var(--muted);cursor:not-allowed;border:1px solid var(--border);}
+
+/* Status */
+.status{text-align:center;font-size:12px;margin-top:14px;min-height:18px;}
+.status.err{color:var(--err);}
+.status.ok{color:var(--ok);}
+.status.warn{color:var(--warn);}
+
+/* Orchester-Warn */
+.orc-warn{background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.25);
+  border-radius:8px;padding:10px 14px;font-size:12px;color:var(--warn);
+  margin-bottom:16px;display:none;}
+.orc-warn.show{display:block;}
+
+@keyframes spin{to{transform:rotate(360deg)}}
+.spinner{display:inline-block;width:13px;height:13px;
+  border:2px solid rgba(255,255,255,.3);border-top-color:#fff;
+  border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle;}
+</style>
+</head>
+<body>
+<div class="card">
+
+  <div class="logo">
+    <div class="logo-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"
+           stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="3" width="18" height="18" rx="3"/>
+        <path d="M8 12h8M12 8v8"/>
+      </svg>
+    </div>
+    <div class="logo-text">
+      <div class="title">YCONN</div>
+      <div class="sub">SAP Finance Robots</div>
+    </div>
+  </div>
+
+  <h2>Anmeldung</h2>
+
+  <div class="orc-warn" id="orcWarn">
+    ⚠ Orchestrator nicht erreichbar – Benutzerliste kann nicht geladen werden.
+    Bitte <strong>Orchestrator starten.bat</strong> ausführen.
+  </div>
+
+  <div class="field">
+    <label>Benutzer</label>
+    <select id="selUser" onchange="onUserChange()">
+      <option value="">– Benutzer auswählen –</option>
+    </select>
+  </div>
+
+  <div class="user-preview" id="userPreview">
+    <div class="avatar" id="previewAvatar"></div>
+    <div class="user-info">
+      <div class="name" id="previewName"></div>
+      <div class="meta" id="previewMeta"></div>
+    </div>
+    <div class="role-badge" id="previewRole"></div>
+  </div>
+
+  <div class="field" id="pwField" style="display:none">
+    <label>SAP-Passwort</label>
+    <input type="password" id="inPassword" placeholder="Passwort eingeben…"
+           autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
+  </div>
+
+  <button class="btn-login" id="btnLogin" onclick="doLogin()" disabled>Anmelden</button>
+
+  <div class="status" id="statusMsg"></div>
+
+</div>
+
+<script>
+const ORC_URL    = 'http://localhost:8000';
+const BRIDGE_URL = 'http://localhost:8765';
+const REDIRECT   = 'startseite.html';
+const SESSION_KEY = 'yconn_user';
+
+let users = [];
+
+// Bereits eingeloggt?
+try {
+  const s = localStorage.getItem(SESSION_KEY) || sessionStorage.getItem(SESSION_KEY);
+  if (s) { const u = JSON.parse(s); if (u && u.id) location.replace(REDIRECT); }
+} catch(e) {}
+
+window.addEventListener('DOMContentLoaded', loadUsers);
+
+async function loadUsers() {
+  setStatus('Lade Benutzerliste…', 'warn');
+  try {
+    const r = await fetch(ORC_URL + '/sap-users?active_only=true',
+                          { signal: AbortSignal.timeout(4000) });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    users = await r.json();
+    fillSelect();
+    setStatus('');
+  } catch(e) {
+    document.getElementById('orcWarn').classList.add('show');
+    setStatus('Orchestrator nicht erreichbar.', 'err');
+  }
+}
+
+function fillSelect() {
+  const sel = document.getElementById('selUser');
+  sel.innerHTML = '<option value="">– Benutzer auswählen –</option>';
+  users.forEach(u => {
+    const opt = document.createElement('option');
+    opt.value = u.id;
+    opt.textContent = `${u.display_name} (${u.sap_username}) – ${u.sap_system}`;
+    sel.appendChild(opt);
+  });
+}
+
+function onUserChange() {
+  const id = parseInt(document.getElementById('selUser').value);
+  const u  = users.find(x => x.id === id);
+  const preview = document.getElementById('userPreview');
+  const pwField = document.getElementById('pwField');
+  const btn     = document.getElementById('btnLogin');
+
+  if (!u) {
+    preview.classList.remove('show');
+    pwField.style.display = 'none';
+    btn.disabled = true;
+    setStatus('');
+    return;
+  }
+
+  // Preview
+  const initials = u.display_name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+  document.getElementById('previewAvatar').textContent = initials;
+  document.getElementById('previewName').textContent   = u.display_name;
+  document.getElementById('previewMeta').textContent   =
+    `${u.sap_username} · ${u.sap_system} · Mandant ${u.client}`;
+  const roleEl = document.getElementById('previewRole');
+  roleEl.textContent = u.role;
+  roleEl.className = 'role-badge role-' + u.role.toLowerCase();
+  preview.classList.add('show');
+
+  pwField.style.display = '';
+  btn.disabled = false;
+  setStatus('');
+  setTimeout(() => document.getElementById('inPassword').focus(), 60);
+}
+
+async function doLogin() {
+  const id  = parseInt(document.getElementById('selUser').value);
+  const pw  = document.getElementById('inPassword').value.trim();
+  const u   = users.find(x => x.id === id);
+  if (!u)  { setStatus('Bitte Benutzer auswählen.', 'err'); return; }
+  if (!pw) { setStatus('Bitte Passwort eingeben.', 'err'); return; }
+
+  const btn = document.getElementById('btnLogin');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Prüfe…';
+  setStatus('');
+
+  // Verbindungstest via Bridge /test_rfc
+  try {
+    const resp = await fetch(BRIDGE_URL + '/test_rfc', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ _sap_auth: {
+        ashost: u.ashost, sysnr: u.sysnr, client: u.client,
+        lang: u.lang || 'DE', user: u.sap_username, passwd: pw
+      }}),
+      signal: AbortSignal.timeout(12000)
+    });
+    const d   = await resp.json();
+    const msg = d.message || '';
+    const rfcpingOnly = msg.includes('RFC_NO_AUTHORITY') && msg.includes('RFCPING');
+
+    if (d.status === 'ok' || rfcpingOnly) {
+      // Session speichern (Passwort in Session für Buchungen)
+      const session = {
+        id:           u.id,
+        display_name: u.display_name,
+        sap_username: u.sap_username,
+        sap_system:   u.sap_system,
+        ashost:       u.ashost,
+        sysnr:        u.sysnr,
+        client:       u.client,
+        lang:         u.lang || 'DE',
+        role:         u.role,
+        passwd:       pw,          // nur sessionStorage – nie persistiert
+        login_time:   new Date().toISOString()
+      };
+      localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+      sessionStorage.setItem(SESSION_KEY, JSON.stringify(session)); // Fallback für API-Calls
+      setStatus('✓ Anmeldung erfolgreich…', 'ok');
+      setTimeout(() => location.replace(REDIRECT), 600);
+    } else {
+      setStatus('✗ ' + (msg || 'Anmeldung fehlgeschlagen.'), 'err');
+      btn.disabled = false;
+      btn.textContent = 'Anmelden';
+    }
+  } catch(e) {
+    // Bridge nicht erreichbar – trotzdem einloggen (Passwort für später speichern)
+    const session = {
+      id:           u.id,
+      display_name: u.display_name,
+      sap_username: u.sap_username,
+      sap_system:   u.sap_system,
+      ashost:       u.ashost,
+      sysnr:        u.sysnr,
+      client:       u.client,
+      lang:         u.lang || 'DE',
+      role:         u.role,
+      passwd:       pw,
+      login_time:   new Date().toISOString(),
+      bridge_offline: true
+    };
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
+    setStatus('⚠ Bridge offline – Anmeldung ohne Verbindungstest.', 'warn');
+    setTimeout(() => location.replace(REDIRECT), 900);
+  }
+}
+
+function setStatus(msg, type='') {
+  const el = document.getElementById('statusMsg');
+  el.textContent = msg;
+  el.className = 'status' + (type ? ' ' + type : '');
+}
+</script>
+</body>
+</html>
