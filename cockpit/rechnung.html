@@ -107,11 +107,22 @@ select{padding:6px 10px;background:var(--bg3);border:1px solid var(--border);bor
 
   <!-- ── SAP Konfiguration ── -->
   <div class="cfg-card">
-    <div style="display:flex;align-items:center;justify-content:space-between">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
       <div style="font-size:13px;font-weight:700;color:var(--acc)">⚙ SAP SD Konfiguration</div>
-      <button class="btn-nav" onclick="saveConfig()" style="font-size:11px">💾 Speichern</button>
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="font-size:11px;color:var(--muted)">Buchungskreis:</div>
+        <select id="cfgBukrs" onchange="onBukrsChange()" style="font-size:12px;font-weight:700;padding:5px 12px;background:rgba(88,166,255,.1);border:1px solid rgba(88,166,255,.4);border-radius:8px;color:var(--acc)">
+          <option value="0435">0435 – Catensys Germany (Werk: C060)</option>
+          <option value="0436">0436 – (Werk: C199)</option>
+          <option value="0437">0437 – (Werk: C095)</option>
+          <option value="0438">0438 – (Werk: C074)</option>
+          <option value="0439">0439 – (Werk: C042)</option>
+          <option value="0440">0440 – (Werk: C051)</option>
+        </select>
+        <button class="btn-nav" onclick="saveConfig()" style="font-size:11px">💾 Speichern</button>
+      </div>
     </div>
-    <div class="cfg-grid" id="cfgGrid">
+    <div class="cfg-grid" id="cfgGrid" style="margin-top:12px">
       <div class="cfg-item"><label>VKOrg (Sales Org)</label><input id="cfgVkorg" value="C060"></div>
       <div class="cfg-item"><label>Auftragsart</label><input id="cfgDoctype" value="ZTA"></div>
       <div class="cfg-item"><label>Vertriebsweg</label><input id="cfgDistrchan" value="10"></div>
@@ -160,6 +171,7 @@ select{padding:6px 10px;background:var(--bg3);border:1px solid var(--border);bor
         </select>
         <span class="count-badge" id="invCount">0 Einträge</span>
         <button class="btn-nav" onclick="exportXlsx()" style="font-size:11px">📥 Excel</button>
+        <button class="btn-nav" onclick="openNewInvoiceModal()" style="font-size:11px;background:rgba(63,185,80,.12);color:var(--ok);border:1px solid rgba(63,185,80,.3)">➕ Neue Rechnung</button>
         <button class="btn-nav" onclick="openBatchModal()" style="font-size:11px;background:rgba(88,166,255,.12);color:var(--acc);border:1px solid rgba(88,166,255,.3)" id="batchBtn" disabled title="Excel-Datei hochladen um Batch-Buchung zu starten">📦 Batch buchen</button>
         <button class="btn-nav btn-primary" onclick="clearData()" style="font-size:11px">🗑 Daten löschen</button>
       </div>
@@ -169,6 +181,7 @@ select{padding:6px 10px;background:var(--bg3);border:1px solid var(--border);bor
         <thead>
           <tr>
             <th style="width:28px"></th>
+            <th>BuKrs</th>
             <th>Kunden-Nr</th>
             <th>Name</th>
             <th>Periode</th>
@@ -179,7 +192,7 @@ select{padding:6px 10px;background:var(--bg3);border:1px solid var(--border);bor
             <th>Status</th>
             <th>Rechnungsnr.</th>
             <th>Auftragsnr.</th>
-            <th style="width:120px"></th>
+            <th style="width:160px"></th>
           </tr>
         </thead>
         <tbody id="invBody">
@@ -188,6 +201,97 @@ select{padding:6px 10px;background:var(--bg3);border:1px solid var(--border);bor
           </td></tr>
         </tbody>
       </table>
+    </div>
+  </div>
+
+  <!-- ── Modal: Neue Rechnung manuell ── -->
+  <div class="modal-overlay" id="newInvModal">
+    <div class="modal" style="max-width:620px;max-height:90vh;overflow-y:auto">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+        <h3 id="newInvTitle">➕ Neue Rechnung erfassen</h3>
+        <button class="modal-close" onclick="closeNewInvoiceModal()">✕</button>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="modal-field">
+          <label>Buchungskreis</label>
+          <select id="nieBukrs" style="width:100%;padding:8px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px">
+            <option value="0435">0435 – C060</option>
+            <option value="0436">0436 – C199</option>
+            <option value="0437">0437 – C095</option>
+            <option value="0438">0438 – C074</option>
+            <option value="0439">0439 – C042</option>
+            <option value="0440">0440 – C051</option>
+          </select>
+        </div>
+        <div class="modal-field">
+          <label>Periode (MM/YYYY)</label>
+          <input type="text" id="niePeriode" placeholder="06/2026" style="width:100%;padding:8px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px">
+        </div>
+        <div class="modal-field">
+          <label>Kunden-Nr</label>
+          <input type="text" id="nieKundenNr" placeholder="z.B. 103054" style="width:100%;padding:8px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px">
+        </div>
+        <div class="modal-field">
+          <label>Name / Gesellschaft</label>
+          <input type="text" id="nieName" placeholder="Unternehmensname" style="width:100%;padding:8px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px">
+        </div>
+        <div class="modal-field">
+          <label>SAP-Datum (YYYYMMDD)</label>
+          <input type="text" id="nieSapDate" placeholder="20260601" style="width:100%;padding:8px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px">
+        </div>
+        <div class="modal-field">
+          <label>Leistungsart</label>
+          <select id="nieLeistungsart" style="width:100%;padding:8px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px">
+            <option value="Management-Service">Management-Service</option>
+            <option value="SPI">SPI</option>
+            <option value="Rental">Rental</option>
+            <option value="Tooling">Tooling</option>
+            <option value="Simulation">Simulation</option>
+            <option value="Cost-Allocation">Cost-Allocation</option>
+            <option value="Trading-Good">Trading-Good</option>
+          </select>
+        </div>
+        <div class="modal-field">
+          <label>MWSt-Code</label>
+          <select id="nieMwstCode" style="width:100%;padding:8px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px">
+            <option value="Z4">Z4</option>
+            <option value="ZM">ZM</option>
+            <option value="ZT">ZT</option>
+            <option value="Z1">Z1</option>
+          </select>
+        </div>
+        <div class="modal-field">
+          <label>Währung</label>
+          <select id="nieWaehrung" style="width:100%;padding:8px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px">
+            <option value="EUR">EUR</option>
+            <option value="USD">USD</option>
+            <option value="GBP">GBP</option>
+            <option value="CHF">CHF</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Positionen -->
+      <div style="margin-top:14px;border:1px solid var(--border);border-radius:8px;overflow:hidden">
+        <div style="background:var(--bg3);padding:8px 12px;font-size:11px;font-weight:700;color:var(--muted);display:flex;align-items:center;justify-content:space-between">
+          <span>POSITIONEN</span>
+          <button onclick="addNiePosition()" style="padding:3px 10px;background:rgba(63,185,80,.12);border:1px solid rgba(63,185,80,.3);border-radius:6px;color:var(--ok);font-size:11px;font-weight:700;cursor:pointer">+ Position</button>
+        </div>
+        <div id="niePositions" style="padding:8px 10px;display:flex;flex-direction:column;gap:6px">
+          <!-- dynamisch befüllt -->
+        </div>
+      </div>
+
+      <div style="margin-top:12px;padding:10px 12px;background:var(--bg3);border-radius:8px;display:flex;align-items:center;justify-content:space-between">
+        <span style="font-size:11px;color:var(--muted)">Gesamt:</span>
+        <span id="nieTotalDisplay" style="font-size:16px;font-weight:700;font-family:monospace;color:var(--acc)">0,00 EUR</span>
+      </div>
+
+      <div id="newInvResult" style="margin-top:10px"></div>
+      <div class="modal-btns">
+        <button class="btn-nav" onclick="closeNewInvoiceModal()">Abbrechen</button>
+        <button class="btn-nav" onclick="saveNewInvoice()" style="background:rgba(63,185,80,.15);border-color:rgba(63,185,80,.4);color:var(--ok);font-weight:700">💾 Speichern</button>
+      </div>
     </div>
   </div>
 

@@ -179,6 +179,7 @@ class InvoiceRecord(Base):
     order_nr:     Mapped[str]      = mapped_column(String(64), default="")
     positions_json: Mapped[str]    = mapped_column(Text,       default="[]")  # JSON-Array der Positionen
     is_storno:    Mapped[int]      = mapped_column(Integer,    default=0)
+    bukrs:        Mapped[str]      = mapped_column(String(4),  default="0435")  # Buchungskreis
     imported_at:  Mapped[datetime] = mapped_column(DateTime,   default=datetime.utcnow)
     updated_at:   Mapped[datetime] = mapped_column(DateTime,   default=datetime.utcnow)
 
@@ -529,6 +530,7 @@ class InvoiceRecordIn(BaseModel):
     order_nr:     str  = ""
     positions:    List[InvoicePositionIn] = []
     is_storno:    int  = 0
+    bukrs:        str  = "0435"
 
 
 class InvoiceStatusIn(BaseModel):
@@ -1535,13 +1537,37 @@ import json as _json
 def list_invoice_records(
     status:  Optional[str] = None,
     periode: Optional[str] = None,
+    bukrs:   Optional[str] = None,
     db: Session = Depends(get_db),
 ):
     q = db.query(InvoiceRecord)
     if status:  q = q.filter(InvoiceRecord.status  == status)
     if periode: q = q.filter(InvoiceRecord.periode == periode)
+    if bukrs:   q = q.filter(InvoiceRecord.bukrs   == bukrs)
     rows = q.order_by(InvoiceRecord.periode.desc(), InvoiceRecord.kunden_nr).all()
     return [_invoice_to_dict(r) for r in rows]
+
+
+@app.post("/invoice_records", status_code=201)
+def create_invoice_record(rec: InvoiceRecordIn, db: Session = Depends(get_db)):
+    """Einzelnen Datensatz manuell anlegen (aus Frontend-Formular)."""
+    positions_json = _json.dumps(
+        [p.model_dump() for p in rec.positions], ensure_ascii=False
+    )
+    existing = db.query(InvoiceRecord).filter_by(group_key=rec.group_key).first()
+    if existing:
+        raise HTTPException(409, f"group_key '{rec.group_key}' existiert bereits")
+    obj = InvoiceRecord(
+        group_key=rec.group_key, kunden_nr=rec.kunden_nr, name=rec.name,
+        periode=rec.periode, sap_date=rec.sap_date, leistungsart=rec.leistungsart,
+        mwst_code=rec.mwst_code, waehrung=rec.waehrung, total=rec.total,
+        status=rec.status, invoice_nr=rec.invoice_nr, order_nr=rec.order_nr,
+        positions_json=positions_json, is_storno=rec.is_storno, bukrs=rec.bukrs,
+    )
+    db.add(obj)
+    db.commit()
+    db.refresh(obj)
+    return _invoice_to_dict(obj)
 
 
 @app.post("/invoice_records/bulk", status_code=200)
@@ -1574,7 +1600,7 @@ def upsert_invoice_records(records: List[InvoiceRecordIn], db: Session = Depends
                 periode=rec.periode, sap_date=rec.sap_date, leistungsart=rec.leistungsart,
                 mwst_code=rec.mwst_code, waehrung=rec.waehrung, total=rec.total,
                 status=rec.status, invoice_nr=rec.invoice_nr, order_nr=rec.order_nr,
-                positions_json=positions_json, is_storno=rec.is_storno,
+                positions_json=positions_json, is_storno=rec.is_storno, bukrs=rec.bukrs,
             ))
             inserted += 1
     db.commit()
@@ -1614,6 +1640,7 @@ def _invoice_to_dict(r: InvoiceRecord) -> dict:
         "waehrung": r.waehrung, "total": r.total, "status": r.status,
         "invoice_nr": r.invoice_nr, "order_nr": r.order_nr,
         "positions": positions, "is_storno": bool(r.is_storno),
+        "bukrs": getattr(r, "bukrs", "0435") or "0435",
         "has_pdf": has_pdf,
         "imported_at": r.imported_at.isoformat() if r.imported_at else "",
         "updated_at":  r.updated_at.isoformat()  if r.updated_at  else "",
