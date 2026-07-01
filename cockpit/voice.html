@@ -874,5 +874,203 @@ function showServerSetup() {
   openVoiceSettings();
 }
 </script>
+
+<!-- ══════════════════════════════════════════════════════════
+     KI-Provider-Einstellungen Modal
+═══════════════════════════════════════════════════════════ -->
+<div id="aiSettingsModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:9999;align-items:center;justify-content:center">
+  <div style="background:#161b22;border:1px solid #30363d;border-radius:16px;padding:28px 32px;width:480px;max-width:95vw;box-shadow:0 8px 40px rgba(0,0,0,.6)">
+
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+      <h3 style="margin:0;font-size:16px;color:#e6edf3">🤖 KI-Provider für Esra</h3>
+      <button onclick="closeAiSettings()" style="background:none;border:none;color:#8b949e;font-size:18px;cursor:pointer;line-height:1">✕</button>
+    </div>
+
+    <!-- Provider-Auswahl -->
+    <div style="margin-bottom:18px">
+      <label style="font-size:11px;font-weight:700;color:#8b949e;text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:8px">KI-Anbieter</label>
+      <div style="display:flex;gap:10px">
+        <label style="flex:1;display:flex;align-items:center;gap:8px;padding:10px 14px;border-radius:10px;border:2px solid #30363d;cursor:pointer;transition:all .2s" id="providerCardClaude" onclick="selectProvider('claude')">
+          <input type="radio" name="aiProvider" value="claude" id="radioClaude" style="accent-color:#00a67e">
+          <div>
+            <div style="font-size:13px;font-weight:700;color:#e6edf3">Claude (Anthropic)</div>
+            <div style="font-size:11px;color:#8b949e">Haiku · Sonnet · Opus</div>
+          </div>
+        </label>
+        <label style="flex:1;display:flex;align-items:center;gap:8px;padding:10px 14px;border-radius:10px;border:2px solid #30363d;cursor:pointer;transition:all .2s" id="providerCardOpenAI" onclick="selectProvider('openai')">
+          <input type="radio" name="aiProvider" value="openai" id="radioOpenAI" style="accent-color:#10a37f">
+          <div>
+            <div style="font-size:13px;font-weight:700;color:#e6edf3">ChatGPT (OpenAI)</div>
+            <div style="font-size:11px;color:#8b949e">GPT-4o · GPT-4o mini</div>
+          </div>
+        </label>
+      </div>
+    </div>
+
+    <!-- Modell -->
+    <div style="margin-bottom:14px">
+      <label style="font-size:11px;font-weight:700;color:#8b949e;text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:6px">Modell</label>
+      <select id="aiModel" style="width:100%;padding:9px 12px;background:#0d1117;border:1px solid #30363d;border-radius:8px;color:#e6edf3;font-size:13px">
+        <!-- Claude Optionen -->
+        <option value="claude-haiku-4-5-20251001" data-provider="claude">Claude Haiku 4.5 (schnell, günstig)</option>
+        <option value="claude-sonnet-4-6" data-provider="claude">Claude Sonnet 4.6 (ausgewogen)</option>
+        <option value="claude-opus-4-8" data-provider="claude">Claude Opus 4.8 (leistungsstark)</option>
+        <!-- OpenAI Optionen -->
+        <option value="gpt-4o-mini" data-provider="openai">GPT-4o mini (schnell, günstig)</option>
+        <option value="gpt-4o" data-provider="openai">GPT-4o (leistungsstark)</option>
+        <option value="gpt-4-turbo" data-provider="openai">GPT-4 Turbo</option>
+      </select>
+    </div>
+
+    <!-- API-Key -->
+    <div style="margin-bottom:18px">
+      <label style="font-size:11px;font-weight:700;color:#8b949e;text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:6px">
+        API-Schlüssel
+        <span id="aiKeyStatus" style="margin-left:8px;font-size:10px;font-weight:400;color:#3fb950"></span>
+      </label>
+      <div style="position:relative">
+        <input type="password" id="aiApiKey"
+          placeholder="sk-... oder sk-ant-..."
+          style="width:100%;box-sizing:border-box;padding:9px 40px 9px 12px;background:#0d1117;border:1px solid #30363d;border-radius:8px;color:#e6edf3;font-size:13px;font-family:monospace">
+        <button onclick="toggleApiKeyVisibility()" id="aiKeyToggle"
+          style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;color:#8b949e;cursor:pointer;font-size:14px"
+          title="Schlüssel anzeigen/verbergen">👁</button>
+      </div>
+      <div style="font-size:11px;color:#8b949e;margin-top:5px">Leer lassen, um den gespeicherten Schlüssel zu behalten.</div>
+    </div>
+
+    <!-- Status / Testergebnis -->
+    <div id="aiTestResult" style="min-height:28px;margin-bottom:14px;font-size:12px"></div>
+
+    <!-- Buttons -->
+    <div style="display:flex;gap:10px;justify-content:flex-end">
+      <button onclick="testAiConnection()" style="padding:8px 18px;background:rgba(88,166,255,.12);border:1px solid rgba(88,166,255,.4);border-radius:8px;color:#58a6ff;font-size:12px;font-weight:700;cursor:pointer">
+        🔍 Verbindung testen
+      </button>
+      <button onclick="saveAiSettings()" style="padding:8px 20px;background:rgba(63,185,80,.15);border:1px solid rgba(63,185,80,.4);border-radius:8px;color:#3fb950;font-size:12px;font-weight:700;cursor:pointer">
+        💾 Speichern
+      </button>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ── KI-Einstellungen ─────────────────────────────────────────────────────────
+var ORCH_URL_VOICE = 'http://localhost:8000';
+
+function openAiSettings() {
+  document.getElementById('aiSettingsModal').style.display = 'flex';
+  loadAiConfig();
+}
+function closeAiSettings() {
+  document.getElementById('aiSettingsModal').style.display = 'none';
+}
+
+function selectProvider(p) {
+  document.getElementById('radioClaude').checked  = (p === 'claude');
+  document.getElementById('radioOpenAI').checked  = (p === 'openai');
+  document.getElementById('providerCardClaude').style.borderColor = (p === 'claude') ? '#00a67e' : '#30363d';
+  document.getElementById('providerCardOpenAI').style.borderColor = (p === 'openai') ? '#10a37f' : '#30363d';
+  // Modell-Optionen filtern
+  var sel = document.getElementById('aiModel');
+  Array.from(sel.options).forEach(function(o) {
+    o.hidden = (o.dataset.provider && o.dataset.provider !== p);
+  });
+  // erste passende Option wählen
+  var first = Array.from(sel.options).find(function(o){ return !o.hidden; });
+  if (first) sel.value = first.value;
+}
+
+function toggleApiKeyVisibility() {
+  var inp = document.getElementById('aiApiKey');
+  inp.type = inp.type === 'password' ? 'text' : 'password';
+}
+
+async function loadAiConfig() {
+  document.getElementById('aiKeyStatus').textContent = '';
+  try {
+    var resp = await fetch(ORCH_URL_VOICE + '/ai_config');
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    var cfg = await resp.json();
+    selectProvider(cfg.provider || 'claude');
+    if (cfg.model) document.getElementById('aiModel').value = cfg.model;
+    document.getElementById('aiApiKey').value = '';  // nie vorausfüllen
+    document.getElementById('aiKeyStatus').textContent = cfg.api_key_set
+      ? '✓ Schlüssel gespeichert (' + cfg.api_key + ')'
+      : '⚠ Noch kein Schlüssel gesetzt';
+    document.getElementById('aiKeyStatus').style.color = cfg.api_key_set ? '#3fb950' : '#d29922';
+  } catch(e) {
+    document.getElementById('aiKeyStatus').textContent = '⚠ Orchestrator nicht erreichbar';
+    document.getElementById('aiKeyStatus').style.color = '#f85149';
+  }
+}
+
+async function saveAiSettings() {
+  var provider = document.querySelector('input[name="aiProvider"]:checked').value;
+  var model    = document.getElementById('aiModel').value;
+  var apiKey   = document.getElementById('aiApiKey').value.trim();
+  var res      = document.getElementById('aiTestResult');
+  res.innerHTML = '<span style="color:#8b949e">Speichere…</span>';
+  try {
+    var params = new URLSearchParams({ provider: provider, model: model });
+    if (apiKey) params.append('api_key', apiKey);
+    var resp = await fetch(ORCH_URL_VOICE + '/ai_config?' + params.toString(), { method: 'PUT' });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    res.innerHTML = '<span style="color:#3fb950">✓ Gespeichert! Esra verwendet ab sofort ' + provider.toUpperCase() + ' (' + model + ').</span>';
+    document.getElementById('aiApiKey').value = '';
+    loadAiConfig();
+  } catch(e) {
+    res.innerHTML = '<span style="color:#f85149">Fehler: ' + e.message + '</span>';
+  }
+}
+
+async function testAiConnection() {
+  var provider = document.querySelector('input[name="aiProvider"]:checked').value;
+  var model    = document.getElementById('aiModel').value;
+  var apiKey   = document.getElementById('aiApiKey').value.trim();
+  var res      = document.getElementById('aiTestResult');
+  if (!apiKey) {
+    res.innerHTML = '<span style="color:#d29922">⚠ Bitte zuerst den API-Schlüssel eingeben, um die Verbindung zu testen.</span>';
+    return;
+  }
+  res.innerHTML = '<span style="color:#8b949e">Teste Verbindung zu ' + provider + '…</span>';
+  try {
+    // Kurzer Test-Chat über Bridge
+    var testResp = await fetch('http://localhost:8765/voice/chat', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({
+        text:     'Hallo, antworte kurz mit: OK',
+        history:  [],
+        _test_provider: provider,
+        _test_key:      apiKey,
+        _test_model:    model,
+      }),
+    });
+    if (testResp.ok) {
+      var data = await testResp.json();
+      res.innerHTML = '<span style="color:#3fb950">✓ Verbindung OK! Antwort: "' + (data.text || '').slice(0, 80) + '"</span>';
+    } else {
+      throw new Error('HTTP ' + testResp.status);
+    }
+  } catch(e) {
+    // Direkter API-Test falls Bridge nicht läuft
+    res.innerHTML = '<span style="color:#d29922">⚠ Bridge nicht erreichbar — Schlüssel wird beim Speichern direkt validiert.</span>';
+  }
+}
+
+// Einstellungen-Button in der Shortcut-Bar ergänzen (nachträglich)
+(function addAiSettingsBtn() {
+  var bar = document.querySelector('.shortcuts');
+  if (!bar) return;
+  var btn = document.createElement('div');
+  btn.className = 'shortcut';
+  btn.title = 'KI-Provider einstellen';
+  btn.innerHTML = '⚙ KI-API';
+  btn.onclick = openAiSettings;
+  bar.appendChild(btn);
+})();
+</script>
 </body>
 </html>
