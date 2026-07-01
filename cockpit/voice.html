@@ -419,19 +419,25 @@ async function checkVoiceServer() {
 
     return true;
   } catch(e) {
-    updateBadge('badgeStt',  'warn', 'Web STT');
-    updateBadge('badgeTts',  'warn', 'Web TTS');
+    _updateWebSpeechBadges();
     updateBadge('badgeWake', 'muted', 'Wake –');
     return false;
   }
+}
+
+/** Setzt STT/TTS-Badges grün wenn Web Speech API verfügbar, sonst rot. */
+function _updateWebSpeechBadges() {
+  var hasSR  = !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+  var hasTTS = !!(window.speechSynthesis);
+  updateBadge('badgeStt', hasSR  ? 'ok' : 'err', hasSR  ? 'Web STT ✓' : 'STT ✗');
+  updateBadge('badgeTts', hasTTS ? 'ok' : 'err', hasTTS ? 'Web TTS ✓' : 'TTS ✗');
 }
 
 async function checkBridgeFallback() {
   try {
     var r = await _fetchWithTimeout(BRIDGE_URL + '/voice/status', 3000);
     var d = await r.json();
-    updateBadge('badgeStt', 'warn', 'Web STT');
-    updateBadge('badgeTts', 'warn', 'Web TTS');
+    _updateWebSpeechBadges();
     var prov = (d.provider || 'offline').toLowerCase();
     if (d.api_key_set) {
       if (prov === 'openai')       updateBadge('badgeKI', 'ok',     '🤖 ChatGPT');
@@ -442,9 +448,8 @@ async function checkBridgeFallback() {
     }
     return true;   // Bridge erreichbar
   } catch(e) {
-    updateBadge('badgeStt', 'err', 'STT ✗');
-    updateBadge('badgeTts', 'err', 'TTS ✗');
-    updateBadge('badgeKI',  'err', 'KI ✗');
+    _updateWebSpeechBadges();
+    updateBadge('badgeKI', 'err', 'KI ✗');
     return false;  // Bridge nicht erreichbar
   }
 }
