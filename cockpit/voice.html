@@ -583,19 +583,18 @@ function toggleMic() {
   } else {
     // Browser Web Speech Fallback
     if (_recognition) {
-      if (_isListening) stopWebSpeech(); else startWebSpeech();
+      // Im Input-Modus → abbrechen; sonst → Input-Modus starten
+      if (_srMode === 'input') stopWebSpeech(); else startWebSpeech();
     } else {
-      // Kein STT verfügbar – klare Fehlermeldung
       var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
       if (!SR) {
         setStatus('err',
-          '⚠ Spracherkennung nicht verfügbar. ' +
-          'Bitte Chrome oder Edge verwenden, oder Voice Server starten (Port 8766).');
+          '⚠ Spracherkennung nicht verfügbar. Bitte Chrome oder Edge verwenden.');
         showMicDiag();
       } else {
-        // SpeechRecognition vorhanden aber noch nicht initialisiert – nochmal versuchen
         initWebSpeech();
-        if (_recognition) startWebSpeech();
+        initBrowserWakeWord();
+        startWebSpeech();
       }
     }
   }
@@ -671,87 +670,120 @@ async function transcribeBlob(blob) {
   }
 }
 
-// ── WEB SPEECH API FALLBACK ───────────────────────────────────────────────────
+// ── WEB SPEECH + WAKE-WORD (ein einziger SR-Singleton) ───────────────────────
+//
+// Zwei Modi über _srMode:
+//   'wake'  — continuous, hört auf "Esra" / "Hey Esra"
+//   'input' — wartet auf Nutzerfrage (ein Satz), sendet danach
+//
+var _srMode = 'idle';   // 'wake' | 'input' | 'idle'
+var WAKE_WORDS = ['esra', 'hey esra', 'hallo esra'];
+
 function initWebSpeech() {
   var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR) return;
   _recognition = new SR();
-  _recognition.lang = 'de-DE';
-  _recognition.continuous = false;
-  _recognition.interimResults = true;
+  _recognition.lang            = 'de-DE';
+  _recognition.continuous      = true;   // läuft durchgehend
+  _recognition.interimResults  = true;
+  _recognition.maxAlternatives = 2;
 
-  _recognition.onstart  = function() { _isListening = true;  document.getElementById('micBtn').classList.add('active'); setStatus('listening', '🔴 Höre zu…'); };
-  _recognition.onend    = function() { _isListening = false; document.getElementById('micBtn').classList.remove('active'); };
-  _recognition.onerror  = function(e){ setStatus('', 'Fehler: ' + e.error); _isListening = false; };
-  _recognition.onresult = function(e) {
-    var t = ''; for (var i=e.resultIndex;i<e.results.length;i++) t += e.results[i][0].transcript;
-    document.getElementById('textInput').value = t;
-    if (e.results[e.results.length-1].isFinal) sendMessage();
+  _recognition.onstart = function() {
+    if (_srMode === 'input') {
+      _isListening = true;
+      document.getElementById('micBtn').classList.add('active');
+      setStatus('listening', '🔴 Höre zu… (sprechen Sie jetzt)');
+    }
   };
-}
-function startWebSpeech() { if (_recognition) _recognition.start(); }
-function stopWebSpeech()  { if (_recognition) _recognition.stop(); }
 
-// ── BROWSER WAKE-WORD ("Esra") ────────────────────────────────────────────────
-var _wakeRec = null;
-var _wakeActive = false;
-var WAKE_WORDS = ['esra', 'hey esra', 'hallo esra'];
-
-function initBrowserWakeWord() {
-  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SR) {
-    updateBadge('badgeWake', 'err', 'Wake ✗');
-    return;
-  }
-  _wakeRec = new SR();
-  _wakeRec.lang = 'de-DE';
-  _wakeRec.continuous = true;
-  _wakeRec.interimResults = true;
-  _wakeRec.maxAlternatives = 3;
-
-  _wakeRec.onresult = function(e) {
-    if (_isListening || _isRecording) return;   // schon aktiv → ignorieren
+  _recognition.onresult = function(e) {
+    var lastResult = e.results[e.results.length - 1];
+    var transcript = '';
     for (var i = e.resultIndex; i < e.results.length; i++) {
-      for (var a = 0; a < e.results[i].length; a++) {
-        var t = (e.results[i][a].transcript || '').toLowerCase().trim();
-        if (WAKE_WORDS.some(function(w){ return t.includes(w); })) {
-          // Wake-Word erkannt!
-          setStatus('listening', '🟢 Wake-Word erkannt: "' + t + '"');
-          if (!_isListening && !_isRecording) {
-            document.getElementById('micBtn').click();
-          }
-          return;
-        }
+      transcript += e.results[i][0].transcript;
+    }
+    var t = transcript.toLowerCase().trim();
+
+    if (_srMode === 'wake') {
+      // Auf Wake-Word prüfen
+      if (WAKE_WORDS.some(function(w){ return t.includes(w); })) {
+        setStatus('listening', '🟢 "Esra" erkannt – sprechen Sie jetzt…');
+        _srMode = 'input';
+        _isListening = true;
+        document.getElementById('micBtn').classList.add('active');
+        document.getElementById('textInput').value = '';
+      }
+    } else if (_srMode === 'input') {
+      // Nutzereingabe anzeigen
+      document.getElementById('textInput').value = transcript;
+      if (lastResult.isFinal) {
+        _srMode = 'wake';           // zurück in Wake-Modus
+        _isListening = false;
+        document.getElementById('micBtn').classList.remove('active');
+        setStatus('processing', '⏳ Verarbeite…');
+        sendMessage();              // Nachricht absenden
       }
     }
   };
 
-  _wakeRec.onend = function() {
-    // Automatisch neu starten (kontinuierliches Lauschen)
-    if (_wakeActive) {
-      try { _wakeRec.start(); } catch(_) {}
-    }
+  _recognition.onend = function() {
+    _isListening = false;
+    document.getElementById('micBtn').classList.remove('active');
+    if (_srMode === 'idle') return;
+    // Automatisch neu starten (Wake-Modus)
+    _srMode = 'wake';
+    setTimeout(function() {
+      try { _recognition.start(); } catch(_) {}
+    }, 200);
   };
 
-  _wakeRec.onerror = function(e) {
-    if (e.error === 'no-speech') return;   // normal, kein echter Fehler
+  _recognition.onerror = function(e) {
+    if (e.error === 'no-speech') return;   // kein echter Fehler in Wake-Modus
     if (e.error === 'not-allowed') {
-      updateBadge('badgeWake', 'err', 'Wake: kein Mic');
-      _wakeActive = false;
+      updateBadge('badgeWake', 'err', 'Mic: gesperrt');
+      updateBadge('badgeStt',  'err', 'STT ✗');
+      _srMode = 'idle';
       return;
     }
-    // bei anderen Fehlern kurz warten und neu starten
-    if (_wakeActive) setTimeout(function(){ try { _wakeRec.start(); } catch(_) {} }, 1000);
+    _isListening = false;
+    document.getElementById('micBtn').classList.remove('active');
+    if (_srMode !== 'idle') {
+      setTimeout(function(){ try { _recognition.start(); } catch(_) {} }, 1000);
+    }
   };
+}
 
-  _wakeActive = true;
+/** Startet Wake-Modus (einmaliger Init-Aufruf nach initWebSpeech). */
+function initBrowserWakeWord() {
+  if (!_recognition) { updateBadge('badgeWake','err','Wake ✗'); return; }
+  _srMode = 'wake';
   try {
-    _wakeRec.start();
+    _recognition.start();
     updateBadge('badgeWake', 'ok', '👂 Wake aktiv');
   } catch(e) {
     updateBadge('badgeWake', 'err', 'Wake ✗');
-    _wakeActive = false;
+    _srMode = 'idle';
   }
+}
+
+/** Mic-Button drücken: direkter Wechsel in Input-Modus. */
+function startWebSpeech() {
+  if (!_recognition) return;
+  _srMode = 'input';
+  _isListening = true;
+  document.getElementById('micBtn').classList.add('active');
+  setStatus('listening', '🔴 Höre zu…');
+  document.getElementById('textInput').value = '';
+  // Falls SR noch nicht läuft, starten; sonst läuft sie bereits (continuous)
+  try { _recognition.start(); } catch(_) { /* already running – OK */ }
+}
+
+/** Mic-Button nochmal drücken: Eingabe abbrechen, zurück in Wake-Modus. */
+function stopWebSpeech() {
+  _srMode = 'wake';
+  _isListening = false;
+  document.getElementById('micBtn').classList.remove('active');
+  setStatus('', 'Bereit');
 }
 
 // ── TTS ───────────────────────────────────────────────────────────────────────
