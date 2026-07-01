@@ -520,8 +520,8 @@ body::after {
 ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: #444c56; }
 
-/* ─── Elsa Floating Avatar ─────────────────────────────────────── */
-#elsa-float {
+/* ─── Esra Floating Avatar ─────────────────────────────────────── */
+#esra-float {
   position: fixed;
   right: 0;
   top: 72px;
@@ -532,19 +532,19 @@ body::after {
   gap: 0;
   cursor: pointer;
   text-decoration: none;
-  animation: elsaFloat 6s ease-in-out infinite;
+  animation: esraFloat 6s ease-in-out infinite;
   filter: drop-shadow(0 0 36px rgba(0,166,126,.38));
   transition: filter .3s;
 }
-#elsa-float:hover {
+#esra-float:hover {
   filter: drop-shadow(0 0 56px rgba(0,166,126,.70));
   animation-play-state: paused;
 }
-@keyframes elsaFloat {
+@keyframes esraFloat {
   0%,100% { transform: translateY(0px); }
   50%      { transform: translateY(-16px); }
 }
-#elsa-float .elsa-ring {
+#esra-float .esra-ring {
   width: 280px;
   height: 280px;
   border-radius: 50%;
@@ -558,13 +558,13 @@ body::after {
   flex-shrink: 0;
   position: relative;
 }
-#elsa-float .elsa-ring img {
+#esra-float .esra-ring img {
   width: 100%; height: 100%;
   object-fit: cover;
   object-position: center top;
   display: block;
 }
-#elsa-float .elsa-label {
+#esra-float .esra-label {
   margin-top: 11px;
   background: rgba(0,0,0,.75);
   border: 1px solid rgba(0,166,126,.55);
@@ -576,7 +576,7 @@ body::after {
   white-space: nowrap;
   backdrop-filter: blur(8px);
 }
-#elsa-float .elsa-bubble {
+#esra-float .esra-bubble {
   position: absolute;
   left: -228px;
   top: 50%;
@@ -595,7 +595,7 @@ body::after {
   backdrop-filter: blur(10px);
   box-shadow: 0 8px 24px rgba(0,0,0,.5);
 }
-#elsa-float .elsa-bubble::after {
+#esra-float .esra-bubble::after {
   content: '';
   position: absolute;
   right: -8px; top: 50%;
@@ -604,9 +604,9 @@ body::after {
   border-left-color: rgba(0,166,126,.4);
   border-right: 0;
 }
-#elsa-float:hover .elsa-bubble { opacity: 1; }
+#esra-float:hover .esra-bubble { opacity: 1; }
 /* Scan-line Effekt */
-#elsa-float .elsa-ring::after {
+#esra-float .esra-ring::after {
   content: '';
   position: absolute;
   left: 0; right: 0;
@@ -620,7 +620,7 @@ body::after {
   100% { top: 100%; }
 }
 /* Glow-Pulse Ring */
-#elsa-float .elsa-glow {
+#esra-float .esra-glow {
   position: absolute;
   width: 294px; height: 294px;
   border-radius: 50%;
@@ -633,24 +633,24 @@ body::after {
   50%      { transform: scale(1.08); opacity: 0; }
 }
 @media (max-width: 1500px) {
-  #elsa-float { display: none; }
+  #esra-float { display: none; }
 }
 </style>
 </head>
 <body>
 
-<!-- ─── Elsa Floating Avatar (rechts) ────────────────────────────── -->
-<a id="elsa-float" href="voice.html" title="Mit Elsa sprechen">
-  <div class="elsa-glow"></div>
-  <div class="elsa-bubble">
-    Hallo! Ich bin Elsa.<br>
+<!-- ─── Esra Floating Avatar (rechts) ────────────────────────────── -->
+<a id="esra-float" href="voice.html" title="Mit Esra sprechen">
+  <div class="esra-glow"></div>
+  <div class="esra-bubble">
+    Hallo! Ich bin Esra.<br>
     Fragen Sie mich etwas über<br>
     SAP, Buchungen oder Darlehen.
   </div>
-  <div class="elsa-ring">
-    <img src="elsa.png" onerror="this.src='elsa-avatar.svg'" alt="Elsa">
+  <div class="esra-ring">
+    <img src="esra.png" onerror="this.src='esra-avatar.svg'" alt="Esra">
   </div>
-  <div class="elsa-label">✦ Elsa</div>
+  <div class="esra-label">✦ Esra</div>
 </a>
 
 <!-- Floating background orbs -->
@@ -736,10 +736,10 @@ body::after {
     <a class="aufg-tile" href="voice.html"
        style="--at-color:#a78bfa;--at-dark:#7c3aed;--at-bg1:#1e1030;--at-bg2:#130a20;--at-border:rgba(167,139,250,.45)">
       <div class="at-icon" style="padding:0;overflow:hidden;border-radius:50%;width:44px;height:44px;border:2px solid #00a67e;">
-        <img src="elsa.png" onerror="this.src='elsa-avatar.svg'" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">
+        <img src="esra.png" onerror="this.src='esra-avatar.svg'" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">
       </div>
       <div>
-        <div class="at-name">Elsa</div>
+        <div class="at-name">Esra</div>
         <div class="at-desc">Finance-Assistentin · SAP · Buchungen · Rechnungen · Darlehen</div>
       </div>
       <span class="at-badge ok">● Sprachsteuerung</span>
@@ -859,9 +859,9 @@ body::after {
         </a>
         <a href="voice.html" class="qa-btn">
           <div class="qa-icon" style="background:rgba(0,166,126,.1);padding:0;overflow:hidden;border-radius:50%;border:1px solid #00a67e;">
-            <img src="elsa.png" onerror="this.src='elsa-avatar.svg'" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">
+            <img src="esra.png" onerror="this.src='esra-avatar.svg'" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">
           </div>
-          <div>Elsa</div>
+          <div>Esra</div>
         </a>
         <a href="brain.html" class="qa-btn">
           <div class="qa-icon" style="background:rgba(99,102,241,.15)">🧠</div>
@@ -908,7 +908,7 @@ body::after {
       <a href="cockpit-v2.html">Cockpit v2</a>
       <a href="verbindungen.html">Verbindungen</a>
       <a href="benutzer.html">Benutzer</a>
-      <a href="voice.html">Elsa</a>
+      <a href="voice.html">Esra</a>
       <a href="brain.html">Digitales Gehirn</a>
       <a href="db-kontrollzentrum.html">3W-Kontrollzentrum</a>
       <a href="db-admin.html">3W-Details</a>
@@ -1124,84 +1124,4 @@ function renderConns(){
   }).join("");
 }
 
-// ─── Run Modal ─────────────────────────────────────────────────────
-var _pendingRobotId = null;
-function openRunModal(robotId){
-  var r = ROBOTS.find(function(x){ return x.id===robotId; });
-  if (!r) return;
-  var tasks = (state.tasks||[]).filter(function(t){ return t.robot===robotId; });
-  _pendingRobotId = robotId;
-  document.getElementById("modalTitle").textContent = r.name + " starten";
-  document.getElementById("modalBody").innerHTML =
-    "<p style=\"margin-bottom:12px\">Es werden <b>" + tasks.length + " Aufgaben</b> gestartet:</p>" +
-    "<ul style=\"color:var(--muted);font-size:12px;padding-left:18px;line-height:2\">" +
-    tasks.map(function(t){ return "<li>" + esc(t.name) + " <span style=\"opacity:.6\">(" + esc(t.method) + ")</span></li>"; }).join("") +
-    "</ul>" +
-    (!REAL_MODE ? "<div style=\"margin-top:14px;padding:10px 12px;background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.3);border-radius:8px;color:#f59e0b;font-size:12px\">⚠ Bridge nicht aktiv — Läufe werden simuliert.</div>" : "");
-  document.getElementById("modalConfirm").onclick = function(){ runRobot(robotId); closeModal(); };
-  document.getElementById("runModal").classList.add("open");
-}
-
-function closeModal(){
-  document.getElementById("runModal").classList.remove("open");
-  _pendingRobotId = null;
-}
-
-function runRobot(robotId){
-  var tasks = (state.tasks||[]).filter(function(t){ return t.robot===robotId; });
-  if (!tasks.length){ toast("Keine Aufgaben für Robot-" + robotId, "info"); return; }
-  tasks.forEach(function(t, i){
-    setTimeout(function(){
-      if (!REAL_MODE){
-        log("info", "[SIM] " + t.robot + " / " + t.name);
-        t.lastRun = new Date().toISOString();
-        t.lastStatus = Math.random() > 0.15 ? "ok" : "error";
-        save(); renderOverview();
-      } else {
-        fetch(BRIDGE_URL + "/run", {
-          method:"POST", headers:{"Content-Type":"application/json"},
-          body: JSON.stringify({ method:t.method, tcode:t.tcode, payload: {} })
-        })
-        .then(function(r){ return r.json(); })
-        .then(function(d){
-          t.lastRun = new Date().toISOString();
-          t.lastStatus = d.status === "ok" ? "ok" : "error";
-          log(d.status==="ok"?"ok":"err", t.robot + " / " + t.name + ": " + (d.message||""));
-          save(); renderOverview();
-        })
-        .catch(function(e){ log("err", t.name + ": " + e); });
-      }
-    }, i * 300);
-  });
-  toast("Robot-" + robotId + " gestartet (" + tasks.length + " Aufgaben)", "info");
-  log("info", "Robot-" + robotId + " gestartet");
-}
-
-function runAllRobots(){
-  ROBOTS.forEach(function(r, i){
-    setTimeout(function(){ runRobot(r.id); }, i * 800);
-  });
-  toast("Alle 4 Robots gestartet", "ok");
-}
-
-// ─── Init ───────────
-</script>
-<script src="auth.js"></script>
-<script src="env-banner.js"></script>
-<script>
-  AUTH.renderHeader("headerRight");
-
-  // Hinweis wenn von gesperrter Seite weitergeleitet
-  const _denied = sessionStorage.getItem('yconn_access_denied');
-  if (_denied) {
-    sessionStorage.removeItem('yconn_access_denied');
-    const _note = document.createElement('div');
-    _note.style.cssText = 'position:fixed;top:16px;right:20px;z-index:9999;' +
-      'background:#7f1d1d;border:1px solid #ef4444;color:#fca5a5;' +
-      'padding:12px 18px;border-radius:10px;font-size:13px;max-width:360px;' +
-      'box-shadow:0 4px 20px rgba(0,0,0,.5);';
-    _note.textContent = '🔒 ' + _denied;
-    document.body.appendChild(_note);
-    setTimeout(() => _note.remove(), 5000);
-  }
-</script>
+// ─── Run Modal ────────────────────────────────────────────────────

@@ -96,7 +96,7 @@ async def startup() -> None:
             wake_word_detector.add_callback(
                 lambda: broadcast_sync({
                     "type":    "wake_word",
-                    "message": "Elsa erkannt – bitte sprechen",
+                    "message": "Esra erkannt – bitte sprechen",
                 })
             )
             started = wake_word_detector.start()
@@ -424,3 +424,4 @@ async def teams_send(request: Request):
 
 if __name__ == "__main__":
     uvicorn.run("voice_server:app", host=HOST, port=PORT, reload=False, log_level="info")
+     

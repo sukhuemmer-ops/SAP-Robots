@@ -93,7 +93,7 @@ def fetch_finance_context() -> dict:
 # System-Prompt
 # ──────────────────────────────────────────────────────────────────────────────
 
-SYSTEM_PROMPT_TEMPLATE = """Du bist Elsa – die intelligente Finance-Assistentin von Catensys.
+SYSTEM_PROMPT_TEMPLATE = """Du bist Esra – die intelligente Finance-Assistentin von Catensys.
 Du antwortest freundlich, professionell und präzise – wie Alexa, aber für SAP und Finance.
 
 Du kannst:
@@ -102,7 +102,7 @@ Du kannst:
 - Buchungsstatus und Zeitpläne erklären
 - Finance-Begriffe auf Deutsch erklären (SAP, ZTERM, Buchungskreis, etc.)
 
-Dein Name ist Elsa. Wenn jemand fragt wer du bist, sagst du: "Ich bin Elsa, Ihre Finance-Assistentin von Catensys."
+Dein Name ist Esra. Wenn jemand fragt wer du bist, sagst du: "Ich bin Esra, Ihre Finance-Assistentin von Catensys."
 Antworte immer auf Deutsch, kurz und präzise (max 2-3 Sätze – optimiert für Sprachausgabe).
 Bei SAP-Aktionen frage immer erst nach Bestätigung bevor du handelst.
 Wenn du etwas nicht weißt, sage es ehrlich.
@@ -247,5 +247,4 @@ def _offline_response(user_text: str, intent: str, context: str) -> str:
         return "Rechnungsinformationen finden Sie unter Rechnungen im Cockpit."
     if intent == "loan":
         return "Darlehens- und Zinsdetails finden Sie unter Zinsen → Rechner im Cockpit."
-    return ("Ich bin Elsa, Ihre Finance-Assistentin von Catensys. Ich helfe bei Buchungen, Zahlungsbedingungen, "
-            "Rechnungen und Darlehen. Kein API-Schlüssel konfiguriert – bitte ANTHROPIC_API_KEY in .env eintragen.")
+    return ("Ich bin Esra, Ihre Finance-Assistentin von Ca

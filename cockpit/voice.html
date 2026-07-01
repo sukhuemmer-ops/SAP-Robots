@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Elsa – Finance-Assistentin</title>
+<title>Esra – Finance-Assistentin</title>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 :root {
@@ -122,18 +122,18 @@ body { font-family:-apple-system,'Segoe UI',sans-serif; background:var(--bg); co
 <!-- WAKE-WORD OVERLAY -->
 <div class="wake-pulse" id="wakePulse">
   <div class="wake-circle" style="padding:0;overflow:hidden;">
-    <img src="elsa.png" onerror="this.src='elsa-avatar.svg'" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">
+    <img src="esra.png" onerror="this.src='esra-avatar.svg'" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">
   </div>
-  <div class="wake-text">Elsa hört zu…<br><small style="font-weight:400;color:var(--muted)">Bitte sprechen...</small></div>
+  <div class="wake-text">Esra hört zu…<br><small style="font-weight:400;color:var(--muted)">Bitte sprechen...</small></div>
 </div>
 
 <!-- HEADER -->
 <div class="header">
   <div style="width:40px;height:40px;border-radius:50%;overflow:hidden;flex-shrink:0;border:2px solid #00a67e;">
-    <img src="elsa.png" onerror="this.src='elsa-avatar.svg'" style="width:100%;height:100%;object-fit:cover;">
+    <img src="esra.png" onerror="this.src='esra-avatar.svg'" style="width:100%;height:100%;object-fit:cover;">
   </div>
   <div>
-    <div class="header-title">Elsa · Finance-Assistentin</div>
+    <div class="header-title">Esra · Finance-Assistentin</div>
     <div class="header-sub">Catensys · Sprachsteuerung · SAP · Buchungen · Rechnungen</div>
   </div>
   <div class="header-nav">
@@ -208,7 +208,7 @@ body { font-family:-apple-system,'Segoe UI',sans-serif; background:var(--bg); co
       <div class="input-row">
         <button class="mic-btn" id="micBtn" onclick="toggleMic()" title="Spracheingabe">🎤</button>
         <input class="text-input" id="textInput" type="text"
-               placeholder='Frage tippen oder 🎤 drücken… — oder sagen Sie "Elsa"'
+               placeholder='Frage tippen oder 🎤 drücken… — oder sagen Sie "Esra"'
                onkeydown="if(event.key==='Enter')sendMessage()">
         <button class="send-btn" id="sendBtn" onclick="sendMessage()">Senden ›</button>
       </div>
@@ -276,10 +276,10 @@ async function init() {
   }
 
   addBotMessage(
-    '👋 Hallo! Ich bin Elsa, Ihre Finance-Assistentin von Catensys.\n\n' +
+    '👋 Hallo! Ich bin Esra, Ihre Finance-Assistentin von Catensys.\n\n' +
     (_useServer
-      ? '🎤 Whisper aktiv · 🔊 Neural TTS · 📣 Teams\n\nSagen Sie einfach **"Elsa"** oder drücken Sie 🎤.'
-      : '🎤 Web Speech aktiv · Sagen Sie "Elsa" oder tippen Sie.')
+      ? '🎤 Whisper aktiv · 🔊 Neural TTS · 📣 Teams\n\nSagen Sie einfach **"Esra"** oder drücken Sie 🎤.'
+      : '🎤 Web Speech aktiv · Sagen Sie "Esra" oder tippen Sie.')
   );
 }
 
@@ -329,7 +329,7 @@ function connectWebSocket() {
   _ws.onopen = function() {
     updateBadge('badgeWs', 'ok', 'WS ✓');
     document.getElementById('wsCount').textContent = 'verbunden';
-    setStatus('', 'Bereit — sagen Sie "Elsa" oder drücken Sie 🎤');
+    setStatus('', 'Bereit — sagen Sie "Esra" oder drücken Sie 🎤');
   };
 
   _ws.onclose = function() {
@@ -652,7 +652,7 @@ async function teamsTest() {
     var r = await fetch(VOICE_SERVER_URL + '/teams/send', {
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({text:'✅ Elsa (Finance-Assistentin) ist aktiv und verbunden!', title:'System-Test'})
+      body: JSON.stringify({text:'✅ Esra (Finance-Assistentin) ist aktiv und verbunden!', title:'System-Test'})
     });
     var d = await r.json();
     addBotMessage(d.ok ? '✅ Teams-Test-Nachricht gesendet!' : (d.configured ? '❌ Teams-Fehler' : '⚠ Teams nicht konfiguriert (TEAMS_WEBHOOK_URL in .env eintragen)'));
@@ -699,7 +699,7 @@ function addBotMessage(text, intent, action) {
   }
   var div = document.createElement('div');
   div.className = 'msg bot';
-  div.innerHTML = '<div class="avatar bot" style="background:linear-gradient(135deg,#006b52,#00a67e);border:1px solid #00a67e;overflow:hidden;padding:0;"><img src="elsa.png" style="width:100%;height:100%;object-fit:cover;" onerror="this.src=\'elsa-avatar.svg\'"></div>' +
+  div.innerHTML = '<div class="avatar bot" style="background:linear-gradient(135deg,#006b52,#00a67e);border:1px solid #00a67e;overflow:hidden;padding:0;"><img src="esra.png" style="width:100%;height:100%;object-fit:cover;" onerror="this.src=\'esra-avatar.svg\'"></div>' +
     '<div class="bubble bot">' + esc(clean).replace(/\n/g,'<br>') + actionHtml + '</div>';
   document.getElementById('chatArea').appendChild(div);
   scrollToBottom();
@@ -708,7 +708,7 @@ function addBotMessage(text, intent, action) {
 function addThinking(id) {
   var div = document.createElement('div');
   div.className = 'msg bot'; div.id = id;
-  div.innerHTML = '<div class="avatar bot" style="background:linear-gradient(135deg,#006b52,#00a67e);border:1px solid #00a67e;overflow:hidden;padding:0;"><img src="elsa.png" style="width:100%;height:100%;object-fit:cover;" onerror="this.src=\'elsa-avatar.svg\'"></div><div class="thinking"><span></span><span></span><span></span></div>';
+  div.innerHTML = '<div class="avatar bot" style="background:linear-gradient(135deg,#006b52,#00a67e);border:1px solid #00a67e;overflow:hidden;padding:0;"><img src="esra.png" style="width:100%;height:100%;object-fit:cover;" onerror="this.src=\'esra-avatar.svg\'"></div><div class="thinking"><span></span><span></span><span></span></div>';
   document.getElementById('chatArea').appendChild(div);
   scrollToBottom();
 }
