@@ -9,10 +9,20 @@ __pycache__/
 *.pyd
 .Python
 
-# Sensible Konfiguration
+# Sensible Konfiguration – aktive Env-Dateien (nie committen!)
 worker/.env
+worker/.env.dev
+worker/.env.test
+worker/.env.prod
+worker/.env.backup
 orchestrator/.env
-*.env
+orchestrator/.env.dev
+orchestrator/.env.test
+orchestrator/.env.prod
+orchestrator/.env.backup
+
+# Beispiel-Dateien dürfen im Repo sein (kein !*.env.example nötig)
+# *.env.example → bereits nicht in der Ignore-Liste → wird getrackt
 
 # Logs
 *.log

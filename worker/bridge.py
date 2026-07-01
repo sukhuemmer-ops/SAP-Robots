@@ -207,11 +207,24 @@ def cockpit_static(filename):
 def health():
     return jsonify({
         "status": "ok",
+        "env": os.getenv("APP_ENV", "prod"),
         "handlers": [f"{m}/{t}" for (m, t) in HANDLERS],
         "report_dir": str(REPORT_OUT_DIR),
         "sap_host": os.getenv("SAP_ASHOST", ""),
         "sap_user": os.getenv("SAP_USER", ""),
         "sap_client": os.getenv("SAP_CLIENT", ""),
+        "sap_mock": os.getenv("SAP_MOCK", "0") == "1",
+    })
+
+
+@app.get("/env")
+def get_env():
+    labels = {"dev": "🟡 ENTWICKLUNG", "test": "🔵 TEST", "prod": "🔴 PRODUKTION"}
+    env = os.getenv("APP_ENV", "prod")
+    return jsonify({
+        "env":   env,
+        "label": labels.get(env, env),
+        "sap_mock": os.getenv("SAP_MOCK", "0") == "1",
     })
 
 
@@ -303,6 +316,50 @@ def test_rfc():
         log.warning("RFC-Test fehlgeschlagen: %s", exc)
         return jsonify({"status": "error", "message": exc_str,
                         "host": host, "port": port})
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Voice Bot Endpoints
+# ──────────────────────────────────────────────────────────────────────────────
+
+@app.post("/voice/chat")
+def voice_chat():
+    """
+    Finance-Bot Chat.
+    POST { text: "...", history: [{role, content}, ...] }
+    Returns { status, text, intent, action }
+
+    - text:   Antwort für TTS-Ausgabe
+    - intent: query | sap_action | schedule | invoice | loan | unknown
+    - action: Bridge-Aufruf-Objekt { method, tcode, payload } oder null
+    """
+    from voice_bot import chat as bot_chat
+    data    = request.get_json(silent=True) or {}
+    text    = (data.get("text") or "").strip()
+    history = data.get("history") or []
+
+    if not text:
+        return jsonify({"status": "error", "message": "text fehlt"}), 400
+
+    log.info(">>> /voice/chat: %r", text[:80])
+    try:
+        result = bot_chat(text, history)
+        return jsonify({"status": "ok", **result})
+    except Exception as exc:
+        log.exception("/voice/chat Fehler")
+        return jsonify({"status": "error", "message": str(exc)})
+
+
+@app.get("/voice/status")
+def voice_status():
+    """Prüft ob Voice-Bot konfiguriert ist."""
+    has_key = bool(os.getenv("ANTHROPIC_API_KEY", "").strip())
+    return jsonify({
+        "status":     "ok",
+        "claude_api": has_key,
+        "model":      "claude-haiku-4-5-20251001" if has_key else "offline (Keyword-Fallback)",
+        "hint":       "" if has_key else "ANTHROPIC_API_KEY in worker/.env eintragen für volle KI-Funktion",
+    })
 
 
 @app.get("/reports")

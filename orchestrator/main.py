@@ -43,7 +43,8 @@ log = logging.getLogger("orchestrator")
 # ----------------------------------------------------------------------------
 # Datenbank
 # ----------------------------------------------------------------------------
-DATABASE_URL = "sqlite:///./orchestrator.db"
+_APP_ENV = os.getenv("APP_ENV", "prod")
+DATABASE_URL = f"sqlite:///./{os.getenv('ORCHESTRATOR_DB', 'orchestrator.db')}"
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 
 # Rechnungen-PDF-Ablage (relativ zum Orchestrator-Verzeichnis → ../rechnungen/)
@@ -1343,7 +1344,16 @@ def delete_sap_user(user_id: int, db: Session = Depends(get_db)):
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "time": datetime.utcnow().isoformat()}
+    return {"status": "ok", "time": datetime.utcnow().isoformat(), "env": _APP_ENV}
+
+@app.get("/env")
+def get_env():
+    labels = {"dev": "🟡 ENTWICKLUNG", "test": "🔵 TEST", "prod": "🔴 PRODUKTION"}
+    return {
+        "env":   _APP_ENV,
+        "label": labels.get(_APP_ENV, _APP_ENV),
+        "db":    os.getenv("ORCHESTRATOR_DB", "orchestrator.db"),
+    }
 
 
 # ----------------------------------------------------------------------------

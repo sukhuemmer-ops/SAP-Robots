@@ -339,12 +339,62 @@ const SAP_SYSTEMS = {
   SEP: { ashost:'172.28.189.8',  sysnr:'06', client:'600', lang:'DE' },
   SEQ: { ashost:'172.28.189.11', sysnr:'05', client:'600', lang:'DE' },
 };
+var SAP_PASSWD_KEY = 'yconn_sap_passwd';
+var SAP_CONN_KEY   = 'yconn_sap_conn';    // SAP Logon Eintragsname (z.B. "SEP Catensys")
+
 function _sapAuth() {
   var creds = (AUTH && AUTH.user) ? AUTH.user : {};
   var sysKey = (creds.sap_system || 'SEP').toUpperCase();
   var sys = SAP_SYSTEMS[sysKey] || SAP_SYSTEMS.SEP;
+  var passwd = localStorage.getItem(SAP_PASSWD_KEY) || creds.sap_password || '';
+  var conn   = localStorage.getItem(SAP_CONN_KEY) || '';
   return { ashost:sys.ashost, sysnr:sys.sysnr, client:sys.client, lang:sys.lang,
-           user: creds.sap_username||'', passwd: creds.sap_password||'' };
+           user: creds.sap_username||'', passwd: passwd, conn: conn };
+}
+
+function _ensureSapPasswd(callback) {
+  // Prüfen ob Passwort UND Verbindungsname vorhanden
+  var hasPw   = !!localStorage.getItem(SAP_PASSWD_KEY);
+  var hasConn = !!localStorage.getItem(SAP_CONN_KEY);
+  if (hasPw && hasConn) { callback(); return; }
+
+  var creds = (AUTH && AUTH.user) ? AUTH.user : {};
+  var sapUser = creds.sap_username || creds.username || '';
+  var savedConn = localStorage.getItem(SAP_CONN_KEY) || '';
+
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:9999;display:flex;align-items:center;justify-content:center;';
+  overlay.innerHTML =
+    '<div style="background:#161b22;border:1px solid rgba(88,166,255,.25);border-radius:12px;padding:28px 32px;min-width:360px;box-shadow:0 8px 32px rgba(0,0,0,.6);">' +
+      '<div style="font-size:15px;font-weight:700;color:#e6edf3;margin-bottom:6px;">🔐 SAP-Anmeldung</div>' +
+      '<div style="font-size:12px;color:#8b949e;margin-bottom:18px;">SAP GUI wird automatisch gestartet. Eingaben werden gespeichert.</div>' +
+      '<div style="margin-bottom:12px;"><label style="font-size:11px;color:#8b949e;display:block;margin-bottom:4px;">SAP-Benutzer</label>' +
+        '<input type="text" readonly value="' + sapUser + '" style="width:100%;box-sizing:border-box;padding:8px 10px;border-radius:6px;border:1px solid rgba(88,166,255,.2);background:#0d1117;color:#8b949e;font-size:13px;"></div>' +
+      '<div style="margin-bottom:12px;"><label style="font-size:11px;color:#8b949e;display:block;margin-bottom:4px;">SAP-Passwort</label>' +
+        '<input type="password" id="sapPasswdInput" autofocus style="width:100%;box-sizing:border-box;padding:8px 10px;border-radius:6px;border:1px solid rgba(88,166,255,.3);background:#0d1117;color:#e6edf3;font-size:13px;" placeholder="Passwort eingeben..."></div>' +
+      '<div style="margin-bottom:20px;"><label style="font-size:11px;color:#8b949e;display:block;margin-bottom:4px;">SAP Logon Eintrag <span style="color:#555">(exakter Name in SAP Logon, z.B. "SEP Catensys")</span></label>' +
+        '<input type="text" id="sapConnInput" value="' + savedConn + '" style="width:100%;box-sizing:border-box;padding:8px 10px;border-radius:6px;border:1px solid rgba(88,166,255,.3);background:#0d1117;color:#e6edf3;font-size:13px;" placeholder="z.B. SEP Catensys Quality Assurance"></div>' +
+      '<div style="display:flex;gap:10px;justify-content:flex-end;">' +
+        '<button id="sapPasswdCancel" style="padding:7px 18px;border-radius:6px;border:1px solid rgba(139,148,158,.3);background:transparent;color:#8b949e;font-size:12px;cursor:pointer;">Abbrechen</button>' +
+        '<button id="sapPasswdOk" style="padding:7px 18px;border-radius:6px;border:none;background:#238636;color:#fff;font-size:12px;font-weight:600;cursor:pointer;">Anmelden</button>' +
+      '</div></div>';
+  document.body.appendChild(overlay);
+  var inp     = document.getElementById('sapPasswdInput');
+  var connInp = document.getElementById('sapConnInput');
+  function confirm_passwd() {
+    var pw   = inp.value.trim();
+    var conn = connInp.value.trim();
+    if (!pw)   { inp.focus();     alert('Bitte SAP-Passwort eingeben.');          return; }
+    if (!conn) { connInp.focus(); alert('Bitte SAP Logon Eintragsnamen eingeben.'); return; }
+    localStorage.setItem(SAP_PASSWD_KEY, pw);
+    localStorage.setItem(SAP_CONN_KEY,   conn);
+    document.body.removeChild(overlay); callback();
+  }
+  document.getElementById('sapPasswdOk').onclick = confirm_passwd;
+  document.getElementById('sapPasswdCancel').onclick = function() { document.body.removeChild(overlay); };
+  inp.addEventListener('keydown', function(e) { if (e.key === 'Enter') { connInp.focus(); } });
+  connInp.addEventListener('keydown', function(e) { if (e.key === 'Enter') confirm_passwd(); });
+  (hasPw ? connInp : inp).focus();
 }
 
 // ── Stammdaten ────────────────────────────────────────────────
@@ -853,8 +903,8 @@ function setContracts(num,val){
   contractsMap[num]=val.split(/[,;\s]+/).map(function(s){return s.trim();}).filter(function(s){return s.length>0;});
   setTimeout(refreshAll,0);
 }
-async function execXD02K(num, bk, newT) {
-  if (!confirm('KNB1-ZTERM auf ' + newT + ' für Kunde ' + num + ' (BK ' + bk + ') direkt in SAP setzen?')) return;
+async function execXD02K(num, bk, newT, _skipConfirm) {
+  if (!_skipConfirm && !confirm('KNB1-ZTERM auf ' + newT + ' für Kunde ' + num + ' (BK ' + bk + ') direkt in SAP setzen?')) return;
 
   var xd02StatusId = 'xd02k_status_' + num;
   var el = document.getElementById(xd02StatusId);
@@ -909,14 +959,34 @@ async function execXD02K(num, bk, newT) {
   } else {
     var msg = data.message || data.error || JSON.stringify(data);
     if (el) el.textContent = '✗ ' + msg;
-    alert('XD02 Fehler: ' + msg);
+    var msgL = msg.toLowerCase();
+    var isNoSession = msgL.indexOf('keine laufende sap gui session') !== -1 ||
+                      msgL.indexOf('keine freie sap gui session') !== -1 ||
+                      msgL.indexOf('kein sap-passwort') !== -1 ||
+                      msgL.indexOf('sap_gui_not_running') !== -1 ||
+                      msgL.indexOf('sap gui nicht in der rot') !== -1 ||
+                      msgL.indexOf('kein sap-logon-eintragsname') !== -1;
+    var isAuthErr   = msgL.indexOf('anmeld') !== -1 || msgL.indexOf('login') !== -1 ||
+                      msgL.indexOf('passwort') !== -1 || msgL.indexOf('password') !== -1 ||
+                      msgL.indexOf('credential') !== -1;
+    if (isNoSession) {
+      localStorage.removeItem(SAP_PASSWD_KEY);
+      localStorage.removeItem(SAP_CONN_KEY);
+      _ensureSapPasswd(function() { execXD02K(num, bk, newT, true); });
+    } else if (isAuthErr) {
+      localStorage.removeItem(SAP_PASSWD_KEY);
+      localStorage.removeItem(SAP_CONN_KEY);
+      alert('XD02 Fehler (Anmeldung): ' + msg + '\n\nSAP-Zugangsdaten wurden geleert.');
+    } else {
+      alert('XD02 Fehler: ' + msg);
+    }
   }
 }
 
-async function execVA42(num, newT) {
+async function execVA42(num, newT, _skipConfirm) {
   var clist = contractsMap[num] || [];
   if (!clist.length) { alert('Bitte erst Verträge aus SAP laden!'); return; }
-  if (!confirm('ZTERM ' + newT + ' in ' + clist.length + ' Vertrag/Verträgen für Kunde ' + num + ' direkt in SAP ändern?')) return;
+  if (!_skipConfirm && !confirm('ZTERM ' + newT + ' in ' + clist.length + ' Vertrag/Verträgen für Kunde ' + num + ' direkt in SAP ändern?')) return;
 
   // Status-Span aktualisieren
   var el = document.getElementById('cv_status_' + num);
@@ -970,7 +1040,26 @@ async function execVA42(num, newT) {
   } else {
     var msg = data.message || data.error || JSON.stringify(data);
     if (el) el.textContent = '✗ ' + msg;
-    alert('VA42 Fehler: ' + msg);
+    var msgL = msg.toLowerCase();
+    var isNoSession = msgL.indexOf('keine laufende sap gui session') !== -1 ||
+                      msgL.indexOf('keine freie sap gui session') !== -1 ||
+                      msgL.indexOf('kein sap-passwort') !== -1 ||
+                      msgL.indexOf('sap_gui_not_running') !== -1 ||
+                      msgL.indexOf('sap gui nicht in der rot') !== -1 ||
+                      msgL.indexOf('kein sap-logon-eintragsname') !== -1;
+    var isAuthErr   = msgL.indexOf('anmeld') !== -1 || msgL.indexOf('login') !== -1 ||
+                      msgL.indexOf('passwort') !== -1 || msgL.indexOf('password') !== -1;
+    if (isNoSession) {
+      localStorage.removeItem(SAP_PASSWD_KEY);
+      localStorage.removeItem(SAP_CONN_KEY);
+      _ensureSapPasswd(function() { execVA42(num, newT, true); });
+    } else if (isAuthErr) {
+      localStorage.removeItem(SAP_PASSWD_KEY);
+      localStorage.removeItem(SAP_CONN_KEY);
+      alert('VA42 Fehler (Anmeldung): ' + msg + '\n\nSAP-Zugangsdaten wurden geleert.');
+    } else {
+      alert('VA42 Fehler: ' + msg);
+    }
   }
 }
 

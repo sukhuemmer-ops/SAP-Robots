@@ -1601,35 +1601,38 @@ async function sendEmailForInvoice(recordId, invoiceNr) {
   }
 })();
 
-</script>
-</body>
-</html>
-} catch(e) { alert('Fehler: ' + e.message); }
+// ── Hilfsfunktionen ──────────────────────────────────────────
+function resetFilters() {
+  document.getElementById('filterStatus').value  = '';
+  document.getElementById('filterPeriode').value = '';
+  document.getElementById('filterSearch').value  = '';
+  renderTable();
 }
 
-// ── Init: E-Mail-Daten beim Seitenstart laden ────────────────
+function clearData() {
+  if (!confirm('Wirklich alle Rechnungsdaten in diesem Browser zurücksetzen?\n(DB-Einträge bleiben erhalten — nur die Ansicht wird neu geladen)')) return;
+  _invoices = [];
+  renderTable();
+  loadFromDb().then(function(ok) {
+    if (!ok) showOrchestratorError();
+  });
+}
 
-(function initEmailModule() {
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', function(){ loadEmailConfigs(); loadEmailHistory(); });
-  } else {
-    loadEmailConfigs(); loadEmailHistory();
-  }
-})();
+function showOrchestratorError() {
+  document.getElementById('invBody').innerHTML =
+    '<tr><td colspan="12" style="text-align:center;padding:40px">' +
+    '<div style="color:var(--warn);font-size:14px;margin-bottom:12px">' +
+    '⚠ Orchestrator (localhost:8000) nicht erreichbar</div>' +
+    '<div style="color:var(--muted);font-size:12px;margin-bottom:16px">' +
+    'Bitte den Orchestrator starten und die Seite neu laden.</div>' +
+    '<button onclick="location.reload()" style="padding:7px 18px;background:rgba(88,166,255,.15);border:1px solid rgba(88,166,255,.4);border-radius:8px;color:var(--acc);font-size:12px;font-weight:700;cursor:pointer">↺ Seite neu laden</button>' +
+    '</td></tr>';
+}
 
-</script>
-</body>
-</html>
-────────
+// ── Seitenstart ──────────────────────────────────────────────
 loadConfig();
-// Beim Seitenaufruf: Rechnungsdaten aus DB laden (browserstate-unabhängig)
 loadFromDb().then(function(ok) {
-  if (!ok) {
-    // Orchestrator nicht erreichbar → leere Tabelle mit Hinweis
-    document.getElementById('invBody').innerHTML =
-      '<tr><td colspan="12" style="text-align:center;padding:40px;color:var(--warn)">' +
-      '⚠ Orchestrator (localhost:8000) nicht erreichbar – bitte starten, dann Seite neu laden.</td></tr>';
-  }
+  if (!ok) showOrchestratorError();
 });
 </script>
 </body>

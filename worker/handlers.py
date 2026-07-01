@@ -134,6 +134,49 @@ def _get_sapgui_from_rot():
     )
 
 
+def _start_sapgui_if_needed(wait_sec: int = 12) -> None:
+    """
+    Startet saplogon.exe falls SAP GUI nicht in der ROT registriert ist.
+    Wartet bis zu wait_sec Sekunden auf die ROT-Registrierung.
+    """
+    import time as _t
+    try:
+        _get_sapgui_from_rot()
+        return  # SAP GUI laeuft bereits
+    except RuntimeError:
+        pass
+
+    import subprocess
+    sapgui_candidates = [
+        r"C:\Program Files (x86)\SAP\FrontEnd\SAPgui\saplogon.exe",
+        r"C:\Program Files\SAP\FrontEnd\SAPgui\saplogon.exe",
+        r"C:\Program Files (x86)\SAP\FrontEnd\SAPgui\saplgpad.exe",
+        r"C:\Program Files\SAP\FrontEnd\SAPgui\saplgpad.exe",
+    ]
+    started = False
+    for path in sapgui_candidates:
+        if os.path.exists(path):
+            log.info("Starte SAP GUI: %s", path)
+            subprocess.Popen([path])
+            started = True
+            break
+
+    if not started:
+        log.warning("saplogon.exe nicht gefunden – bitte SAP GUI manuell starten")
+        return
+
+    # Auf ROT-Registrierung warten
+    for i in range(wait_sec):
+        _t.sleep(1)
+        try:
+            _get_sapgui_from_rot()
+            log.info("SAP GUI nach %ds in ROT registriert", i + 1)
+            return
+        except RuntimeError:
+            pass
+    log.warning("SAP GUI nach %ds noch nicht in ROT – fahre fort", wait_sec)
+
+
 def _gui_session(creds=None):
     """
     Oeffnet eine NEUE SAP-GUI-Scripting-Session via SAP Logon (OpenConnection).
@@ -281,26 +324,48 @@ _init_ashost_map()
 
 def _gui_session_with_sap_auth(sap_auth: dict):
     """
-    Öffnet eine NEUE SAP GUI Session und loggt sich mit den Cockpit-Credentials ein.
-    Gibt (connection, session) zurück; Aufrufer MUSS Session anschließend schließen.
+    Gibt (connection, session, should_close) zurück.
 
-    Benötigt in .env:
-      SAP_GUI_CONNECTION_SEP  → SAP Logon Eintragsname für SEP (172.28.189.8)
-      SAP_GUI_CONNECTION_SEQ  → SAP Logon Eintragsname für SEQ (172.28.189.11)
-    Falls nicht gesetzt: Fallback auf SAP_GUI_CONNECTION.
+    Strategie:
+      1. Laufende SAP GUI Session verwenden (kein SAP Logon nötig, should_close=False)
+      2. Neue Session via SAP Logon öffnen:
+         - SAP GUI starten falls nicht im ROT
+         - Verbindungsname: sap_auth["conn"] → .env SAP_GUI_CONNECTION_SEP/SEQ → SAP_GUI_CONNECTION
+         - Benötigt passwd + conn_name
     """
-    ashost  = sap_auth.get("ashost", "")
-    user    = sap_auth.get("user", "") or sap_auth.get("sap_username", "")
-    passwd  = sap_auth.get("passwd", "") or sap_auth.get("password", "")
-    client  = sap_auth.get("client", "") or os.getenv("SAP_CLIENT", "600")
-    lang    = sap_auth.get("lang", "DE")
+    import time as _t
+    ashost    = sap_auth.get("ashost", "")
+    user      = sap_auth.get("user", "") or sap_auth.get("sap_username", "")
+    passwd    = sap_auth.get("passwd", "") or sap_auth.get("password", "")
+    client    = sap_auth.get("client", "") or os.getenv("SAP_CLIENT", "600")
+    lang      = sap_auth.get("lang", "DE")
+    conn_hint = (sap_auth.get("conn") or "").strip()  # vom Cockpit übergebener Logon-Eintrag
 
-    conn_name = _ASHOST_TO_GUI_CONN.get(ashost) or os.getenv("SAP_GUI_CONNECTION", "")
+    # Schritt 1: vorhandene laufende Session bevorzugen
+    try:
+        connection, session, _ = _get_gui_session(target_ashost=ashost)
+        log.info("_gui_session_with_sap_auth: bestehende Session verwendet (ashost=%s)", ashost)
+        return connection, session, False
+    except RuntimeError as _e:
+        log.info("_gui_session_with_sap_auth: keine laufende Session (%s) → versuche OpenConnection", _e)
+
+    # Schritt 2: neue Session via SAP Logon
+    if not passwd:
+        raise RuntimeError(
+            "sap_gui_not_running: Keine laufende SAP GUI Session und kein SAP-Passwort angegeben. "
+            "Bitte SAP-Passwort und SAP-Logon-Eintrag im Cockpit eingeben."
+        )
+
+    conn_name = conn_hint or _ASHOST_TO_GUI_CONN.get(ashost) or os.getenv("SAP_GUI_CONNECTION", "")
     if not conn_name:
         raise RuntimeError(
-            f"Kein SAP-Logon-Eintragsname für ashost={ashost!r} konfiguriert. "
-            "Bitte SAP_GUI_CONNECTION_SEP / SAP_GUI_CONNECTION_SEQ in worker/.env eintragen."
+            "sap_gui_not_running: Kein SAP-Logon-Eintragsname angegeben. "
+            "Bitte den exakten Eintragsnamen aus SAP Logon im Cockpit eingeben "
+            f"(z.B. 'SEP Catensys' für ashost={ashost!r})."
         )
+
+    # SAP GUI starten falls nicht im ROT
+    _start_sapgui_if_needed(wait_sec=15)
 
     creds = {
         "connection": conn_name,
@@ -309,61 +374,86 @@ def _gui_session_with_sap_auth(sap_auth: dict):
         "client":     client,
         "lang":       lang,
     }
-    log.info("Neue SAP GUI Session: user=%s conn=%s client=%s", user, conn_name, client)
+    log.info("Neue SAP GUI Session via OpenConnection: user=%s conn=%s client=%s", user, conn_name, client)
     connection, session = _gui_session(creds)
-    import time as _t; _t.sleep(1.5)   # kurz warten bis Logon abgeschlossen
-    return connection, session
+    _t.sleep(1.5)
+    return connection, session, True
 
 
 def _hide_session_window(session) -> None:
     """
-    Versteckt das SAP GUI Fenster für die Hintergrundausführung.
-    Strategie:
-      1. session.findById("wnd[0]").Handle  → Win32-HWND → SW_HIDE (komplett unsichtbar)
-      2. Fallback: iconify() → minimiert in die Taskleiste
-    Das Fenster bleibt vollständig steuerbar via SAP GUI Scripting.
+    Versteckt das SAP GUI Fenster fuer Hintergrundausfuehrung.
+    Strategie (erste die funktioniert gewinnt):
+      1. GuiApplication.Visible = False  (sicherste SAP-native Methode)
+      2. Win32 SW_HIDE via HWND
+      3. iconify() → minimiert in Taskleiste (letzter Ausweg)
     """
     import time as _t
     _t.sleep(0.3)
     hidden = False
 
-    # Versuch 1: HWND über SAP GUI Scripting Handle-Eigenschaft
+    # Versuch 1: GuiApplication.Visible = False (sicherste Methode)
+    # session -> GuiConnection (Parent) -> GuiApplication (Parent)
     try:
-        hwnd = int(session.findById("wnd[0]").Handle)
-        import win32gui, win32con  # type: ignore
-        win32gui.ShowWindow(hwnd, win32con.SW_HIDE)
-        log.info("SAP GUI Fenster versteckt (HWND=%d)", hwnd)
+        app = session.Parent.Parent
+        app.Visible = False
+        log.info("SAP GUI Fenster versteckt via GuiApplication.Visible=False")
         hidden = True
     except Exception as e:
-        log.debug("Win32 Handle-Hide fehlgeschlagen: %s", e)
+        log.debug("GuiApplication.Visible fehlgeschlagen: %s", e)
 
-    # Versuch 2: Alle SAP-Fenster via EnumWindows ausblenden
+    # Versuch 2: Win32 SW_HIDE via HWND
     if not hidden:
         try:
+            hwnd = int(session.findById("wnd[0]").Handle)
             import win32gui, win32con  # type: ignore
-            _t.sleep(0.3)
-            found = []
-            def _cb(hwnd, _):
-                if win32gui.IsWindowVisible(hwnd):
-                    cls = win32gui.GetClassName(hwnd)
-                    if "SAP" in cls.upper() or "sap" in cls.lower():
-                        found.append(hwnd)
-            win32gui.EnumWindows(_cb, None)
-            for hwnd in found:
-                win32gui.ShowWindow(hwnd, win32con.SW_HIDE)
-            if found:
-                log.info("SAP GUI Fenster versteckt via EnumWindows (%d gefunden)", len(found))
-                hidden = True
+            win32gui.ShowWindow(hwnd, win32con.SW_HIDE)
+            log.info("SAP GUI Fenster versteckt via SW_HIDE (HWND=%d)", hwnd)
+            hidden = True
         except Exception as e:
-            log.debug("EnumWindows Hide fehlgeschlagen: %s", e)
+            log.debug("Win32 SW_HIDE fehlgeschlagen: %s", e)
 
-    # Fallback 3: Minimieren in Taskleiste
+    # Versuch 3: iconify → Taskleiste
     if not hidden:
         try:
             session.findById("wnd[0]").iconify()
-            log.info("SAP GUI Fenster minimiert (iconify)")
+            log.info("SAP GUI Fenster minimiert (iconify Fallback)")
         except Exception as e:
             log.debug("iconify fehlgeschlagen: %s", e)
+
+
+def _show_session_window(session) -> None:
+    """
+    Macht das SAP GUI Fenster nach Hintergrundausfuehrung wieder sichtbar.
+    """
+    # Versuch 1: GuiApplication.Visible = True
+    try:
+        app = session.Parent.Parent
+        app.Visible = True
+        log.info("SAP GUI Fenster wieder sichtbar via GuiApplication.Visible=True")
+        return
+    except Exception as e:
+        log.debug("GuiApplication.Visible restore fehlgeschlagen: %s", e)
+
+    # Versuch 2: Win32 SW_SHOWNOACTIVATE
+    try:
+        hwnd = int(session.findById("wnd[0]").Handle)
+        import win32gui, win32con  # type: ignore
+        win32gui.ShowWindow(hwnd, win32con.SW_SHOWNOACTIVATE)
+        log.info("SAP GUI Fenster wieder sichtbar via SW_SHOWNOACTIVATE (HWND=%d)", hwnd)
+        return
+    except Exception as e:
+        log.debug("Win32 Show fehlgeschlagen: %s", e)
+
+    # Versuch 3: restore() oder maximize()
+    try:
+        session.findById("wnd[0]").restore()
+        log.info("SAP GUI Fenster restore() aufgerufen")
+    except Exception:
+        try:
+            session.findById("wnd[0]").maximize()
+        except Exception:
+            pass
 
 
 # ---------------------------------------------------------------------------
@@ -2208,17 +2298,22 @@ def gui_va42_zterm_change(task: dict, payload: dict) -> dict:
 
     target_ashost = sap_auth.get("ashost", "")
 
-    # Neue Session mit Cockpit-Credentials (bevorzugt), sonst laufende Session
+    # Session holen: zuerst laufende SAP GUI Session, ggf. neue via SAP Logon
+    existing_session_hidden = False
     if sap_auth.get("user") and sap_auth.get("passwd"):
-        connection, session = _gui_session_with_sap_auth(sap_auth)
-        should_close = True
-        log.info("VA42: Neue SAP GUI Session geöffnet für User=%s (background=%s)",
-                 sap_auth.get("user"), background)
+        connection, session, should_close = _gui_session_with_sap_auth(sap_auth)
+        log.info("VA42: SAP GUI Session für User=%s (neu=%s, background=%s)",
+                 sap_auth.get("user"), should_close, background)
         if background:
             _hide_session_window(session)
+            if not should_close:
+                existing_session_hidden = True  # bestehende Session → nach Ausführung wieder einblenden
     else:
         connection, session, should_close = _get_gui_session(target_ashost=target_ashost)
         log.info("VA42: Laufende SAP GUI Session verwendet")
+        if background:
+            _hide_session_window(session)
+            existing_session_hidden = True
 
     results = []
     try:
@@ -2275,6 +2370,8 @@ def gui_va42_zterm_change(task: dict, payload: dict) -> dict:
             "results":  results,
         }
     finally:
+        if existing_session_hidden:
+            _show_session_window(session)
         if should_close and connection:
             try:
                 connection.CloseSession(session.Id)
@@ -2284,34 +2381,42 @@ def gui_va42_zterm_change(task: dict, payload: dict) -> dict:
 
 def gui_xd02_kzterm_change(task: dict, payload: dict) -> dict:
     """
-    Ändert KNB1-ZTERM (Buchungskreisdaten → Reiter 'Payment Transactions') via XD02.
-    payload: { customers: [kunnr, ...], bukrs: "0439", new_zterm: "X004", _sap_auth: {...} }
+    Aendert KNVV-ZTERM (Vertriebsbereich → Faktura-Tab, Screen 7325) via XD02.
+    payload: { customers: [kunnr, ...], bukrs: "0439", new_zterm: "X004",
+               vkorg: "0439", vtweg: "10", spart: "00", _sap_auth: {...} }
     """
-    import time
+    import time as _t
     sap_auth   = payload.get("_sap_auth") or {}
     customers  = payload.get("customers", [])
     bukrs      = str(payload.get("bukrs", "0439")).strip()
     new_zterm  = str(payload.get("new_zterm", "")).strip()
-    background = bool(payload.get("background", True))   # Standard: Hintergrund
+    background = bool(payload.get("background", True))
+    vkorg      = str(payload.get("vkorg", bukrs)).strip()   # Default = bukrs (z.B. "0439")
+    vtweg      = str(payload.get("vtweg", "10")).strip()
+    spart      = str(payload.get("spart", "00")).strip()
 
     if not customers:
-        return {"status": "error", "message": "Keine Kundennummern übergeben"}
+        return {"status": "error", "message": "Keine Kundennummern uebergeben"}
     if not new_zterm:
         return {"status": "error", "message": "new_zterm fehlt"}
 
     target_ashost = sap_auth.get("ashost", "")
 
-    # Neue Session mit Cockpit-Credentials (bevorzugt), sonst laufende Session
+    # Session holen
+    existing_session_hidden = False
     if sap_auth.get("user") and sap_auth.get("passwd"):
-        connection, session = _gui_session_with_sap_auth(sap_auth)
-        should_close = True
-        log.info("XD02: Neue SAP GUI Session geöffnet für User=%s (background=%s)",
-                 sap_auth.get("user"), background)
+        connection, session, should_close = _gui_session_with_sap_auth(sap_auth)
+        log.info("XD02: Session fuer User=%s (neu=%s)", sap_auth.get("user"), should_close)
         if background:
             _hide_session_window(session)
+            if not should_close:
+                existing_session_hidden = True
     else:
         connection, session, should_close = _get_gui_session(target_ashost=target_ashost)
         log.info("XD02: Laufende SAP GUI Session verwendet")
+        if background:
+            _hide_session_window(session)
+            existing_session_hidden = True
 
     results = []
     try:
@@ -2319,229 +2424,169 @@ def gui_xd02_kzterm_change(task: dict, payload: dict) -> dict:
             kunnr = str(kunnr).strip()
             if not kunnr:
                 continue
-            step = {"kunnr": kunnr, "status": "ok", "message": ""}
+            step = {"kunnr": kunnr, "status": "ok", "message": "", "zterm_old": "", "zterm_new": new_zterm}
             try:
-                # XD02 aufrufen
+                # ── 1. XD02 aufrufen ──────────────────────────────────────
                 session.findById("wnd[0]/tbar[0]/okcd").text = "/nXD02"
                 session.findById("wnd[0]").sendVKey(0)
-                time.sleep(1.5)
-                # XD02 Einstiegsmaske: Popup erscheint als wnd[1]
-                import time as _t
-                _t.sleep(0.5)
+                _t.sleep(1.5)
 
-                # Kundennummer im Popup (wnd[1]) eintragen
-                kunnr_entered = False
-                for fid in (
-                    "wnd[1]/usr/ctxtRF02D-KUNNR",
-                    "wnd[0]/usr/ctxtRF02D-KUNNR",
-                    "wnd[1]/usr/ctxtKUNA-KUNNR",
-                    "wnd[0]/usr/ctxtKUNA-KUNNR",
-                ):
+                # ── 2. Einstiegsmaske befuellen ───────────────────────────────
+                # Bukrs LEER lassen → XD02 zeigt nur Sales Area Data (KNVV)
+                # Mit Bukrs gefüllt → Views-Popup → landet auf Company Code Data → Faktura-Tab nicht sichtbar
+                for fid, val in [
+                    ("wnd[0]/usr/ctxtRF02D-KUNNR", kunnr),
+                    ("wnd[0]/usr/ctxtRF02D-BUKRS", ""),       # bewusst leer: nur Sales Area
+                    ("wnd[0]/usr/ctxtRF02D-VKORG", vkorg),
+                    ("wnd[0]/usr/ctxtRF02D-VTWEG", vtweg),
+                    ("wnd[0]/usr/ctxtRF02D-SPART", spart),
+                ]:
                     try:
-                        session.findById(fid).text = kunnr
-                        kunnr_entered = True
+                        session.findById(fid).text = val
+                    except Exception:
+                        pass
+
+                session.findById("wnd[0]").sendVKey(0)   # Enter
+                _t.sleep(2.0)
+
+                # ── 3. Evtl. Dialoge bestaetigen ──────────────────────────
+                for _ in range(3):
+                    try:
+                        wnd1 = session.findById("wnd[1]")
+                        wnd1.sendVKey(0)
+                        _t.sleep(0.8)
+                    except Exception:
                         break
-                    except Exception:
-                        pass
-                if not kunnr_entered:
-                    step["status"] = "error"
-                    step["message"] = "Kunden-Feld nicht gefunden"
-                    results.append(step)
-                    continue
 
-                # Buchungskreis im Popup eintragen
-                for fid in (
-                    "wnd[1]/usr/ctxtRF02D-BUKRS",
-                    "wnd[0]/usr/ctxtRF02D-BUKRS",
-                    "wnd[1]/usr/ctxtKUNA-BUKRS",
-                    "wnd[0]/usr/ctxtKUNA-BUKRS",
-                ):
-                    try:
-                        session.findById(fid).text = bukrs
-                        break
-                    except Exception:
-                        pass
-
-                # Sales Area Felder leeren (koennten vorbelegt sein aus letzter Session)
-                # Wir aendern nur Buchungskreisdaten (KNB1), Sales Area muss leer bleiben
-                for fid in (
-                    "wnd[1]/usr/ctxtRF02D-VKORG",  # Sales Organisation
-                    "wnd[0]/usr/ctxtRF02D-VKORG",
-                    "wnd[1]/usr/ctxtRF02D-VTWEG",  # Vertriebsweg (Distribution Channel)
-                    "wnd[0]/usr/ctxtRF02D-VTWEG",
-                    "wnd[1]/usr/ctxtRF02D-SPART",  # Sparte (Division)
-                    "wnd[0]/usr/ctxtRF02D-SPART",
-                ):
-                    try:
-                        session.findById(fid).text = ""
-                    except Exception:
-                        pass
-
-                # Popup mit Enter bestätigen (wnd[1] oder wnd[0])
-                for wnd in ("wnd[1]", "wnd[0]"):
-                    try:
-                        session.findById(wnd).sendVKey(0)
-                        break
-                    except Exception:
-                        pass
-                _t.sleep(2.5)
-
-                # Falls weiterer Dialog erscheint: auch bestätigen
-                try:
-                    session.findById("wnd[1]").sendVKey(0)
-                    _t.sleep(1.0)
-                except Exception:
-                    pass
-
-                # Explizit Tab "Payment Transactions" (2. Tab) anwaehlen
-                for tab_id in (
-                    "wnd[0]/usr/tabsTABSTRIP1/tabpT02",
-                    "wnd[0]/usr/tabsTABSTRIP1/tabpZAHL",
-                    "wnd[0]/usr/tabsTABSTRIP1/tabpT" + chr(92) + "02",
-                ):
+                # ── 4. Faktura-Tab auswaehlen (wie VBS: tabsTAXI_TABSTRIP_HEAD/tabpT\03) ──
+                # WICHTIG: "T\03" = literal backslash-03 (SAP Tab-ID), kein Escape!
+                tab_selected = False
+                tab_attempts = [
+                    "wnd[0]/usr/tabsTAXI_TABSTRIP_HEAD/tabpT\\03",   # Standard (VBS-Vorlage)
+                    "wnd[0]/usr/tabsTAXI_TABSTRIP_HEAD/tabpFAKT",
+                    "wnd[0]/usr/tabsTABSTRIP_VERK/tabpT\\03",
+                    "wnd[0]/usr/tabsTABSTRIP1/tabpT\\03",
+                ]
+                for tab_id in tab_attempts:
                     try:
                         session.findById(tab_id).select()
                         _t.sleep(1.0)
-                        log.info("XD02: Tab gewaehlt: %s", tab_id)
+                        tab_selected = True
+                        log.info("XD02: Faktura-Tab gewaehlt: %s", tab_id)
                         break
                     except Exception:
                         pass
 
-                # KNB1-ZTERM: alten Wert lesen, dann neuen setzen
-                zterm_old = ""
-                zterm_set = False
-
-                # Container-Objekte fuer findAllByName
-                containers = []
-                for cpath in ("wnd[0]", "wnd[0]/usr"):
+                if not tab_selected:
+                    # Fallback: Menü Springen → Vertriebsbereich → Faktura (wie VBS-Vorlage)
                     try:
-                        containers.append(session.findById(cpath))
+                        session.findById("wnd[0]/mbar/menu[2]/menu[1]/menu[2]").select()
+                        _t.sleep(1.0)
+                        tab_selected = True
+                        log.info("XD02: Faktura via Menu Springen→Vertriebsbereich→Faktura")
+                    except Exception as _me:
+                        log.warning("XD02: Menu-Fallback fehlgeschlagen: %s – versuche direkte Feld-Adressierung", _me)
+
+                # ── 5. KNVV-ZTERM lesen und setzen (Screen 7325, Faktura-Tab) ──
+                # Pfade gemaess VBS-Vorlage (KNVV, nicht KNB1; Screen 7325, nicht 7215)
+                field_paths = [
+                    "wnd[0]/usr/tabsTAXI_TABSTRIP_HEAD/tabpT\\03/ssubSUBSCREEN_BODY:SAPMF02D:7325/ctxtKNVV-ZTERM",
+                    "wnd[0]/usr/subSUBSCREEN_BODY:SAPMF02D:7325/ctxtKNVV-ZTERM",
+                    "wnd[0]/usr/tabsTAXI_TABSTRIP_HEAD/tabpFAKT/ssubSUBSCREEN_BODY:SAPMF02D:7325/ctxtKNVV-ZTERM",
+                    "wnd[0]/usr/tabsTABSTRIP_VERK/tabpT\\03/ssubSUBSCREEN_BODY:SAPMF02D:7325/ctxtKNVV-ZTERM",
+                    "wnd[0]/usr/tabsTABSTRIP1/tabpT\\03/ssubSUBSCREEN_BODY:SAPMF02D:7325/ctxtKNVV-ZTERM",
+                    "wnd[0]/usr/ctxtKNVV-ZTERM",
+                ]
+
+                zterm_old = ""
+                zterm_field = None
+                used_path   = ""
+
+                for fp in field_paths:
+                    try:
+                        f = session.findById(fp)
+                        zterm_old   = (f.text or "").strip()
+                        zterm_field = f
+                        used_path   = fp
+                        log.info("XD02: Feld gefunden: %s  (alt='%s')", fp, zterm_old)
+                        break
                     except Exception:
                         pass
-                containers.insert(0, session)
 
-                # Zuerst alten ZTERM-Wert lesen
-                for container in containers:
-                    if zterm_old:
-                        break
-                    for fname in ("KNB1-ZTERM", "ZTERM"):
-                        if zterm_old:
-                            break
-                        for ftype in ("GuiCTextField", "GuiTextField"):
-                            try:
-                                zf = container.findAllByName(fname, ftype)
-                                if zf and zf.count > 0:
-                                    zterm_old = (zf.elementAt(0).text or "").strip()
-                                    break
-                            except Exception:
-                                pass
-
-                if not zterm_old:
-                    for fp in (
-                        "wnd[0]/usr/tabsTABSTRIP1/tabpT02/ssubSUBSCR_BODY:SAPMF02D:7215/ctxtKNB1-ZTERM",
-                        "wnd[0]/usr/tabsTABSTRIP1/tabpT02/ssubSUBSCR_BODY:SAPMF02D:7215/txtKNB1-ZTERM",
-                        "wnd[0]/usr/subSUBSCR_BODY:SAPMF02D:7215/ctxtKNB1-ZTERM",
-                        "wnd[0]/usr/ctxtKNB1-ZTERM",
-                        "wnd[0]/usr/txtKNB1-ZTERM",
-                    ):
+                # Fallback: findAllByName
+                if zterm_field is None:
+                    for ftype in ("GuiCTextField", "GuiTextField"):
                         try:
-                            zterm_old = (session.findById(fp).text or "").strip()
-                            if zterm_old:
+                            zf = session.findAllByName("KNVV-ZTERM", ftype)
+                            if zf and zf.count > 0:
+                                zterm_field = zf.elementAt(0)
+                                zterm_old   = (zterm_field.text or "").strip()
+                                used_path   = f"findAllByName(KNVV-ZTERM,{ftype})"
+                                log.info("XD02: Feld via findAllByName: alt='%s'", zterm_old)
                                 break
                         except Exception:
                             pass
 
                 step["zterm_old"] = zterm_old
-                log.info("XD02 ZTERM alt: '%s' -> neu: '%s'", zterm_old, new_zterm)
 
-                # Neuen ZTERM setzen
-                for container in containers:
-                    if zterm_set:
-                        break
-                    for fname in ("KNB1-ZTERM", "ZTERM"):
-                        if zterm_set:
-                            break
-                        for ftype in ("GuiCTextField", "GuiTextField"):
-                            try:
-                                zf = container.findAllByName(fname, ftype)
-                                if zf and zf.count > 0:
-                                    elem = zf.elementAt(0)
-                                    elem.setFocus()
-                                    elem.text = new_zterm
-                                    zterm_set = True
-                                    log.info("XD02 ZTERM gesetzt via findAllByName(%s,%s)", fname, ftype)
-                                    break
-                            except Exception:
-                                pass
-
-                # Fallback: findById mit allen bekannten Pfadvarianten
-                if not zterm_set:
-                    for fp in (
-                        "wnd[0]/usr/tabsTABSTRIP1/tabpT02/ssubSUBSCR_BODY:SAPMF02D:7215/ctxtKNB1-ZTERM",
-                        "wnd[0]/usr/tabsTABSTRIP1/tabpT02/ssubSUBSCR_BODY:SAPMF02D:7215/txtKNB1-ZTERM",
-                        "wnd[0]/usr/subSUBSCR_BODY:SAPMF02D:7215/ctxtKNB1-ZTERM",
-                        "wnd[0]/usr/subSUBSCR_BODY:SAPMF02D:7215/txtKNB1-ZTERM",
-                        "wnd[0]/usr/ctxtKNB1-ZTERM",
-                        "wnd[0]/usr/txtKNB1-ZTERM",
-                    ):
-                        try:
-                            f = session.findById(fp)
-                            f.setFocus()
-                            f.text = new_zterm
-                            zterm_set = True
-                            log.info("XD02 ZTERM gesetzt via findById: %s", fp)
-                            break
-                        except Exception:
-                            pass
-
-                # Letzter Fallback: WScript.Shell.SendKeys (tippt in fokussiertes Feld)
-                if not zterm_set:
+                if zterm_field is None:
+                    step["status"]  = "error"
+                    step["message"] = "KNVV-ZTERM Feld nicht gefunden (alle Pfade versucht)"
+                    log.error("XD02 %s: Feld nicht gefunden", kunnr)
+                    # XD02 abbrechen
                     try:
-                        import win32com.client as _w32
-                        shell = _w32.Dispatch("WScript.Shell")
-                        # Fokus auf SAP-Fenster
-                        session.findById("wnd[0]").setFocus()
-                        _t.sleep(0.3)
-                        # Feld via Tab-Navigation ansteuern: Ctrl+F -> Payment Transactions
-                        # Einfacher: Feld-Inhalt loeschen und neu tippen
-                        shell.SendKeys("^a")    # Alles markieren
-                        _t.sleep(0.1)
-                        shell.SendKeys("{DEL}") # Loeschen
-                        _t.sleep(0.1)
-                        for ch in new_zterm:
-                            shell.SendKeys(ch)
-                            _t.sleep(0.05)
-                        zterm_set = True
-                        log.info("XD02 ZTERM via SendKeys gesetzt: %s", new_zterm)
-                    except Exception as sk_err:
-                        log.warning("XD02 SendKeys fehlgeschlagen: %s", sk_err)
-
-                if not zterm_set:
-                    step["status"] = "warn"
-                    step["message"] = "KNB1-ZTERM Feld nicht setzbar (alle Methoden fehlgeschlagen)"
+                        session.findById("wnd[0]").sendVKey(12)
+                    except Exception:
+                        pass
                     results.append(step)
                     continue
 
-                # Direkt sichern (kein Enter vorher – verhindert doppelte Verarbeitung)
-                session.findById("wnd[0]").sendVKey(11)  # Ctrl+S / Save
+                # Neuen Wert setzen
+                zterm_field.setFocus()
+                _t.sleep(0.1)
+                zterm_field.text = new_zterm
+                _t.sleep(0.3)
+                log.info("XD02 %s: ZTERM %s→%s gesetzt via %s", kunnr, zterm_old, new_zterm, used_path)
+
+                # ── 6. Sichern ────────────────────────────────────────────
+                session.findById("wnd[0]").sendVKey(11)   # Ctrl+S / F11 = Sichern
                 _t.sleep(1.5)
 
-                # Evtl. Bestätigungsdialog schließen
+                # Evtl. Bestaetigungs-Dialog (z.B. Redundanzwarnung)
                 try:
                     session.findById("wnd[1]").sendVKey(0)
-                    _t.sleep(0.5)
+                    _t.sleep(0.8)
                 except Exception:
                     pass
 
-                # XD02 schließen → Startmaske
-                session.findById("wnd[0]/tbar[0]/okcd").text = "/n"
-                session.findById("wnd[0]").sendVKey(0)
-                _t.sleep(0.5)
+                # ── 7. Statusbar pruefen (wie VBS-Vorlage) ────────────────
+                try:
+                    sbar = (session.findById("wnd[0]/sbar").text or "").strip()
+                    log.info("XD02 %s: Statusbar nach Save: '%s'", kunnr, sbar)
+                    sbar_l = sbar.lower()
+                    if any(w in sbar_l for w in ("gesichert", "saved", "geaendert", "changed", "updated")):
+                        step["message"] = f"KNVV-ZTERM {zterm_old}→{new_zterm} gesichert ({sbar})"
+                    elif any(w in sbar_l for w in ("fehler", "error", "ungueltig", "invalid", "nicht definiert")):
+                        step["status"]  = "error"
+                        step["message"] = f"SAP Fehler: {sbar}"
+                    else:
+                        step["status"]  = "warn"
+                        step["message"] = f"KNVV-ZTERM {zterm_old}→{new_zterm} – SAP: '{sbar}' (bitte pruefen)"
+                except Exception:
+                    step["message"] = f"KNVV-ZTERM {zterm_old}→{new_zterm} gesetzt (Statusbar nicht lesbar)"
 
-                step["message"] = f"KNB1-ZTERM {zterm_old or '?'}→{new_zterm} BK={bukrs} gesetzt und gesichert"
             except Exception as e:
-                step["status"] = "error"
+                step["status"]  = "error"
                 step["message"] = str(e)
+                log.exception("XD02 Ausnahme fuer Kunde %s", kunnr)
+            finally:
+                # XD02 schliessen → Easy Access Menu
+                try:
+                    session.findById("wnd[0]/tbar[0]/okcd").text = "/n"
+                    session.findById("wnd[0]").sendVKey(0)
+                    _t.sleep(0.5)
+                except Exception:
+                    pass
             results.append(step)
 
         ok   = sum(1 for r in results if r["status"] == "ok")
@@ -2549,13 +2594,15 @@ def gui_xd02_kzterm_change(task: dict, payload: dict) -> dict:
         err  = sum(1 for r in results if r["status"] == "error")
         log.info("gui_xd02_kzterm_change: %d ok, %d warn, %d err", ok, warn, err)
         return {
-            "status":  "ok" if err == 0 else "partial",
+            "status":  "ok" if err == 0 and warn == 0 else "partial",
             "ok":      ok,
             "warn":    warn,
             "errors":  err,
             "results": results,
         }
     finally:
+        if existing_session_hidden:
+            _show_session_window(session)
         if should_close and connection:
             try:
                 connection.CloseSession(session.Id)
