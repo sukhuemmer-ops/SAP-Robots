@@ -174,15 +174,15 @@ def _call_claude(api_key: str, model: str, system: str, messages: list) -> str:
 
 
 def _call_openai(api_key: str, model: str, system: str, messages: list) -> str:
-    import urllib.request, json as _json
+    import urllib.request, urllib.error as _ue, json as _js, time as _tm
     model = model or "gpt-4o-mini"
     payload = {
         "model": model,
         "max_tokens": 600,
         "messages": [{"role": "system", "content": system}] + messages,
     }
-    data  = _json.dumps(payload).encode()
-    req   = urllib.request.Request(
+    data = _js.dumps(payload).encode()
+    req  = urllib.request.Request(
         "https://api.openai.com/v1/chat/completions",
         data=data,
         headers={
@@ -191,9 +191,47 @@ def _call_openai(api_key: str, model: str, system: str, messages: list) -> str:
         },
         method="POST",
     )
-    with urllib.request.urlopen(req, timeout=30) as r:
-        result = _json.loads(r.read().decode())
-    return result["choices"][0]["message"]["content"]
+    for attempt in range(3):   # bis zu 3 Versuche bei Rate-Limit
+        try:
+            with urllib.request.urlopen(req, timeout=30) as r:
+                result = _js.loads(r.read().decode())
+            return result["choices"][0]["message"]["content"]
+        except _ue.HTTPError as exc:
+            if exc.code != 429:
+                # andere Fehler (401, 400 …) sofort weitergeben
+                body = ""
+                try: body = exc.read().decode()
+                except Exception: pass
+                try:
+                    err = _js.loads(body).get("error", {})
+                    raise Exception(f"OpenAI Fehler {exc.code}: {err.get('message', body[:200])}")
+                except (_js.JSONDecodeError, KeyError):
+                    raise Exception(f"OpenAI HTTP {exc.code}: {body[:200]}")
+            # --- 429 Rate-Limit oder Kontingent-Erschöpft ---
+            body = ""
+            try: body = exc.read().decode()
+            except Exception: pass
+            # Kontingent (kein Guthaben) vs. Rate-Limit unterscheiden
+            if any(k in body for k in ("insufficient_quota", "billing", "exceeded your current quota")):
+                raise Exception(
+                    "OpenAI-Kontingent erschöpft. Bitte Guthaben unter "
+                    "platform.openai.com/account/billing aufladen oder ein günstigeres Modell wählen."
+                )
+            # Rate-Limit: warten und erneut versuchen
+            retry_after = 3
+            try:
+                retry_after = int(exc.headers.get("Retry-After", 3))
+            except Exception:
+                pass
+            retry_after = min(retry_after, 10)   # max 10s warten
+            if attempt < 2:
+                log.warning("OpenAI 429 – warte %ds (Versuch %d/3)", retry_after, attempt + 1)
+                _tm.sleep(retry_after)
+                continue
+            raise Exception(
+                f"OpenAI Anfrage-Limit (429) nach 3 Versuchen. "
+                f"Tipp: Weniger häufig anfragen oder Modell 'gpt-4o-mini' wählen."
+            )
 
 
 def chat(user_text: str, history: list[dict]) -> dict:
