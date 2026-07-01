@@ -196,7 +196,7 @@ select{padding:6px 10px;background:var(--bg3);border:1px solid var(--border);bor
           </tr>
         </thead>
         <tbody id="invBody">
-          <tr><td colspan="12" style="text-align:center;padding:40px;color:var(--muted)">
+          <tr><td colspan="13" style="text-align:center;padding:40px;color:var(--muted)">
             Bitte XLSM-Datei hochladen, um die Rechnungsliste anzuzeigen.
           </td></tr>
         </tbody>
@@ -989,13 +989,12 @@ function renderTable() {
   var tbody = document.getElementById('invBody');
   if (!list.length) {
     if (_invoices.length > 0) {
-      // Daten geladen, aber Filter ergibt 0 → Reset-Button anbieten
-      tbody.innerHTML = '<tr><td colspan="12" style="text-align:center;padding:40px">' +
+      tbody.innerHTML = '<tr><td colspan="13" style="text-align:center;padding:40px">' +
         '<div style="color:var(--muted);margin-bottom:12px">Kein Treffer für aktuelle Filter.</div>' +
         '<button onclick="resetFilters()" style="padding:7px 18px;background:rgba(88,166,255,.15);border:1px solid rgba(88,166,255,.4);border-radius:8px;color:var(--acc);font-size:12px;font-weight:700;cursor:pointer">↺ Filter zurücksetzen</button>' +
         '</td></tr>';
     } else {
-      tbody.innerHTML = '<tr><td colspan="12" style="text-align:center;padding:40px;color:var(--muted)">Bitte XLSM-Datei hochladen, um die Rechnungsliste anzuzeigen.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="13" style="text-align:center;padding:40px;color:var(--muted)">Bitte XLSM-Datei hochladen oder Rechnung manuell erfassen.</td></tr>';
     }
     return;
   }
@@ -1007,6 +1006,7 @@ function renderTable() {
     var ordNr  = inv.order_nr   ? '<span style="font-family:monospace;font-size:11px;color:var(--muted)">' + esc(inv.order_nr) + '</span>' : '<span style="color:var(--muted)">–</span>';
     var total  = inv.total.toLocaleString('de-DE', {minimumFractionDigits:2, maximumFractionDigits:2});
     var storno = inv.is_storno ? ' <span class="badge badge-err" style="font-size:9px">Storno</span>' : '';
+    var bukrsLabel = inv.bukrs || '–';
     var pdfBtn = inv.has_pdf
       ? '<a href="' + ORCH_URL + '/invoice_records/' + inv.id + '/pdf" target="_blank" title="Rechnung PDF herunterladen" style="padding:5px 10px;background:rgba(74,222,128,.12);border:1px solid rgba(74,222,128,.4);border-radius:8px;color:#4ade80;font-size:11px;font-weight:700;cursor:pointer;text-decoration:none">📄</a> '
       : '<button onclick="uploadPdfFor(\'' + key + '\')" title="PDF hochladen" style="padding:5px 10px;background:rgba(156,163,175,.1);border:1px solid rgba(156,163,175,.3);border-radius:8px;color:var(--muted);font-size:11px;font-weight:700;cursor:pointer">📤</button> ';
@@ -1018,10 +1018,12 @@ function renderTable() {
       (inv.invoice_nr && emailCfgs.some(function(c){ return c.kunden_nr === inv.kunden_nr && c.status === 'aktiv'; })
         ? '<button onclick="sendEmailForInvoice(' + inv.id + ',\'' + esc(inv.invoice_nr) + '\')" title="Rechnung per E-Mail senden" style="padding:5px 10px;background:rgba(88,166,255,.12);border:1px solid rgba(88,166,255,.4);border-radius:8px;color:var(--acc);font-size:11px;font-weight:700;cursor:pointer">📧</button> '
         : '') +
+      '<button onclick="copyInvoice(\'' + key + '\')" title="Felder kopieren (ohne Beleg-Nr. + Betrag)" style="padding:5px 10px;background:rgba(139,92,246,.12);border:1px solid rgba(139,92,246,.4);border-radius:8px;color:#a78bfa;font-size:11px;font-weight:700;cursor:pointer">⎘</button> ' +
       '<button onclick="openBelegModal(\'' + key + '\')" title="SAP-Belegnummer manuell eintragen" style="padding:5px 10px;background:rgba(251,191,36,.12);border:1px solid rgba(251,191,36,.4);border-radius:8px;color:#f59e0b;font-size:11px;font-weight:700;cursor:pointer">✏️</button>';
 
     return '<tr id="inv_' + key + '">' +
       '<td><button onclick="togglePos(\'' + key + '\')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px" id="togBtn_' + key + '">▶</button></td>' +
+      '<td class="td-mono" style="font-size:11px;color:var(--muted)">' + bukrsLabel + '</td>' +
       '<td class="td-mono td-bold">' + esc(inv.kunden_nr) + '</td>' +
       '<td>' + esc(inv.name) + storno + '</td>' +
       '<td class="td-mono" style="color:var(--acc)">' + esc(inv.periode) + '</td>' +
@@ -1034,7 +1036,7 @@ function renderTable() {
       '<td>' + ordNr + '</td>' +
       '<td style="text-align:right">' + actionBtn + '</td>' +
     '</tr>' +
-    '<tr id="pos_' + key + '" style="display:none"><td colspan="12" style="padding:0">' +
+    '<tr id="pos_' + key + '" style="display:none"><td colspan="13" style="padding:0">' +
       '<div class="pos-detail" id="posDetail_' + key + '">' +
         '<table class="pos-table"><thead><tr>' +
           '<th>#</th><th>Buchungstext</th><th style="text-align:right">Betrag EUR</th>' +
@@ -1760,6 +1762,153 @@ function resetFilters() {
   renderTable();
 }
 
+// ─── Neue Rechnung: Modal ────────────────────────────────────
+function openNewInvoiceModal() {
+  var cfg = getCfg();
+  // Buchungskreis vorbelegen
+  var bukrsSel = document.getElementById('nieBukrs');
+  bukrsSel.value = cfg.bukrs || '0435';
+  // Leistungsart/MWSt/Währung aus Config nicht nötig — Defaults genügen
+  // Periode = aktueller Monat
+  var now = new Date();
+  document.getElementById('niePeriode').value = String(now.getMonth()+1).padStart(2,'0') + '/' + now.getFullYear();
+  // Felder leeren
+  ['nieKundenNr','nieName','nieSapDate'].forEach(function(id){ document.getElementById(id).value = ''; });
+  // 1 leere Position anlegen
+  document.getElementById('niePositions').innerHTML = '';
+  addNiePosition();
+  document.getElementById('newInvResult').innerHTML = '';
+  document.getElementById('newInvTitle').textContent = '➕ Neue Rechnung erfassen';
+  document.getElementById('newInvModal').style.display = 'flex';
+}
+
+function closeNewInvoiceModal() {
+  document.getElementById('newInvModal').style.display = 'none';
+}
+
+function addNiePosition() {
+  var container = document.getElementById('niePositions');
+  var idx = container.children.length + 1;
+  var row = document.createElement('div');
+  row.style.cssText = 'display:flex;gap:8px;align-items:center';
+  row.innerHTML =
+    '<span style="color:var(--muted);font-size:11px;min-width:18px">' + idx + '.</span>' +
+    '<input type="text" placeholder="Buchungstext" oninput="calcNieTotal()" style="flex:1;padding:6px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px">' +
+    '<input type="number" placeholder="Betrag" step="0.01" oninput="calcNieTotal()" style="width:130px;padding:6px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;text-align:right">' +
+    '<button onclick="this.parentNode.remove();calcNieTotal()" style="background:rgba(255,80,80,.12);border:1px solid rgba(255,80,80,.3);border-radius:6px;color:#f87171;font-size:11px;padding:4px 8px;cursor:pointer">✕</button>';
+  container.appendChild(row);
+  calcNieTotal();
+}
+
+function calcNieTotal() {
+  var rows = document.getElementById('niePositions').children;
+  var sum  = 0;
+  for (var i = 0; i < rows.length; i++) {
+    var v = parseFloat(rows[i].querySelectorAll('input')[1].value) || 0;
+    sum  += v;
+  }
+  var cur = document.getElementById('nieWaehrung').value || 'EUR';
+  document.getElementById('nieTotalDisplay').textContent =
+    sum.toLocaleString('de-DE', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' ' + cur;
+}
+
+function _nieGetPositions() {
+  var rows = document.getElementById('niePositions').children;
+  var pos  = [];
+  for (var i = 0; i < rows.length; i++) {
+    var inputs = rows[i].querySelectorAll('input');
+    var text   = inputs[0].value.trim();
+    var betrag = parseFloat(inputs[1].value) || 0;
+    if (text || betrag) pos.push({ buchungstext: text, betrag: betrag });
+  }
+  return pos;
+}
+
+async function saveNewInvoice() {
+  var result = document.getElementById('newInvResult');
+  var bukrs  = document.getElementById('nieBukrs').value;
+  var kunden = document.getElementById('nieKundenNr').value.trim();
+  var name   = document.getElementById('nieName').value.trim();
+  var periode= document.getElementById('niePeriode').value.trim();
+  var sapDate= document.getElementById('nieSapDate').value.trim() || '';
+  var lart   = document.getElementById('nieLeistungsart').value;
+  var mwst   = document.getElementById('nieMwstCode').value;
+  var waehr  = document.getElementById('nieWaehrung').value;
+  var pos    = _nieGetPositions();
+  if (!kunden || !name || !periode) {
+    result.innerHTML = '<div style="color:var(--warn);font-size:12px">⚠ Kunden-Nr, Name und Periode sind Pflichtfelder.</div>';
+    return;
+  }
+  if (!pos.length) {
+    result.innerHTML = '<div style="color:var(--warn);font-size:12px">⚠ Mindestens eine Position erforderlich.</div>';
+    return;
+  }
+  var total  = pos.reduce(function(s,p){ return s + p.betrag; }, 0);
+  var gkey   = 'man_' + bukrs + '_' + kunden + '_' + periode.replace('/','');
+  var payload = {
+    group_key:    gkey,
+    bukrs:        bukrs,
+    kunden_nr:    kunden,
+    name:         name,
+    periode:      periode,
+    sap_date:     sapDate,
+    leistungsart: lart,
+    mwst_code:    mwst,
+    waehrung:     waehr,
+    total:        total,
+    status:       'offen',
+    invoice_nr:   '',
+    order_nr:     '',
+    positions:    pos,
+    is_storno:    0,
+  };
+  result.innerHTML = '<div style="color:var(--muted);font-size:12px">Speichere…</div>';
+  try {
+    var resp = await fetch(ORCH_URL + '/invoice_records', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify(payload),
+    });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    result.innerHTML = '<div style="color:var(--ok);font-size:12px">✓ Gespeichert</div>';
+    setTimeout(function() { closeNewInvoiceModal(); loadFromDb(); }, 800);
+  } catch(e) {
+    result.innerHTML = '<div style="color:var(--err);font-size:12px">Fehler: ' + e.message + '</div>';
+  }
+}
+
+// ─── Rechnung kopieren (ohne Beleg-Nr. + Rechnungsbetrag) ───
+function copyInvoice(key) {
+  var inv = _invoices.find(function(i){ return i._key === key; });
+  if (!inv) return;
+  // Modal öffnen und Felder vorbelegen
+  openNewInvoiceModal();
+  document.getElementById('newInvTitle').textContent = '⎘ Rechnung kopieren';
+  document.getElementById('nieBukrs').value        = inv.bukrs || getCfg().bukrs;
+  document.getElementById('nieKundenNr').value     = inv.kunden_nr || '';
+  document.getElementById('nieName').value         = inv.name || '';
+  document.getElementById('niePeriode').value      = inv.periode || '';
+  document.getElementById('nieSapDate').value      = inv.sap_date || '';
+  document.getElementById('nieLeistungsart').value = inv.leistungsart || 'Management-Service';
+  document.getElementById('nieMwstCode').value     = inv.mwst_code || 'Z4';
+  document.getElementById('nieWaehrung').value     = inv.waehrung || 'EUR';
+  // Positionen kopieren (ohne Beträge — Betrag wird leer gelassen)
+  var container = document.getElementById('niePositions');
+  container.innerHTML = '';
+  if (inv.positions && inv.positions.length) {
+    inv.positions.forEach(function(p) {
+      addNiePosition();
+      var last = container.lastElementChild;
+      var inputs = last.querySelectorAll('input');
+      inputs[0].value = p.buchungstext || '';
+      // Betrag bewusst NICHT kopieren
+    });
+  } else {
+    addNiePosition();
+  }
+  calcNieTotal();
+}
+
 function clearData() {
   if (!confirm('Wirklich alle Rechnungsdaten in diesem Browser zurücksetzen?\n(DB-Einträge bleiben erhalten — nur die Ansicht wird neu geladen)')) return;
   _invoices = [];
@@ -1771,7 +1920,7 @@ function clearData() {
 
 function showOrchestratorError() {
   document.getElementById('invBody').innerHTML =
-    '<tr><td colspan="12" style="text-align:center;padding:40px">' +
+    '<tr><td colspan="13" style="text-align:center;padding:40px">' +
     '<div style="color:var(--warn);font-size:14px;margin-bottom:12px">' +
     '⚠ Orchestrator (localhost:8000) nicht erreichbar</div>' +
     '<div style="color:var(--muted);font-size:12px;margin-bottom:16px">' +
