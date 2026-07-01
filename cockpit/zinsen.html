@@ -2,6 +2,13 @@
 <html lang="de">
 <head>
 <meta charset="UTF-8"/>
+<script>
+/* file:// → localhost: Browser merkt sich Mikrofon-Erlaubnis nur für localhost */
+if (location.protocol === 'file:') {
+  var _fn = (location.pathname.split('/').pop() || location.pathname.split('\').pop());
+  location.replace('http://localhost:8000/cockpit/' + _fn + location.search + location.hash);
+}
+</script>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>YCONN – Buchung Zinsen</title>
 <style>

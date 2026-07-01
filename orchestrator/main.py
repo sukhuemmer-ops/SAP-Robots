@@ -1767,6 +1767,18 @@ def _send_invoice_email(cfg: "InvoiceEmailConfig", rec: "InvoiceRecord", db: "Se
     db.add(hist); db.commit(); db.refresh(hist)
 
     try:
+        # SMTP-Konfiguration prüfen
+        if not cfg.smtp_host or not cfg.smtp_host.strip():
+            raise ValueError(
+                "SMTP-Server nicht konfiguriert. "
+                "Bitte smtp_host im E-Mail-Tab (Rechnungserstellung → E-Mail → Konfiguration bearbeiten) eintragen."
+            )
+        if not cfg.smtp_user or not cfg.smtp_pass:
+            raise ValueError(
+                "SMTP-Zugangsdaten fehlen (Benutzername / Passwort). "
+                "Bitte im E-Mail-Tab eintragen."
+            )
+
         msg = EmailMessage()
         msg["From"]    = cfg.sender_email
         msg["To"]      = cfg.recipient_email
@@ -1780,17 +1792,16 @@ def _send_invoice_email(cfg: "InvoiceEmailConfig", rec: "InvoiceRecord", db: "Se
                                maintype="application", subtype="pdf",
                                filename=f"Rechnung_{invoice_nr}.pdf")
 
+        smtp_host = cfg.smtp_host.strip()
         if cfg.smtp_tls:
             ctx = ssl.create_default_context()
-            with smtplib.SMTP(cfg.smtp_host, cfg.smtp_port) as s:
+            with smtplib.SMTP(smtp_host, cfg.smtp_port, timeout=15) as s:
                 s.starttls(context=ctx)
-                if cfg.smtp_user:
-                    s.login(cfg.smtp_user, cfg.smtp_pass)
+                s.login(cfg.smtp_user, cfg.smtp_pass)
                 s.send_message(msg)
         else:
-            with smtplib.SMTP_SSL(cfg.smtp_host, cfg.smtp_port) as s:
-                if cfg.smtp_user:
-                    s.login(cfg.smtp_user, cfg.smtp_pass)
+            with smtplib.SMTP_SSL(smtp_host, cfg.smtp_port, context=ssl.create_default_context(), timeout=15) as s:
+                s.login(cfg.smtp_user, cfg.smtp_pass)
                 s.send_message(msg)
 
         hist.status = "gesendet"

@@ -1,0 +1,9 @@
+customtkinter>=5.2.2
+SpeechRecognition>=3.10.0
+PyAudio>=0.2.14
+edge-tts>=6.1.9
+pygame>=2.5.2
+requests>=2.31.0
+openai>=1.30.0
+anthropic>=0.30.0
+pillow>=10.0.0

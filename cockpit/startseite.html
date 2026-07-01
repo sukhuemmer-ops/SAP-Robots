@@ -4,6 +4,13 @@
 <meta charset="utf-8">
 <title>YCONN — Übersicht</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<script>
+/* ── file:// → localhost (Browser merkt sich Mikrofon-Erlaubnis nur für localhost) ── */
+if (location.protocol === 'file:') {
+  var _fn = (location.pathname.split('/').pop() || location.pathname.split('\\').pop());
+  location.replace('http://localhost:8000/cockpit/' + _fn + location.search + location.hash);
+}
+</script>
 <style>
 /* ─── Reset & Base ─────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }

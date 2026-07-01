@@ -177,6 +177,74 @@ def _start_sapgui_if_needed(wait_sec: int = 12) -> None:
     log.warning("SAP GUI nach %ds noch nicht in ROT – fahre fort", wait_sec)
 
 
+def _find_saplogon_entry_for_host(ashost: str) -> str:
+    """
+    Liest SAPUILandscape.xml (inkl. aller <Include>-Dateien) und sucht einen
+    Eintrag der zum gegebenen ashost passt. Gibt Eintragnamen zurück, '' wenn keiner.
+    """
+    import xml.etree.ElementTree as ET
+
+    seen_paths: set = set()
+
+    def _collect_files(start: str) -> list:
+        """Folgt rekursiv allen <Include url="file:///..."> Verweisen."""
+        result = []
+        queue = [start]
+        while queue:
+            p = os.path.normpath(queue.pop(0))
+            if p in seen_paths or not os.path.isfile(p):
+                continue
+            seen_paths.add(p)
+            result.append(p)
+            try:
+                root = ET.parse(p).getroot()
+                for inc in root.iter("Include"):
+                    url = inc.get("url", "")
+                    if url.startswith("file:///"):
+                        queue.append(url[8:].replace("/", os.sep))
+            except Exception:
+                pass
+        return result
+
+    seed_paths: list[str] = [
+        os.path.expandvars(r"%APPDATA%\SAP\Common\SAPUILandscape.xml"),
+        os.path.expandvars(r"%APPDATA%\SAP\Common\SAPUILandscapeGlobal.xml"),
+    ]
+    try:
+        sysdrive = os.environ.get("SYSTEMDRIVE", "C:")
+        users_dir = os.path.join(sysdrive, "Users")
+        if os.path.isdir(users_dir):
+            for uname in os.listdir(users_dir):
+                base = os.path.join(users_dir, uname, r"AppData\Roaming\SAP\Common")
+                seed_paths += [os.path.join(base, "SAPUILandscape.xml"),
+                               os.path.join(base, "SAPUILandscapeGlobal.xml")]
+    except Exception:
+        pass
+
+    all_files: list[str] = []
+    for s in seed_paths:
+        all_files += _collect_files(s)
+
+    for path in all_files:
+        try:
+            root = ET.parse(path).getroot()
+            for svc in root.iter():
+                name = svc.get("name", "")
+                if not name:
+                    continue
+                raw = (svc.get("server", "") or svc.get("applicationserver", "")
+                       or svc.get("host", ""))
+                host_part = raw.split(":")[0].strip()
+                if host_part and (ashost in host_part or host_part in ashost):
+                    log.info("SAPUILandscape: Eintrag '%s' für %s in %s", name, ashost, path)
+                    return name
+        except Exception as _e:
+            log.debug("SAPUILandscape parse error (%s): %s", path, _e)
+
+    log.warning("SAPUILandscape: kein Eintrag für %s – nutze konfigurierten Namen", ashost)
+    return ""
+
+
 def _gui_session(creds=None):
     """
     Oeffnet eine NEUE SAP-GUI-Scripting-Session via SAP Logon (OpenConnection).
@@ -205,7 +273,28 @@ def _gui_session(creds=None):
             if creds.get("lang"):   cfg["lang"]   = creds["lang"]
     sap_gui_auto = _get_sapgui_from_rot()
     application  = sap_gui_auto.GetScriptingEngine
-    connection   = application.OpenConnection(cfg["connection"], True)
+
+    # OpenConnection – bei "not found" Eintrag auto-erkennen aus SAPUILandscape.xml
+    def _open_conn(name: str):
+        try:
+            return application.OpenConnection(name, True)
+        except Exception as _oc_e:
+            if "connection entry not found" in str(_oc_e).lower():
+                # Aus creds den Ziel-Host ableiten (für Landscape-Suche)
+                _ashost = (creds or {}).get("ashost", "")
+                if not _ashost:
+                    # Aus dem Verbindungsnamen ableiten über _ASHOST_TO_GUI_CONN
+                    for h, n in _ASHOST_TO_GUI_CONN.items():
+                        if n == name:
+                            _ashost = h
+                            break
+                detected = _find_saplogon_entry_for_host(_ashost) if _ashost else ""
+                if detected and detected != name:
+                    log.info("OpenConnection Fallback: '%s' → '%s'", name, detected)
+                    return application.OpenConnection(detected, True)
+            raise
+
+    connection = _open_conn(cfg["connection"])
     session = connection.Children(0)
     if session.findById("wnd[0]/usr/txtRSYST-MANDT", False):
         session.findById("wnd[0]/usr/txtRSYST-MANDT").text = cfg["client"]
@@ -326,12 +415,11 @@ def _gui_session_with_sap_auth(sap_auth: dict):
     """
     Gibt (connection, session, should_close) zurück.
 
-    Strategie:
-      1. Laufende SAP GUI Session verwenden (kein SAP Logon nötig, should_close=False)
-      2. Neue Session via SAP Logon öffnen:
-         - SAP GUI starten falls nicht im ROT
-         - Verbindungsname: sap_auth["conn"] → .env SAP_GUI_CONNECTION_SEP/SEQ → SAP_GUI_CONNECTION
-         - Benötigt passwd + conn_name
+    Strategie (systemsensitiv):
+      1. Alle laufenden Sessions prüfen – NUR Session auf Zielsystem (ashost) verwenden
+      2. Session auf falschem System ODER SAP GUI nicht offen:
+         a. Credentials (passwd) vorhanden → automatisch einloggen (SAP GUI starten falls nötig)
+         b. Keine Credentials → klarer Fehler mit Handlungsanweisung
     """
     import time as _t
     ashost    = sap_auth.get("ashost", "")
@@ -339,45 +427,74 @@ def _gui_session_with_sap_auth(sap_auth: dict):
     passwd    = sap_auth.get("passwd", "") or sap_auth.get("password", "")
     client    = sap_auth.get("client", "") or os.getenv("SAP_CLIENT", "600")
     lang      = sap_auth.get("lang", "DE")
-    conn_hint = (sap_auth.get("conn") or "").strip()  # vom Cockpit übergebener Logon-Eintrag
+    conn_hint = (sap_auth.get("conn") or "").strip()
 
-    # Schritt 1: vorhandene laufende Session bevorzugen
+    # Systemname für Fehlermeldungen
+    sys_label = _ASHOST_TO_GUI_CONN.get(ashost, "") or ashost or "SAP"
+
+    def _host_matches(sess) -> bool:
+        """True wenn Session auf dem Zielsystem läuft."""
+        if not ashost:
+            return True
+        try:
+            app_server = str(sess.info.applicationServer or "")
+            return bool(app_server) and ((ashost in app_server) or (app_server in ashost))
+        except Exception:
+            return True   # Info nicht lesbar → nicht ausschließen
+
+    # ── Schritt 1: Laufende Sessions auf RICHTIGEM System suchen ──────────────
     try:
-        connection, session, _ = _get_gui_session(target_ashost=ashost)
-        log.info("_gui_session_with_sap_auth: bestehende Session verwendet (ashost=%s)", ashost)
-        return connection, session, False
-    except RuntimeError as _e:
-        log.info("_gui_session_with_sap_auth: keine laufende Session (%s) → versuche OpenConnection", _e)
+        sap_gui_obj = _get_sapgui_from_rot()
+        app_obj     = sap_gui_obj.GetScriptingEngine
+        n_conn      = app_obj.Children.Count
+        log.info("_gui_session_with_sap_auth: %d Verbindung(en) gefunden – suche Session auf %s", n_conn, ashost or "(beliebig)")
+        for ci in range(n_conn):
+            conn = app_obj.Children(ci)
+            for si in range(conn.Children.Count):
+                sess = conn.Children(si)
+                if getattr(sess, "Busy", False):
+                    continue
+                if _host_matches(sess):
+                    try:
+                        server = str(sess.info.applicationServer or "?")
+                    except Exception:
+                        server = "?"
+                    log.info("_gui_session_with_sap_auth: ✓ passende Session conn[%d]/sess[%d] server=%s", ci, si, server)
+                    return conn, sess, False
+        log.info("_gui_session_with_sap_auth: keine passende Session auf %s → Auto-Login", ashost)
+    except Exception as _e:
+        log.info("_gui_session_with_sap_auth: SAP GUI nicht erreichbar (%s) → Auto-Login", _e)
 
-    # Schritt 2: neue Session via SAP Logon
-    if not passwd:
-        raise RuntimeError(
-            "sap_gui_not_running: Keine laufende SAP GUI Session und kein SAP-Passwort angegeben. "
-            "Bitte SAP-Passwort und SAP-Logon-Eintrag im Cockpit eingeben."
-        )
+    # ── Schritt 2a: Auto-Login wenn Credentials vorhanden ─────────────────────
+    if passwd:
+        conn_name = conn_hint or _ASHOST_TO_GUI_CONN.get(ashost) or os.getenv("SAP_GUI_CONNECTION", "")
+        if not conn_name:
+            raise RuntimeError(
+                f"Kein SAP-Logon-Eintrag für {ashost!r} konfiguriert.\n"
+                "Bitte in worker/.env eintragen:\n"
+                f"  SAP_GUI_CONNECTION_SEQ=<Eintragsname>  (für SEQ {ashost})\n"
+                f"  SAP_GUI_CONNECTION_SEP=<Eintragsname>  (für SEP)"
+            )
+        _start_sapgui_if_needed(wait_sec=15)
+        creds = {
+            "connection": conn_name,
+            "ashost":     ashost,          # für OpenConnection-Fallback
+            "user":       user,
+            "password":   passwd,
+            "client":     client,
+            "lang":       lang,
+        }
+        log.info("Auto-Login: user=%s conn=%s client=%s ashost=%s", user, conn_name, client, ashost)
+        connection, session = _gui_session(creds)
+        _t.sleep(1.5)
+        return connection, session, True
 
-    conn_name = conn_hint or _ASHOST_TO_GUI_CONN.get(ashost) or os.getenv("SAP_GUI_CONNECTION", "")
-    if not conn_name:
-        raise RuntimeError(
-            "sap_gui_not_running: Kein SAP-Logon-Eintragsname angegeben. "
-            "Bitte den exakten Eintragsnamen aus SAP Logon im Cockpit eingeben "
-            f"(z.B. 'SEP Catensys' für ashost={ashost!r})."
-        )
-
-    # SAP GUI starten falls nicht im ROT
-    _start_sapgui_if_needed(wait_sec=15)
-
-    creds = {
-        "connection": conn_name,
-        "user":       user,
-        "password":   passwd,
-        "client":     client,
-        "lang":       lang,
-    }
-    log.info("Neue SAP GUI Session via OpenConnection: user=%s conn=%s client=%s", user, conn_name, client)
-    connection, session = _gui_session(creds)
-    _t.sleep(1.5)
-    return connection, session, True
+    # ── Schritt 2b: Keine Credentials → Fehler ────────────────────────────────
+    raise RuntimeError(
+        f"Keine SAP GUI Session auf {sys_label} ({ashost}) gefunden und kein Passwort angegeben.\n"
+        "Lösung: Im Buchungs-Dialog das SAP-Passwort eingeben (einmalig pro Browser-Sitzung)\n"
+        f"oder SAP GUI manuell öffnen und auf {sys_label} einloggen."
+    )
 
 
 def _hide_session_window(session) -> None:
@@ -1712,8 +1829,7 @@ def gui_sd_invoice_create_multi(task, payload):
     background    = bool(payload.get("background", True))   # Standard: Hintergrund
 
     if sap_auth.get("user") and sap_auth.get("passwd"):
-        connection, session = _gui_session_with_sap_auth(sap_auth)
-        should_close = True
+        connection, session, should_close = _gui_session_with_sap_auth(sap_auth)
         if background:
             _hide_session_window(session)
     else:

@@ -4,6 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Esra – Finance-Assistentin</title>
+<script>
+/* ── Mikrofon-Berechtigung: file:// → localhost (einmalige Browser-Erlaubnis) ── */
+if (location.protocol === 'file:') {
+  var _fn = (location.pathname.split('/').pop() || location.pathname.split('\\').pop());
+  location.replace('http://localhost:8000/cockpit/' + _fn + location.search + location.hash);
+}
+</script>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 :root {

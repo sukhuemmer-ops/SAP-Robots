@@ -2,6 +2,13 @@
 <html lang="de">
 <head>
 <meta charset="utf-8">
+<script>
+/* file:// → localhost: Browser merkt sich Mikrofon-Erlaubnis nur für localhost */
+if (location.protocol === 'file:') {
+  var _fn = (location.pathname.split('/').pop() || location.pathname.split('\').pop());
+  location.replace('http://localhost:8000/cockpit/' + _fn + location.search + location.hash);
+}
+</script>
 <title>YCONN — App-Regeln</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
@@ -818,6 +825,27 @@ header {
         </div>
       </div>
 
+      <div class="rule-card">
+        <div class="rule-id" style="color:var(--c-rechnung);border-color:rgba(251,191,36,.35)">R-13</div>
+        <div class="rule-body">
+          <div class="rule-name">Kopiervorgang — Buchungsperiode immer aktueller Monat</div>
+          <div class="rule-desc">
+            Beim Kopieren einer Rechnung (Einzel-⎘ oder Mehrfachauswahl) wird die Buchungsperiode automatisch auf den <strong>aktuellen Monat</strong> (YYYY/MM) vorbelegt. Das SAP-Datum wird auf den <strong>1. des laufenden Monats</strong> gesetzt.
+            <br><br>
+            Die ursprüngliche Periode der Quellrechnung wird <em>nicht</em> übernommen, da Kopien regelmäßig für die Abrechnung des aktuellen Monats erstellt werden. Der Nutzer kann die Periode im Erfassungsformular vor dem Speichern manuell überschreiben.
+          </div>
+          <div class="rule-tech">
+            <span class="tech-chip auto">Periode = YYYY/MM (aktuell)</span>
+            <span class="tech-chip auto">SAP-Datum = 1. des Monats</span>
+            <span class="tech-chip">Überschreibbar im Modal</span>
+          </div>
+        </div>
+        <div class="rule-badges">
+          <span class="badge badge-active">● Aktiv</span>
+          <span class="badge-module bm-rechnung">Rechnungserstellung</span>
+        </div>
+      </div>
+
     </div>
   </div>
 
@@ -930,41 +958,4 @@ header {
 
           <div style="background:var(--bg3);border:1px solid rgba(34,211,238,.3);border-radius:10px;padding:14px">
             <div style="font-size:18px;margin-bottom:6px">🧾</div>
-            <div style="font-weight:700;margin-bottom:3px">AR-Ausgangsrechnungen</div>
-            <div style="font-size:11px;color:var(--muted)">Automatische Erstellung von Ausgangsrechnungen</div>
-            <div style="margin-top:8px"><span class="badge badge-dev">⚙ In Entwicklung</span></div>
-          </div>
-
-          <div style="background:var(--bg3);border:1px solid rgba(245,158,11,.3);border-radius:10px;padding:14px">
-            <div style="font-size:18px;margin-bottom:6px">🏢</div>
-            <div style="font-weight:700;margin-bottom:3px">Neue Gesellschaft</div>
-            <div style="font-size:11px;color:var(--muted)">Weitere SAP-Buchungskreise / Mandanten anbinden</div>
-            <div style="margin-top:8px"><span class="badge badge-dev">⚙ Geplant</span></div>
-          </div>
-
-        </div>
-      </div>
-
-    </div>
-  </div>
-
-</div><!-- /wrap -->
-
-<script src="auth.js"></script>
-<script>
-AUTH.require();
-AUTH.renderHeader && AUTH.renderHeader();
-
-function filterRules(module, btn) {
-  // Chips aktualisieren
-  document.querySelectorAll('.filter-chip').forEach(function(c) { c.classList.remove('active'); });
-  btn.classList.add('active');
-
-  // Sektionen ein-/ausblenden
-  document.querySelectorAll('.section[data-module]').forEach(function(s) {
-    s.style.display = (module === 'all' || s.dataset.module === module) ? '' : 'none';
-  });
-}
-</script>
-</body>
-</html>
+            <div style="font-weight:700;margin-bottom:3px">AR-Ausgangsre
