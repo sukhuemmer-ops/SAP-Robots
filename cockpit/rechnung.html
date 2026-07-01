@@ -557,16 +557,48 @@ var MWST_BY_TYPE = {
 var _invoices  = [];     // Array of invoice groups (gespiegelt aus DB)
 var _createCtx = null;   // aktuell zu buchende Rechnung
 
+// ─── Buchungskreis-Mapping ──────────────────────────────────
+var BUKRS_MAP = {
+  '0435': { vkorg: 'C060', plant: 'C060' },
+  '0436': { vkorg: 'C199', plant: 'C199' },
+  '0437': { vkorg: 'C095', plant: 'C095' },
+  '0438': { vkorg: 'C074', plant: 'C074' },
+  '0439': { vkorg: 'C042', plant: 'C042' },
+  '0440': { vkorg: 'C051', plant: 'C051' },
+};
+function onBukrsChange(reload) {
+  var bukrs = document.getElementById('cfgBukrs').value;
+  var m     = BUKRS_MAP[bukrs];
+  if (m) {
+    document.getElementById('cfgVkorg').value = m.vkorg;
+    document.getElementById('cfgPlant').value = m.plant;
+  }
+  if (reload !== false) { _dbFirstLoad = true; loadFromDb(); }
+}
+
+// ─── Hilfsfunktion: aktuelle + vorige Periode als MM/YYYY ──
+function _currentAndPrevPeriode() {
+  var now  = new Date();
+  var mm   = function(d) { return String(d.getMonth()+1).padStart(2,'0') + '/' + d.getFullYear(); };
+  var cur  = mm(now);
+  var prev = new Date(now.getFullYear(), now.getMonth()-1, 1);
+  return [mm(prev), cur];
+}
+var _dbFirstLoad = true;
+
 // ─── DB: Laden ─────────────────────────────────────────────
 async function loadFromDb() {
   try {
-    var resp = await fetch(ORCH_URL + '/invoice_records');
+    var bukrs = (document.getElementById('cfgBukrs') || {}).value || '0435';
+    var url   = ORCH_URL + '/invoice_records?bukrs=' + encodeURIComponent(bukrs);
+    var resp  = await fetch(url);
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
     var records = await resp.json();
     _invoices = records.map(function(r) {
       return {
         id:           r.id,
         _key:         r.group_key,
+        bukrs:        r.bukrs || '0435',
         kunden_nr:    r.kunden_nr,
         name:         r.name,
         periode:      r.periode,
@@ -584,6 +616,16 @@ async function loadFromDb() {
       };
     });
     populatePeriodeFilter();
+    // Beim ersten Laden: Standard-Filter = aktueller + vorheriger Monat
+    if (_dbFirstLoad) {
+      _dbFirstLoad = false;
+      var def = _currentAndPrevPeriode();
+      var sel = document.getElementById('filterPeriode');
+      // Wähle den letzten verfügbaren Monat innerhalb der Default-Perioden
+      var opts = Array.from(sel.options).map(function(o){ return o.value; });
+      var match = def.filter(function(p){ return opts.includes(p); });
+      if (match.length) sel.value = match[match.length - 1]; // aktueller Monat bevorzugt
+    }
     renderTable();
     return true;
   } catch(e) {
@@ -594,9 +636,11 @@ async function loadFromDb() {
 
 // ─── DB: Speichern (Bulk-Upsert nach Excel-Import) ─────────
 async function saveToDb(invoices) {
+  var bukrs = getCfg().bukrs;
   var records = invoices.map(function(inv) {
     return {
       group_key:    inv._key,
+      bukrs:        inv.bukrs || bukrs,
       kunden_nr:    inv.kunden_nr,
       name:         inv.name,
       periode:      inv.periode,
@@ -639,6 +683,7 @@ async function patchInvoiceStatus(inv, status, invoiceNr, orderNr) {
 function loadConfig() {
   var c = {};
   try { c = JSON.parse(localStorage.getItem('yconn_rechnung_cfg') || '{}'); } catch(_){}
+  if (c.bukrs)    { document.getElementById('cfgBukrs').value    = c.bukrs;    onBukrsChange(false); }
   if (c.vkorg)    document.getElementById('cfgVkorg').value    = c.vkorg;
   if (c.doctype)  document.getElementById('cfgDoctype').value  = c.doctype;
   if (c.distrchan)document.getElementById('cfgDistrchan').value= c.distrchan;
@@ -651,6 +696,7 @@ function loadConfig() {
 }
 function saveConfig() {
   localStorage.setItem('yconn_rechnung_cfg', JSON.stringify({
+    bukrs:    document.getElementById('cfgBukrs').value,
     vkorg:    document.getElementById('cfgVkorg').value,
     doctype:  document.getElementById('cfgDoctype').value,
     distrchan:document.getElementById('cfgDistrchan').value,
@@ -665,6 +711,7 @@ function saveConfig() {
 }
 function getCfg() {
   return {
+    bukrs:    document.getElementById('cfgBukrs').value    || '0435',
     vkorg:    document.getElementById('cfgVkorg').value    || 'C060',
     doctype:  document.getElementById('cfgDoctype').value  || 'ZTA',
     distrchan:document.getElementById('cfgDistrchan').value|| '10',
