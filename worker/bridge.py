@@ -352,13 +352,32 @@ def voice_chat():
 
 @app.get("/voice/status")
 def voice_status():
-    """Prüft ob Voice-Bot konfiguriert ist."""
-    has_key = bool(os.getenv("ANTHROPIC_API_KEY", "").strip())
+    """Prüft ob Voice-Bot konfiguriert ist (liest KI-Konfiguration aus Orchestrator-DB)."""
+    import urllib.request as _ur, json as _js
+    orch_url = os.getenv("ORCHESTRATOR_URL", "http://localhost:8000")
+    provider = "offline"
+    api_key_set = False
+    model = ""
+    try:
+        with _ur.urlopen(f"{orch_url}/ai_config/full", timeout=3) as r:
+            cfg = _js.loads(r.read().decode())
+        provider    = cfg.get("provider", "claude")
+        api_key     = cfg.get("api_key",  "").strip()
+        model       = cfg.get("model",    "")
+        api_key_set = bool(api_key)
+    except Exception:
+        # Fallback auf env-var
+        api_key_set = bool(os.getenv("ANTHROPIC_API_KEY", "").strip())
+        if api_key_set:
+            provider = "claude"
     return jsonify({
-        "status":     "ok",
-        "claude_api": has_key,
-        "model":      "claude-haiku-4-5-20251001" if has_key else "offline (Keyword-Fallback)",
-        "hint":       "" if has_key else "ANTHROPIC_API_KEY in worker/.env eintragen für volle KI-Funktion",
+        "status":      "ok",
+        "provider":    provider if api_key_set else "offline",
+        "api_key_set": api_key_set,
+        "claude_api":  api_key_set and provider == "claude",
+        "openai_api":  api_key_set and provider == "openai",
+        "model":       model or ("claude-haiku-4-5-20251001" if provider == "claude" else "gpt-4o-mini"),
+        "hint":        "" if api_key_set else "API-Key in voice.html → ⚙ KI-API eintragen",
     })
 
 

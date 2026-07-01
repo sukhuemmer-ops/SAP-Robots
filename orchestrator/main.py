@@ -31,6 +31,7 @@ from apscheduler.triggers.date import DateTrigger
 import io
 from fastapi import Depends, FastAPI, File, HTTPException, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from sqlalchemy import (Column, DateTime, ForeignKey, Integer, String, Text,
                         create_engine)
@@ -1156,6 +1157,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Cockpit-Seiten über http://localhost:8000/cockpit/ erreichbar machen
+# (nötig für Mikrofon-Zugriff in Browsern – file:// wird teilweise blockiert)
+_COCKPIT_DIR = pathlib.Path(__file__).parent.parent / "cockpit"
+if _COCKPIT_DIR.exists():
+    app.mount("/cockpit", StaticFiles(directory=str(_COCKPIT_DIR), html=True), name="cockpit")
+
 
 # ----------------------------------------------------------------------------
 # Endpoints: Robots & Tasks (Cockpit)
@@ -1905,6 +1912,48 @@ def get_ai_config_full(db: Session = Depends(get_db)):
     # Fallback: wenn kein Key in DB, Env-Variable nehmen
     key = row.api_key or os.getenv("ANTHROPIC_API_KEY", "")
     return {"provider": row.provider, "api_key": key, "model": row.model}
+
+
+@app.get("/ai_config/test", tags=["KI-Konfiguration"])
+def test_ai_config(db: Session = Depends(get_db)):
+    """Testet die gespeicherte KI-Konfiguration mit einem Mini-Aufruf."""
+    import urllib.request as _ur, json as _js
+    row = db.query(AiConfig).first()
+    if not row:
+        return {"ok": False, "error": "Keine Konfiguration in der Datenbank", "provider": None}
+    key      = row.api_key or os.getenv("ANTHROPIC_API_KEY", "")
+    provider = row.provider or "claude"
+    model    = row.model or ""
+    if not key:
+        return {"ok": False, "error": "API-Key fehlt", "provider": provider}
+    try:
+        if provider == "openai":
+            model = model or "gpt-4o-mini"
+            payload = _js.dumps({
+                "model": model, "max_tokens": 5,
+                "messages": [{"role": "user", "content": "Ping"}],
+            }).encode()
+            req = _ur.Request(
+                "https://api.openai.com/v1/chat/completions",
+                data=payload,
+                headers={"Content-Type": "application/json", "Authorization": f"Bearer {key}"},
+                method="POST",
+            )
+            with _ur.urlopen(req, timeout=15) as r:
+                result = _js.loads(r.read().decode())
+            text = result["choices"][0]["message"]["content"]
+        else:
+            model = model or "claude-haiku-4-5-20251001"
+            import anthropic  # type: ignore
+            client = anthropic.Anthropic(api_key=key)
+            resp = client.messages.create(
+                model=model, max_tokens=5,
+                messages=[{"role": "user", "content": "Ping"}],
+            )
+            text = resp.content[0].text
+        return {"ok": True, "provider": provider, "model": model, "response": text}
+    except Exception as exc:
+        return {"ok": False, "provider": provider, "model": model, "error": str(exc)}
 
 
 # ============================================================================

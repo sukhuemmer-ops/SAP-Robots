@@ -246,6 +246,7 @@ body { font-family:-apple-system,'Segoe UI',sans-serif; background:var(--bg); co
     <span id="badgeWake" class="badge badge-muted">Wake …</span>
     <span id="badgeWs"   class="badge badge-muted">WS …</span>
     <span id="badgeTeams" class="badge badge-muted" title="Teams-Integration">Teams …</span>
+    <span id="badgeKI"   class="badge badge-muted" title="Aktiver KI-Provider" onclick="openAiSettings()" style="cursor:pointer">KI …</span>
     <a href="startseite.html" class="nav-btn">← Start</a>
     <button class="nav-btn" onclick="clearChat()">Neu</button>
     <button class="nav-btn" onclick="toggleTTS()" id="ttsToggle">🔊 TTS an</button>
@@ -388,9 +389,16 @@ async function init() {
 }
 
 // ── VOICE SERVER STATUS ────────────────────────────────────────────────────────
+function _fetchWithTimeout(url, ms) {
+  // AbortSignal.timeout() Kompatibilitäts-Wrapper (Chrome < 103 / ältere Edge)
+  var ctrl = new AbortController();
+  var tid  = setTimeout(function(){ ctrl.abort(); }, ms);
+  return fetch(url, { signal: ctrl.signal }).finally(function(){ clearTimeout(tid); });
+}
+
 async function checkVoiceServer() {
   try {
-    var r = await fetch(VOICE_SERVER_URL + '/status', {signal: AbortSignal.timeout(3000)});
+    var r = await _fetchWithTimeout(VOICE_SERVER_URL + '/status', 3000);
     var d = await r.json();
 
     updateBadge('badgeStt',   d.stt?.ok   ? 'ok' : 'warn',  d.stt?.ok   ? 'STT ✓' : 'STT ✗');
@@ -403,25 +411,48 @@ async function checkVoiceServer() {
 
     return true;
   } catch(e) {
-    updateBadge('badgeStt',  'err', 'STT ✗');
-    updateBadge('badgeTts',  'err', 'TTS ✗');
-    updateBadge('badgeWake', 'err', 'Wake ✗');
+    updateBadge('badgeStt',  'warn', 'Web STT');
+    updateBadge('badgeTts',  'warn', 'Web TTS');
+    updateBadge('badgeWake', 'muted', 'Wake –');
     return false;
   }
 }
 
 async function checkBridgeFallback() {
   try {
-    var r = await fetch(BRIDGE_URL + '/voice/status', {signal: AbortSignal.timeout(3000)});
+    var r = await _fetchWithTimeout(BRIDGE_URL + '/voice/status', 3000);
     var d = await r.json();
-    if (d.claude_api) {
+    if (d.api_key_set) {
       updateBadge('badgeStt', 'warn', 'Web STT');
       updateBadge('badgeTts', 'warn', 'Web TTS');
+      var prov = (d.provider || 'offline').toLowerCase();
+      if (prov === 'openai') {
+        updateBadge('badgeKI', 'ok', '🤖 ChatGPT');
+      } else if (prov === 'claude') {
+        updateBadge('badgeKI', 'purple', '✦ Claude');
+      } else {
+        updateBadge('badgeKI', 'muted', 'KI Offline');
+      }
+    } else {
+      updateBadge('badgeKI', 'muted', 'KI Offline');
     }
   } catch(e) {
     updateBadge('badgeStt', 'err', 'STT ✗');
     updateBadge('badgeTts', 'err', 'TTS ✗');
+    updateBadge('badgeKI',  'err', 'KI ✗');
   }
+}
+
+async function refreshKiBadge() {
+  try {
+    var r = await _fetchWithTimeout(BRIDGE_URL + '/voice/status', 3000);
+    var d = await r.json();
+    var prov = (d.provider || 'offline').toLowerCase();
+    if (!d.api_key_set) { updateBadge('badgeKI', 'muted', 'KI Offline'); return; }
+    if (prov === 'openai')  updateBadge('badgeKI', 'ok',     '🤖 ChatGPT');
+    else if (prov === 'claude') updateBadge('badgeKI', 'purple', '✦ Claude');
+    else updateBadge('badgeKI', 'muted', 'KI Offline');
+  } catch(_) {}
 }
 
 // ── WEBSOCKET ─────────────────────────────────────────────────────────────────
@@ -506,16 +537,38 @@ function toggleMic() {
     if (_isRecording) stopRecording(); else startRecording();
   } else {
     // Browser Web Speech Fallback
-    if (_isListening) stopWebSpeech(); else startWebSpeech();
+    if (_recognition) {
+      if (_isListening) stopWebSpeech(); else startWebSpeech();
+    } else {
+      // Kein STT verfügbar – klare Fehlermeldung
+      var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SR) {
+        setStatus('err',
+          '⚠ Spracherkennung nicht verfügbar. ' +
+          'Bitte Chrome oder Edge verwenden, oder Voice Server starten (Port 8766).');
+        showMicDiag();
+      } else {
+        // SpeechRecognition vorhanden aber noch nicht initialisiert – nochmal versuchen
+        initWebSpeech();
+        if (_recognition) startWebSpeech();
+      }
+    }
   }
 }
 
 async function startRecording() {
   if (_isRecording) return;
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    setStatus('err', '⚠ Mikrofon-API nicht verfügbar. Seite über http://localhost öffnen oder Chrome/Edge verwenden.');
+    showMicDiag();
+    return;
+  }
   try {
     var stream = await navigator.mediaDevices.getUserMedia({audio: true});
     _audioChunks = [];
-    _mediaRec    = new MediaRecorder(stream, {mimeType: 'audio/webm'});
+    // Versuche webm, falle auf Standardformat zurück
+    var mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : '';
+    _mediaRec    = new MediaRecorder(stream, mimeType ? {mimeType: mimeType} : {});
 
     _mediaRec.ondataavailable = function(e) {
       if (e.data.size > 0) _audioChunks.push(e.data);
@@ -533,7 +586,13 @@ async function startRecording() {
     setStatus('listening', '🔴 Aufnahme läuft… (nochmal drücken zum Stoppen)');
     var ef = document.getElementById('esra-float'); if(ef){ef.classList.add('listening');ef.classList.remove('speaking');}
   } catch(e) {
-    setStatus('', 'Mikrofon-Fehler: ' + e.message);
+    var msg = e.name === 'NotAllowedError' || e.name === 'PermissionDeniedError'
+      ? '⚠ Mikrofon-Zugriff verweigert. Bitte im Browser erlauben (🔒 in der Adressleiste).'
+      : e.name === 'NotFoundError'
+      ? '⚠ Kein Mikrofon gefunden. Bitte anschließen und Seite neu laden.'
+      : '⚠ Mikrofon-Fehler: ' + e.message;
+    setStatus('err', msg);
+    showMicDiag();
   }
 }
 
@@ -851,6 +910,87 @@ async function executeAction(action) {
   }
 }
 
+// ── MIKROFON DIAGNOSE ─────────────────────────────────────────────────────────
+async function showMicDiag() {
+  var modal = document.getElementById('micDiagModal');
+  if (!modal) return;
+  modal.style.display = 'flex';
+  var out = document.getElementById('micDiagOut');
+  out.innerHTML = '<div style="color:#8b949e">Prüfe…</div>';
+
+  var lines = [];
+  var ok = '✅', warn = '⚠️', err = '❌';
+
+  // Browser
+  var ua = navigator.userAgent;
+  var browser = ua.includes('Edg/') ? 'Edge' : ua.includes('Chrome/') ? 'Chrome' : ua.includes('Firefox/') ? 'Firefox' : 'Unbekannt';
+  lines.push('<b>Browser:</b> ' + browser + (browser === 'Firefox' ? ' <span style="color:#f85149">(Web Speech nicht unterstützt)</span>' : ' <span style="color:#3fb950">✓</span>'));
+
+  // Protokoll
+  var proto = location.protocol;
+  var protoOk = proto === 'http:' || proto === 'https:';
+  lines.push('<b>Protokoll:</b> ' + proto + ' ' +
+    (protoOk ? '<span style="color:#3fb950">✓</span>' :
+      '<span style="color:#f85149">⚠ file:// erkannt – Mikrofon kann in manchen Browsern blockiert sein</span>'));
+
+  // mediaDevices API
+  var hasMd = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+  lines.push('<b>MediaDevices API:</b> ' + (hasMd ? '<span style="color:#3fb950">verfügbar ✓</span>' : '<span style="color:#f85149">NICHT verfügbar ✗</span>'));
+
+  // SpeechRecognition
+  var hasSR = !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+  lines.push('<b>Web Speech API:</b> ' + (hasSR ? '<span style="color:#3fb950">verfügbar ✓</span>' : '<span style="color:#f85149">NICHT verfügbar ✗</span>') +
+    (hasSR ? '' : ' <span style="color:#8b949e">(Chrome/Edge erforderlich)</span>'));
+
+  // Mikrofon-Zugriff testen
+  if (hasMd) {
+    try {
+      var s = await navigator.mediaDevices.getUserMedia({audio: true});
+      s.getTracks().forEach(function(t){ t.stop(); });
+      lines.push('<b>Mikrofon-Zugriff:</b> <span style="color:#3fb950">Erlaubt ✓</span>');
+    } catch(e) {
+      var errName = e.name || e.message;
+      lines.push('<b>Mikrofon-Zugriff:</b> <span style="color:#f85149">Verweigert – ' + errName + '</span>');
+      if (errName.includes('NotAllowed') || errName.includes('Permission')) {
+        lines.push('<div style="margin-left:16px;color:#d29922;font-size:11px">→ Im Browser: 🔒 Adressleiste → Mikrofon → Erlauben, dann Seite neu laden</div>');
+      }
+      if (errName.includes('NotFound')) {
+        lines.push('<div style="margin-left:16px;color:#d29922;font-size:11px">→ Kein Mikrofon gefunden. Bitte anschließen und Seite neu laden.</div>');
+      }
+    }
+  }
+
+  // Voice Server
+  try {
+    var r = await _fetchWithTimeout(VOICE_SERVER_URL + '/status', 2000);
+    lines.push('<b>Voice Server (Port 8766):</b> <span style="color:#3fb950">Läuft ✓</span>');
+  } catch(e) {
+    lines.push('<b>Voice Server (Port 8766):</b> <span style="color:#f85149">Nicht erreichbar ✗</span> ' +
+      '<span style="color:#8b949e;font-size:11px">(optional – für Whisper STT)</span>');
+  }
+
+  // Bridge
+  try {
+    var r2 = await _fetchWithTimeout(BRIDGE_URL + '/voice/status', 2000);
+    lines.push('<b>Bridge (Port 8765):</b> <span style="color:#3fb950">Läuft ✓</span>');
+  } catch(e) {
+    lines.push('<b>Bridge (Port 8765):</b> <span style="color:#f85149">Nicht erreichbar ✗</span>');
+  }
+
+  // Empfehlung
+  lines.push('');
+  lines.push('<b style="color:#58a6ff">Empfehlung:</b>');
+  if (!hasSR && !hasMd) {
+    lines.push('<span style="color:#f85149">Chrome oder Edge verwenden!</span>');
+  } else if (!hasSR) {
+    lines.push('Web Speech nicht verfügbar → <b>Voice Server starten</b> (Port 8766)');
+  } else {
+    lines.push('Web Speech verfügbar → Mikrofon-Berechtigung im Browser prüfen (🔒 Adressleiste)');
+  }
+
+  out.innerHTML = lines.map(function(l){ return '<div style="margin-bottom:5px">' + l + '</div>'; }).join('');
+}
+
 // ── SETTINGS ──────────────────────────────────────────────────────────────────
 function openVoiceSettings() {
   var info = 'YCONN Voice Server Setup\n\n' +
@@ -1020,43 +1160,31 @@ async function saveAiSettings() {
     res.innerHTML = '<span style="color:#3fb950">✓ Gespeichert! Esra verwendet ab sofort ' + provider.toUpperCase() + ' (' + model + ').</span>';
     document.getElementById('aiApiKey').value = '';
     loadAiConfig();
+    refreshKiBadge();
   } catch(e) {
     res.innerHTML = '<span style="color:#f85149">Fehler: ' + e.message + '</span>';
   }
 }
 
 async function testAiConnection() {
-  var provider = document.querySelector('input[name="aiProvider"]:checked').value;
-  var model    = document.getElementById('aiModel').value;
-  var apiKey   = document.getElementById('aiApiKey').value.trim();
-  var res      = document.getElementById('aiTestResult');
-  if (!apiKey) {
-    res.innerHTML = '<span style="color:#d29922">⚠ Bitte zuerst den API-Schlüssel eingeben, um die Verbindung zu testen.</span>';
-    return;
-  }
-  res.innerHTML = '<span style="color:#8b949e">Teste Verbindung zu ' + provider + '…</span>';
+  var res = document.getElementById('aiTestResult');
+  res.innerHTML = '<span style="color:#8b949e">⏳ Teste gespeicherte KI-Konfiguration…</span>';
   try {
-    // Kurzer Test-Chat über Bridge
-    var testResp = await fetch('http://localhost:8765/voice/chat', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({
-        text:     'Hallo, antworte kurz mit: OK',
-        history:  [],
-        _test_provider: provider,
-        _test_key:      apiKey,
-        _test_model:    model,
-      }),
-    });
-    if (testResp.ok) {
-      var data = await testResp.json();
-      res.innerHTML = '<span style="color:#3fb950">✓ Verbindung OK! Antwort: "' + (data.text || '').slice(0, 80) + '"</span>';
+    var resp = await fetch(ORCH_URL_VOICE + '/ai_config/test');
+    var data = await resp.json();
+    if (data.ok) {
+      var provLabel = data.provider === 'openai' ? '🤖 ChatGPT' : '✦ Claude';
+      res.innerHTML = '<span style="color:#3fb950">✓ ' + provLabel + ' (' + data.model + ') aktiv! Antwort: "' + (data.response || '').slice(0, 80) + '"</span>';
+      refreshKiBadge();
     } else {
-      throw new Error('HTTP ' + testResp.status);
+      var hint = '';
+      if (!data.provider) hint = ' — Bitte Konfiguration speichern.';
+      else if (data.error && data.error.includes('401')) hint = ' — API-Schlüssel ungültig.';
+      else if (data.error && data.error.includes('quota')) hint = ' — Kontingent erschöpft.';
+      res.innerHTML = '<span style="color:#f85149">✗ Fehler (' + (data.provider || '?') + '): ' + (data.error || 'Unbekannt') + hint + '</span>';
     }
   } catch(e) {
-    // Direkter API-Test falls Bridge nicht läuft
-    res.innerHTML = '<span style="color:#d29922">⚠ Bridge nicht erreichbar — Schlüssel wird beim Speichern direkt validiert.</span>';
+    res.innerHTML = '<span style="color:#f85149">✗ Orchestrator nicht erreichbar (' + e.message + '). Bitte Orchestrator starten.</span>';
   }
 }
 
@@ -1070,7 +1198,36 @@ async function testAiConnection() {
   btn.innerHTML = '⚙ KI-API';
   btn.onclick = openAiSettings;
   bar.appendChild(btn);
+
+  // Mikrofon-Diagnose Button
+  var btn2 = document.createElement('div');
+  btn2.className = 'shortcut';
+  btn2.title = 'Mikrofon-Diagnose';
+  btn2.innerHTML = '🔍 Mikrofon';
+  btn2.onclick = showMicDiag;
+  bar.appendChild(btn2);
 })();
 </script>
+
+<!-- ── Mikrofon Diagnose Modal ──────────────────────────────────────────────── -->
+<div id="micDiagModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:9998;align-items:center;justify-content:center">
+  <div style="background:#161b22;border:1px solid #30363d;border-radius:16px;padding:28px 32px;width:520px;max-width:95vw;box-shadow:0 8px 40px rgba(0,0,0,.6)">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
+      <h3 style="margin:0;font-size:15px;color:#e6edf3">🔍 Mikrofon-Diagnose</h3>
+      <button onclick="document.getElementById('micDiagModal').style.display='none'"
+        style="background:none;border:none;color:#8b949e;font-size:18px;cursor:pointer">✕</button>
+    </div>
+    <div id="micDiagOut" style="font-size:12px;line-height:1.7;color:#e6edf3;min-height:80px"></div>
+    <div style="margin-top:18px;padding:12px;background:rgba(88,166,255,.06);border:1px solid rgba(88,166,255,.2);border-radius:8px;font-size:11px;color:#8b949e">
+      <b style="color:#58a6ff">Schnelle Lösung:</b> Seite über
+      <a href="http://localhost:8000/cockpit/voice.html" style="color:#58a6ff" target="_blank">http://localhost:8000/cockpit/voice.html</a>
+      öffnen (statt als file://) — dann funktioniert das Mikrofon in allen Browsern.
+    </div>
+    <div style="margin-top:12px;display:flex;gap:10px;justify-content:flex-end">
+      <button onclick="showMicDiag()" style="padding:7px 16px;background:rgba(88,166,255,.12);border:1px solid rgba(88,166,255,.4);border-radius:8px;color:#58a6ff;font-size:11px;font-weight:700;cursor:pointer">↺ Neu prüfen</button>
+      <button onclick="document.getElementById('micDiagModal').style.display='none'" style="padding:7px 16px;background:rgba(63,185,80,.12);border:1px solid rgba(63,185,80,.4);border-radius:8px;color:#3fb950;font-size:11px;font-weight:700;cursor:pointer">Schließen</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>
