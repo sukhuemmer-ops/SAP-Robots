@@ -1641,6 +1641,19 @@ def update_invoice_record(
     return _invoice_to_dict(rec)
 
 
+@app.delete("/invoice_records/{record_id}", status_code=204)
+def delete_invoice_record(record_id: int, db: Session = Depends(get_db)):
+    """Löscht einen offenen Rechnungsdatensatz (nur Status 'offen' erlaubt)."""
+    rec = db.get(InvoiceRecord, record_id)
+    if not rec:
+        raise HTTPException(404, "Datensatz nicht gefunden")
+    if rec.status not in ("offen", "open"):
+        raise HTTPException(409, f"Nur offene Rechnungen können gelöscht werden (Status: {rec.status})")
+    db.delete(rec)
+    db.commit()
+    return None
+
+
 def _invoice_to_dict(r: InvoiceRecord) -> dict:
     try:
         positions = _json.loads(r.positions_json or "[]")

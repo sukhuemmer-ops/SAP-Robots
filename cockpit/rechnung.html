@@ -1067,7 +1067,10 @@ function renderTable() {
         ? '<button onclick="sendEmailForInvoice(' + inv.id + ',\'' + esc(inv.invoice_nr) + '\')" title="Rechnung per E-Mail senden" style="padding:5px 10px;background:rgba(88,166,255,.12);border:1px solid rgba(88,166,255,.4);border-radius:8px;color:var(--acc);font-size:11px;font-weight:700;cursor:pointer">📧</button> '
         : '') +
       '<button onclick="copyInvoice(\'' + key + '\')" title="Rechnung kopieren inkl. Beträge (editierbar)" style="padding:5px 10px;background:rgba(139,92,246,.12);border:1px solid rgba(139,92,246,.4);border-radius:8px;color:#a78bfa;font-size:11px;font-weight:700;cursor:pointer">⎘</button> ' +
-      '<button onclick="openBelegModal(\'' + key + '\')" title="SAP-Belegnummer manuell eintragen" style="padding:5px 10px;background:rgba(251,191,36,.12);border:1px solid rgba(251,191,36,.4);border-radius:8px;color:#f59e0b;font-size:11px;font-weight:700;cursor:pointer">✏️</button>';
+      '<button onclick="openBelegModal(\'' + key + '\')" title="SAP-Belegnummer manuell eintragen" style="padding:5px 10px;background:rgba(251,191,36,.12);border:1px solid rgba(251,191,36,.4);border-radius:8px;color:#f59e0b;font-size:11px;font-weight:700;cursor:pointer">✏️</button>' +
+      (inv.status === 'offen'
+        ? ' <button onclick="deleteInvoiceRecord(' + inv.id + ',\'' + esc(inv.name) + '\')" title="Offene Rechnung löschen" style="padding:5px 10px;background:rgba(248,81,73,.1);border:1px solid rgba(248,81,73,.4);border-radius:8px;color:var(--err);font-size:11px;font-weight:700;cursor:pointer">🗑</button>'
+        : '');
 
     return '<tr id="inv_' + key + '">' +
       '<td><button onclick="togglePos(\'' + key + '\')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px" id="togBtn_' + key + '">▶</button></td>' +
@@ -1718,6 +1721,20 @@ function closeEmailCfgModal() {
 function editEmailCfg(id) {
   var cfg = emailCfgs.find(function(c){ return c.id === id; });
   if (cfg) openEmailCfgModal(cfg);
+}
+
+async function deleteInvoiceRecord(id, name) {
+  if (!confirm('Offene Rechnung für "' + name + '" unwiderruflich löschen?')) return;
+  try {
+    var r = await fetch(ORCH_URL + '/invoice_records/' + id, { method: 'DELETE' });
+    if (r.ok || r.status === 204) {
+      await loadFromDb();
+    } else {
+      var msg = r.status;
+      try { var j = await r.json(); msg = j.detail || msg; } catch(_) {}
+      alert('Fehler beim Löschen: ' + msg);
+    }
+  } catch(e) { alert('Fehler: ' + e.message); }
 }
 
 async function deleteEmailCfg(id, kundenNr) {
