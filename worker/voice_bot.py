@@ -141,22 +141,78 @@ def detect_intent_keywords(text: str) -> str:
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Claude-Aufruf
+# KI-Provider-Konfiguration aus Orchestrator lesen
 # ──────────────────────────────────────────────────────────────────────────────
+
+def _load_ai_config() -> dict:
+    """Liest KI-Provider + API-Key aus Orchestrator-DB (mit Env-Var-Fallback)."""
+    cfg = _fetch_url(f"{ORCHESTRATOR_URL}/ai_config/full")
+    if cfg and cfg.get("api_key"):
+        return cfg
+    # Env-Var-Fallback: Anthropic
+    return {
+        "provider": "claude",
+        "api_key":  os.getenv("ANTHROPIC_API_KEY", "").strip(),
+        "model":    "",
+    }
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# KI-Aufruf (Claude oder OpenAI/ChatGPT)
+# ──────────────────────────────────────────────────────────────────────────────
+
+def _call_claude(api_key: str, model: str, system: str, messages: list) -> str:
+    import anthropic  # type: ignore
+    client = anthropic.Anthropic(api_key=api_key)
+    resp = client.messages.create(
+        model=model or "claude-haiku-4-5-20251001",
+        max_tokens=600,
+        system=system,
+        messages=messages,
+    )
+    return resp.content[0].text
+
+
+def _call_openai(api_key: str, model: str, system: str, messages: list) -> str:
+    import urllib.request, json as _json
+    model = model or "gpt-4o-mini"
+    payload = {
+        "model": model,
+        "max_tokens": 600,
+        "messages": [{"role": "system", "content": system}] + messages,
+    }
+    data  = _json.dumps(payload).encode()
+    req   = urllib.request.Request(
+        "https://api.openai.com/v1/chat/completions",
+        data=data,
+        headers={
+            "Content-Type":  "application/json",
+            "Authorization": f"Bearer {api_key}",
+        },
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=30) as r:
+        result = _json.loads(r.read().decode())
+    return result["choices"][0]["message"]["content"]
+
 
 def chat(user_text: str, history: list[dict]) -> dict:
     """
-    Hauptfunktion: Text → Claude → strukturierte Antwort.
+    Hauptfunktion: Text → KI (Claude oder OpenAI) → strukturierte Antwort.
 
     Returns:
         {
-            "text":   "Antworttext für TTS",
-            "intent": "query|sap_action|...",
-            "action": {method, tcode, payload} | None,
-            "raw":    vollständiger Claude-Output
+            "text":     "Antworttext für TTS",
+            "intent":   "query|sap_action|...",
+            "action":   {method, tcode, payload} | None,
+            "raw":      vollständiger KI-Output,
+            "provider": "claude|openai",
         }
     """
-    api_key = os.getenv("ANTHROPIC_API_KEY", "").strip()
+    ai_cfg  = _load_ai_config()
+    provider = ai_cfg.get("provider", "claude")
+    api_key  = ai_cfg.get("api_key",  "").strip()
+    model    = ai_cfg.get("model",    "").strip()
 
     # Kontext holen
     context_data = fetch_finance_context()
@@ -166,43 +222,35 @@ def chat(user_text: str, history: list[dict]) -> dict:
     keyword_intent = detect_intent_keywords(user_text)
 
     if not api_key:
-        # Einfache Offline-Antworten ohne Claude
         fallback = _offline_response(user_text, keyword_intent, context_text)
-        return {"text": fallback, "intent": keyword_intent, "action": None, "raw": fallback}
+        return {"text": fallback, "intent": keyword_intent, "action": None, "raw": fallback, "provider": "offline"}
 
-    # Claude aufrufen
+    system   = SYSTEM_PROMPT_TEMPLATE.format(context=context_text)
+    messages = [{"role": m["role"], "content": m["content"]} for m in history[-8:]]
+    messages.append({"role": "user", "content": user_text})
+
     try:
-        import anthropic  # type: ignore
-        client = anthropic.Anthropic(api_key=api_key)
-
-        system = SYSTEM_PROMPT_TEMPLATE.format(context=context_text)
-
-        # Letzten 8 History-Einträge + aktuelle Frage
-        messages = [{"role": m["role"], "content": m["content"]} for m in history[-8:]]
-        messages.append({"role": "user", "content": user_text})
-
-        resp = client.messages.create(
-            model="claude-haiku-4-5-20251001",
-            max_tokens=600,
-            system=system,
-            messages=messages,
-        )
-        raw = resp.content[0].text
-        log.info("Claude Antwort (%d Zeichen)", len(raw))
+        if provider == "openai":
+            raw = _call_openai(api_key, model, system, messages)
+            log.info("OpenAI Antwort (%d Zeichen)", len(raw))
+        else:
+            raw = _call_claude(api_key, model, system, messages)
+            log.info("Claude Antwort (%d Zeichen)", len(raw))
 
     except Exception as e:
-        log.error("Claude API Fehler: %s", e)
-        fallback = f"Entschuldigung, der KI-Dienst ist gerade nicht erreichbar. ({e})"
-        return {"text": fallback, "intent": keyword_intent, "action": None, "raw": str(e)}
+        log.error("KI API Fehler (%s): %s", provider, e)
+        fallback = f"Entschuldigung, der KI-Dienst ({provider}) ist gerade nicht erreichbar. ({e})"
+        return {"text": fallback, "intent": keyword_intent, "action": None, "raw": str(e), "provider": provider}
 
     # Intent und Action aus Claude-Output parsen
     intent, action, clean_text = _parse_claude_output(raw, keyword_intent)
 
     return {
-        "text":   clean_text,
-        "intent": intent,
-        "action": action,
-        "raw":    raw,
+        "text":     clean_text,
+        "intent":   intent,
+        "action":   action,
+        "raw":      raw,
+        "provider": provider,
     }
 
 

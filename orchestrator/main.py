@@ -221,6 +221,16 @@ class InvoiceEmailHistory(Base):
     sent_at:          Mapped[datetime] = mapped_column(DateTime,    default=datetime.utcnow)
 
 
+class AiConfig(Base):
+    """KI-Provider-Konfiguration (Claude / OpenAI) – wird von voice_bot.py geladen."""
+    __tablename__ = "ai_config"
+    id:         Mapped[int] = mapped_column(primary_key=True)
+    provider:   Mapped[str] = mapped_column(String(32),  default="claude")   # claude | openai
+    api_key:    Mapped[str] = mapped_column(Text,        default="")
+    model:      Mapped[str] = mapped_column(String(128), default="")
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
 class SapUser(Base):
     """SAP-Benutzer fuer die Benutzerverwaltung im Cockpit.
     Passwort wird NICHT gespeichert – Eingabe erfolgt zur Laufzeit."""
@@ -1846,6 +1856,55 @@ def list_email_history(
         q = q.filter(InvoiceEmailHistory.kunden_nr == kunden_nr)
     rows = q.order_by(InvoiceEmailHistory.sent_at.desc()).limit(limit).all()
     return [_email_history_to_dict(r) for r in rows]
+
+
+# ── KI-Provider-Konfiguration ───────────────────────────────────────────────
+
+@app.get("/ai_config", tags=["KI-Konfiguration"])
+def get_ai_config(db: Session = Depends(get_db)):
+    """Aktuelle KI-Konfiguration (API-Key wird maskiert zurückgegeben)."""
+    row = db.query(AiConfig).first()
+    if not row:
+        return {"provider": "claude", "api_key": "", "api_key_set": False, "model": "", "updated_at": None}
+    masked = ("*" * (len(row.api_key) - 4) + row.api_key[-4:]) if len(row.api_key) > 4 else ("*" * len(row.api_key))
+    return {
+        "provider":    row.provider,
+        "api_key":     masked,
+        "api_key_set": bool(row.api_key),
+        "model":       row.model,
+        "updated_at":  row.updated_at.isoformat() if row.updated_at else None,
+    }
+
+
+@app.put("/ai_config", tags=["KI-Konfiguration"])
+def save_ai_config(
+    provider: str = "",
+    api_key:  str = "",
+    model:    str = "",
+    db: Session = Depends(get_db),
+):
+    """KI-Konfiguration speichern. Leeres api_key → bestehenden Key behalten."""
+    row = db.query(AiConfig).first()
+    if not row:
+        row = AiConfig()
+        db.add(row)
+    if provider: row.provider = provider
+    if api_key:  row.api_key  = api_key
+    if model:    row.model    = model
+    row.updated_at = datetime.utcnow()
+    db.commit()
+    return {"ok": True, "provider": row.provider, "model": row.model}
+
+
+@app.get("/ai_config/full", tags=["KI-Konfiguration"])
+def get_ai_config_full(db: Session = Depends(get_db)):
+    """Vollständige Konfiguration inkl. API-Key – nur für internen voice_bot-Aufruf."""
+    row = db.query(AiConfig).first()
+    if not row:
+        return {"provider": "claude", "api_key": os.getenv("ANTHROPIC_API_KEY", ""), "model": ""}
+    # Fallback: wenn kein Key in DB, Env-Variable nehmen
+    key = row.api_key or os.getenv("ANTHROPIC_API_KEY", "")
+    return {"provider": row.provider, "api_key": key, "model": row.model}
 
 
 # ============================================================================
