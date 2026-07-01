@@ -1066,7 +1066,7 @@ function renderTable() {
       (inv.invoice_nr && emailCfgs.some(function(c){ return c.kunden_nr === inv.kunden_nr && c.status === 'aktiv'; })
         ? '<button onclick="sendEmailForInvoice(' + inv.id + ',\'' + esc(inv.invoice_nr) + '\')" title="Rechnung per E-Mail senden" style="padding:5px 10px;background:rgba(88,166,255,.12);border:1px solid rgba(88,166,255,.4);border-radius:8px;color:var(--acc);font-size:11px;font-weight:700;cursor:pointer">📧</button> '
         : '') +
-      '<button onclick="copyInvoice(\'' + key + '\')" title="Felder kopieren (ohne Beleg-Nr. + Betrag)" style="padding:5px 10px;background:rgba(139,92,246,.12);border:1px solid rgba(139,92,246,.4);border-radius:8px;color:#a78bfa;font-size:11px;font-weight:700;cursor:pointer">⎘</button> ' +
+      '<button onclick="copyInvoice(\'' + key + '\')" title="Rechnung kopieren inkl. Beträge (editierbar)" style="padding:5px 10px;background:rgba(139,92,246,.12);border:1px solid rgba(139,92,246,.4);border-radius:8px;color:#a78bfa;font-size:11px;font-weight:700;cursor:pointer">⎘</button> ' +
       '<button onclick="openBelegModal(\'' + key + '\')" title="SAP-Belegnummer manuell eintragen" style="padding:5px 10px;background:rgba(251,191,36,.12);border:1px solid rgba(251,191,36,.4);border-radius:8px;color:#f59e0b;font-size:11px;font-weight:700;cursor:pointer">✏️</button>';
 
     return '<tr id="inv_' + key + '">' +
@@ -1955,6 +1955,194 @@ function copyInvoice(key) {
     addNiePosition();
   }
   calcNieTotal();
+}
+
+// ─── MS-Rechnungen → Aktuellen Monat kopieren ───────────────
+var _msKopieRows = [];  // [{inv, posIdx, rowEl}]
+
+function _msPerioden() {
+  var now = new Date();
+  var mm  = function(m, y) { return String(m+1).padStart(2,'0') + '/' + y; };
+  var curM = now.getMonth(), curY = now.getFullYear();
+  var prevM = curM === 0 ? 11 : curM - 1;
+  var prevY = curM === 0 ? curY - 1 : curY;
+  return { cur: mm(curM, curY), prev: mm(prevM, prevY) };
+}
+
+function _msCalcTotal() {
+  var sum = 0;
+  document.querySelectorAll('#msKopieBody input.ms-betrag').forEach(function(inp) {
+    sum += parseFloat(inp.value) || 0;
+  });
+  document.getElementById('msKopieTotal').textContent =
+    sum.toLocaleString('de-DE', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' EUR';
+}
+
+function openMsKopieModal() {
+  var pd = _msPerioden();
+  document.getElementById('msKopieTarget').textContent = pd.cur;
+  document.getElementById('msKopieSource').textContent = pd.prev;
+
+  // MS-Rechnungen aus Vormonat filtern
+  var bukrs = (document.getElementById('cfgBukrs') || {}).value || '0435';
+  var msInvs = _invoices.filter(function(inv) {
+    return inv.leistungsart === 'Management-Service' && inv.periode === pd.prev && inv.bukrs === bukrs;
+  });
+
+  // Fallback: wenn keine im Vormonat, alle MS-Rechnungen zeigen
+  if (!msInvs.length) {
+    msInvs = _invoices.filter(function(inv) {
+      return inv.leistungsart === 'Management-Service' && inv.bukrs === bukrs;
+    });
+  }
+
+  document.getElementById('msKopieCount').textContent = msInvs.length + ' Rechnung' + (msInvs.length !== 1 ? 'en' : '');
+
+  var tbody = document.getElementById('msKopieBody');
+  tbody.innerHTML = '';
+  _msKopieRows = [];
+
+  if (!msInvs.length) {
+    tbody.innerHTML = '<tr><td colspan="7" style="padding:24px;text-align:center;color:var(--muted)">Keine Management-Service-Rechnungen für ' + pd.prev + ' gefunden.</td></tr>';
+    document.getElementById('msKopieModal').style.display = 'flex';
+    return;
+  }
+
+  msInvs.forEach(function(inv, invIdx) {
+    var positions = (inv.positions && inv.positions.length)
+      ? inv.positions
+      : [{buchungstext: 'Management-Service', betrag: inv.total}];
+
+    positions.forEach(function(pos, posIdx) {
+      var tr = document.createElement('tr');
+      tr.style.borderBottom = '1px solid rgba(48,54,61,.6)';
+
+      var rowId = 'msr_' + invIdx + '_' + posIdx;
+      _msKopieRows.push({ inv: inv, posIdx: posIdx, rowId: rowId });
+
+      var kundeCell = posIdx === 0
+        ? '<td style="padding:8px 10px;font-family:monospace;font-size:12px;font-weight:700;color:var(--acc)" rowspan="' + positions.length + '">' + esc(inv.kunden_nr) + '</td>' +
+          '<td style="padding:8px 10px;font-size:12px" rowspan="' + positions.length + '">' + esc(inv.name) + '</td>'
+        : '';
+
+      tr.innerHTML = kundeCell +
+        '<td style="padding:8px 10px;font-size:11px;color:var(--muted);text-align:right">' + (posIdx+1) + '</td>' +
+        '<td style="padding:8px 10px"><input type="text" class="ms-text" data-id="' + rowId + '" value="' + esc(pos.buchungstext || '') + '" style="width:100%;padding:5px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px"></td>' +
+        '<td style="padding:8px 10px"><input type="number" class="ms-betrag" data-id="' + rowId + '" value="' + (pos.betrag != null ? pos.betrag : '') + '" step="0.01" oninput="_msCalcTotal()" style="width:100%;padding:5px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;text-align:right"></td>' +
+        '<td style="padding:8px 10px;font-size:11px;color:var(--muted)">' + esc(inv.waehrung || 'EUR') + '</td>' +
+        '<td style="padding:8px 10px;text-align:center"><button onclick="this.closest(\'tr\').remove();_msCalcTotal()" style="background:rgba(255,80,80,.12);border:1px solid rgba(255,80,80,.3);border-radius:6px;color:#f87171;font-size:11px;padding:3px 7px;cursor:pointer">✕</button></td>';
+
+      tbody.appendChild(tr);
+    });
+  });
+
+  _msCalcTotal();
+  document.getElementById('msKopieResult').innerHTML = '';
+  document.getElementById('msKopieModal').style.display = 'flex';
+}
+
+function closeMsKopieModal() {
+  document.getElementById('msKopieModal').style.display = 'none';
+}
+
+async function saveMsKopie() {
+  var pd  = _msPerioden();
+  var btn = document.getElementById('msKopieSaveBtn');
+  var res = document.getElementById('msKopieResult');
+  btn.disabled = true;
+  res.innerHTML = '<span style="color:var(--muted)">⏳ Speichere…</span>';
+
+  // Zeilen aus Tabelle sammeln (gruppiert nach Kunden-Nr)
+  var rows  = Array.from(document.querySelectorAll('#msKopieBody tr'));
+  var bukrs = (document.getElementById('cfgBukrs') || {}).value || '0435';
+  var cfg   = getCfg();
+
+  // Neu aufbauen: pro Zeile die Kunden-Nr rauslesen
+  // Wir brauchen den Bezug inv → positionen. Dazu: alle texte + beträge lesen
+  // und nach rowId mit _msKopieRows verknüpfen
+  var invMap = {};  // kunden_nr → {inv, positions[]}
+
+  document.querySelectorAll('#msKopieBody tr').forEach(function(tr) {
+    var textInp  = tr.querySelector('input.ms-text');
+    var betragInp= tr.querySelector('input.ms-betrag');
+    if (!textInp || !betragInp) return;
+
+    var rowId = textInp.dataset.id;
+    var rowMeta = _msKopieRows.find(function(r){ return r.rowId === rowId; });
+    if (!rowMeta) return;
+
+    var inv = rowMeta.inv;
+    var key = inv.kunden_nr + '|' + (inv.mwst_code || 'Z4') + '|' + (inv.waehrung || 'EUR');
+
+    if (!invMap[key]) {
+      invMap[key] = {
+        inv:       inv,
+        positions: [],
+      };
+    }
+    invMap[key].positions.push({
+      buchungstext: textInp.value.trim(),
+      betrag:       parseFloat(betragInp.value) || 0,
+    });
+  });
+
+  var entries = Object.values(invMap);
+  if (!entries.length) {
+    res.innerHTML = '<span style="color:var(--warn)">⚠ Keine Zeilen vorhanden.</span>';
+    btn.disabled = false;
+    return;
+  }
+
+  var ok = 0, err = 0;
+  for (var i = 0; i < entries.length; i++) {
+    var entry = entries[i];
+    var inv   = entry.inv;
+    var pos   = entry.positions;
+    var total = pos.reduce(function(s, p){ return s + p.betrag; }, 0);
+
+    var gkey = 'man_' + bukrs + '_' + inv.kunden_nr + '_' + pd.cur.replace('/',  '');
+    var now  = new Date();
+    var sapDate = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0');
+
+    var payload = {
+      group_key:    gkey,
+      bukrs:        bukrs,
+      kunden_nr:    inv.kunden_nr,
+      name:         inv.name,
+      periode:      pd.cur,
+      sap_date:     sapDate,
+      leistungsart: inv.leistungsart || 'Management-Service',
+      mwst_code:    inv.mwst_code  || 'Z4',
+      waehrung:     inv.waehrung   || 'EUR',
+      total:        total,
+      status:       'offen',
+      invoice_nr:   '',
+      order_nr:     inv.order_nr || '',
+      positions:    pos,
+      is_storno:    0,
+    };
+
+    try {
+      var resp = await fetch(ORCH_URL + '/invoice_records', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(payload),
+      });
+      if (resp.ok) { ok++; } else { err++; }
+    } catch(e) { err++; }
+  }
+
+  if (err === 0) {
+    res.innerHTML = '<span style="color:var(--ok)">✓ ' + ok + ' Rechnung' + (ok !== 1 ? 'en' : '') + ' nach ' + pd.cur + ' kopiert.</span>';
+    await loadFromDb();
+    // Filter auf aktuellen Monat setzen
+    document.getElementById('filterPeriode').value = pd.cur;
+    renderTable();
+    setTimeout(closeMsKopieModal, 1500);
+  } else {
+    res.innerHTML = '<span style="color:var(--warn)">⚠ ' + ok + ' OK, ' + err + ' Fehler.</span>';
+  }
+  btn.disabled = false;
 }
 
 function clearData() {
