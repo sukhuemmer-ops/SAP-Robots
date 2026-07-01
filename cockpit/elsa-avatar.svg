@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="40%" r="60%">
+      <stop offset="0%" stop-color="#1a3a4a"/>
+      <stop offset="100%" stop-color="#0a1a28"/>
+    </radialGradient>
+    <radialGradient id="skin" cx="50%" cy="40%" r="60%">
+      <stop offset="0%" stop-color="#f5c5a0"/>
+      <stop offset="100%" stop-color="#e8a878"/>
+    </radialGradient>
+    <clipPath id="circle">
+      <circle cx="100" cy="100" r="98"/>
+    </clipPath>
+  </defs>
+
+  <!-- Hintergrund -->
+  <circle cx="100" cy="100" r="100" fill="url(#bg)"/>
+
+  <!-- Körper / Uniform (Catensys weiß-grau) -->
+  <ellipse cx="100" cy="195" rx="70" ry="55" fill="#d8dde3" clip-path="url(#circle)"/>
+  <ellipse cx="100" cy="185" rx="52" ry="48" fill="#eaecef" clip-path="url(#circle)"/>
+  <!-- Kragen -->
+  <path d="M80,168 Q100,158 120,168 L115,195 L85,195 Z" fill="#c8cdd5" clip-path="url(#circle)"/>
+  <!-- Catensys Logo auf Uniform -->
+  <text x="100" y="188" text-anchor="middle" font-size="8" font-family="Arial" font-weight="700" fill="#006b52" opacity="0.7">CATENSYS</text>
+
+  <!-- Hals -->
+  <ellipse cx="100" cy="155" rx="16" ry="18" fill="url(#skin)"/>
+
+  <!-- Gesicht -->
+  <ellipse cx="100" cy="108" rx="40" ry="46" fill="url(#skin)"/>
+
+  <!-- Haar (dunkel, hochgesteckt) -->
+  <ellipse cx="100" cy="72" rx="40" ry="26" fill="#2c1a0e"/>
+  <ellipse cx="100" cy="66" rx="36" ry="20" fill="#3d2512"/>
+  <!-- Hochgestecktes Haar oben -->
+  <ellipse cx="100" cy="56" rx="24" ry="14" fill="#2c1a0e"/>
+  <ellipse cx="100" cy="52" rx="18" ry="10" fill="#3d2512"/>
+  <!-- Seitensträhnen -->
+  <ellipse cx="64" cy="98" rx="12" ry="22" fill="#2c1a0e"/>
+  <ellipse cx="136" cy="98" rx="12" ry="22" fill="#2c1a0e"/>
+
+  <!-- Augenbrauen -->
+  <path d="M78,98 Q88,93 96,96" stroke="#2c1a0e" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+  <path d="M104,96 Q112,93 122,98" stroke="#2c1a0e" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+
+  <!-- Augen -->
+  <ellipse cx="87" cy="106" rx="9" ry="7" fill="white"/>
+  <ellipse cx="113" cy="106" rx="9" ry="7" fill="white"/>
+  <circle cx="88" cy="107" r="5" fill="#4a3020"/>
+  <circle cx="114" cy="107" r="5" fill="#4a3020"/>
+  <circle cx="89" cy="107" r="3" fill="#1a0a05"/>
+  <circle cx="115" cy="107" r="3" fill="#1a0a05"/>
+  <!-- Glanzpunkt Augen -->
+  <circle cx="91" cy="104" r="1.5" fill="white"/>
+  <circle cx="117" cy="104" r="1.5" fill="white"/>
+
+  <!-- Nase -->
+  <path d="M100,112 Q97,122 94,126 Q100,128 106,126 Q103,122 100,112" fill="#d4956a" opacity="0.5"/>
+
+  <!-- Mund (lächelnd) -->
+  <path d="M88,133 Q100,142 112,133" stroke="#c07050" stroke-width="2" fill="none" stroke-linecap="round"/>
+  <path d="M90,133 Q100,139 110,133" fill="#e88070" opacity="0.6"/>
+
+  <!-- Wangen (leichtes Rouge) -->
+  <ellipse cx="76" cy="122" rx="10" ry="6" fill="#f08060" opacity="0.2"/>
+  <ellipse cx="124" cy="122" rx="10" ry="6" fill="#f08060" opacity="0.2"/>
+
+  <!-- Catensys Teal-Ring -->
+  <circle cx="100" cy="100" r="98" fill="none" stroke="#00a67e" stroke-width="4"/>
+</svg>

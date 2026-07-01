@@ -121,15 +121,16 @@ body { font-family:-apple-system,'Segoe UI',sans-serif; background:var(--bg); co
 
 <!-- WAKE-WORD OVERLAY -->
 <div class="wake-pulse" id="wakePulse">
-  <div class="wake-circle">🎤</div>
+  <div class="wake-circle" style="padding:0;overflow:hidden;">
+    <img src="elsa.jpg" onerror="this.src='elsa-avatar.svg'" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">
+  </div>
   <div class="wake-text">Elsa hört zu…<br><small style="font-weight:400;color:var(--muted)">Bitte sprechen...</small></div>
 </div>
 
 <!-- HEADER -->
 <div class="header">
-  <div style="width:36px;height:36px;border-radius:50%;overflow:hidden;flex-shrink:0;border:2px solid #00a67e;">
-    <img src="elsa.jpg" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" style="width:100%;height:100%;object-fit:cover;">
-    <div style="display:none;width:100%;height:100%;background:linear-gradient(135deg,#006b52,#00a67e);align-items:center;justify-content:center;font-size:16px;font-weight:700;color:#fff;">E</div>
+  <div style="width:40px;height:40px;border-radius:50%;overflow:hidden;flex-shrink:0;border:2px solid #00a67e;">
+    <img src="elsa.jpg" onerror="this.src='elsa-avatar.svg'" style="width:100%;height:100%;object-fit:cover;">
   </div>
   <div>
     <div class="header-title">Elsa · Finance-Assistentin</div>
@@ -698,7 +699,7 @@ function addBotMessage(text, intent, action) {
   }
   var div = document.createElement('div');
   div.className = 'msg bot';
-  div.innerHTML = '<div class="avatar bot" style="background:linear-gradient(135deg,#006b52,#00a67e);border:1px solid #00a67e;overflow:hidden;padding:0;"><img src="elsa.jpg" style="width:100%;height:100%;object-fit:cover;" onerror="this.style.display=\'none\';this.parentNode.innerHTML=\'E\';this.parentNode.style.cssText+=\';font-size:14px;font-weight:700;color:#fff;display:flex;align-items:center;justify-content:center\'"></div>' +
+  div.innerHTML = '<div class="avatar bot" style="background:linear-gradient(135deg,#006b52,#00a67e);border:1px solid #00a67e;overflow:hidden;padding:0;"><img src="elsa.jpg" style="width:100%;height:100%;object-fit:cover;" onerror="this.src=\'elsa-avatar.svg\'"></div>' +
     '<div class="bubble bot">' + esc(clean).replace(/\n/g,'<br>') + actionHtml + '</div>';
   document.getElementById('chatArea').appendChild(div);
   scrollToBottom();
@@ -707,7 +708,7 @@ function addBotMessage(text, intent, action) {
 function addThinking(id) {
   var div = document.createElement('div');
   div.className = 'msg bot'; div.id = id;
-  div.innerHTML = '<div class="avatar bot" style="background:linear-gradient(135deg,#006b52,#00a67e);border:1px solid #00a67e;overflow:hidden;padding:0;"><img src="elsa.jpg" style="width:100%;height:100%;object-fit:cover;" onerror="this.style.display=\'none\';this.parentNode.innerHTML=\'E\';this.parentNode.style.cssText+=\';font-size:14px;font-weight:700;color:#fff;display:flex;align-items:center;justify-content:center\'"></div><div class="thinking"><span></span><span></span><span></span></div>';
+  div.innerHTML = '<div class="avatar bot" style="background:linear-gradient(135deg,#006b52,#00a67e);border:1px solid #00a67e;overflow:hidden;padding:0;"><img src="elsa.jpg" style="width:100%;height:100%;object-fit:cover;" onerror="this.src=\'elsa-avatar.svg\'"></div><div class="thinking"><span></span><span></span><span></span></div>';
   document.getElementById('chatArea').appendChild(div);
   scrollToBottom();
 }
