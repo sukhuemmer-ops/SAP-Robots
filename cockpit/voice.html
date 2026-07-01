@@ -115,9 +115,113 @@ body { font-family:-apple-system,'Segoe UI',sans-serif; background:var(--bg); co
 .status-bar.listening { color:var(--red); }
 .status-bar.speaking  { color:var(--green); }
 .status-bar.processing{ color:var(--yellow); }
+
+/* ─── Esra Floating Avatar ─────────────────────────────────────── */
+#esra-float {
+  position: fixed;
+  right: 0;
+  top: 72px;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  pointer-events: none;
+  animation: esraFloat 6s ease-in-out infinite;
+  filter: drop-shadow(0 0 36px rgba(0,166,126,.38));
+  transition: filter .3s;
+}
+@keyframes esraFloat {
+  0%,100% { transform: translateY(0px); }
+  50%      { transform: translateY(-16px); }
+}
+#esra-float .esra-ring {
+  width: 280px;
+  height: 280px;
+  border-radius: 50%;
+  border: 3px solid #00a67e;
+  box-shadow:
+    0 0 0 1px rgba(0,166,126,.3),
+    0 0 36px rgba(0,166,126,.28),
+    inset 0 0 24px rgba(0,0,0,.5);
+  overflow: hidden;
+  background: linear-gradient(135deg, #0a2820, #051a14);
+  flex-shrink: 0;
+  position: relative;
+}
+#esra-float .esra-ring img {
+  width: 100%; height: 100%;
+  object-fit: cover;
+  object-position: center top;
+  display: block;
+}
+#esra-float .esra-label {
+  margin-top: 11px;
+  background: rgba(0,0,0,.75);
+  border: 1px solid rgba(0,166,126,.55);
+  border-radius: 999px;
+  padding: 6px 22px;
+  font-size: 14px; font-weight: 700;
+  color: #00a67e;
+  letter-spacing: .6px;
+  white-space: nowrap;
+  backdrop-filter: blur(8px);
+}
+/* Scan-line */
+#esra-float .esra-ring::after {
+  content: '';
+  position: absolute;
+  left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(0,166,126,.6), transparent);
+  animation: esraScan 3s linear infinite;
+  pointer-events: none;
+}
+@keyframes esraScan {
+  0%   { top: 0%; }
+  100% { top: 100%; }
+}
+/* Glow-Pulse Ring */
+#esra-float .esra-glow {
+  position: absolute;
+  width: 294px; height: 294px;
+  border-radius: 50%;
+  border: 1px solid rgba(0,166,126,.2);
+  animation: esraGlow 2.5s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes esraGlow {
+  0%,100% { transform: scale(1); opacity: .5; }
+  50%      { transform: scale(1.08); opacity: 0; }
+}
+/* Aktiv wenn Mikrofon läuft */
+#esra-float.listening {
+  filter: drop-shadow(0 0 48px rgba(248,81,73,.55));
+}
+#esra-float.listening .esra-ring {
+  border-color: var(--red);
+  box-shadow: 0 0 0 1px rgba(248,81,73,.3), 0 0 36px rgba(248,81,73,.3);
+}
+#esra-float.speaking {
+  filter: drop-shadow(0 0 48px rgba(86,211,100,.55));
+}
+#esra-float.speaking .esra-ring {
+  border-color: var(--green);
+  box-shadow: 0 0 0 1px rgba(86,211,100,.3), 0 0 36px rgba(86,211,100,.3);
+}
+@media (max-width: 1500px) { #esra-float { display: none; } }
 </style>
 </head>
 <body>
+
+<!-- ─── Esra Floating Avatar (rechts) ─────────────────────────── -->
+<div id="esra-float">
+  <div class="esra-glow"></div>
+  <div class="esra-ring">
+    <img src="esra.png" onerror="this.src='esra-avatar.svg'" alt="Esra">
+  </div>
+  <div class="esra-label">✦ Esra</div>
+</div>
 
 <!-- WAKE-WORD OVERLAY -->
 <div class="wake-pulse" id="wakePulse">
@@ -427,6 +531,7 @@ async function startRecording() {
     _isRecording = true;
     document.getElementById('micBtn').classList.add('active');
     setStatus('listening', '🔴 Aufnahme läuft… (nochmal drücken zum Stoppen)');
+    var ef = document.getElementById('esra-float'); if(ef){ef.classList.add('listening');ef.classList.remove('speaking');}
   } catch(e) {
     setStatus('', 'Mikrofon-Fehler: ' + e.message);
   }
@@ -493,8 +598,8 @@ function playAudioB64(b64, type) {
     var blob   = new Blob([arr], {type: type || 'audio/mpeg'});
     var url    = URL.createObjectURL(blob);
     var audio  = new Audio(url);
-    audio.onplay  = function(){ document.getElementById('micBtn').classList.add('speak'); setStatus('speaking','🔊 Sprachausgabe…'); };
-    audio.onended = function(){ document.getElementById('micBtn').classList.remove('speak'); setStatus('','Bereit'); URL.revokeObjectURL(url); };
+    audio.onplay  = function(){ document.getElementById('micBtn').classList.add('speak'); setStatus('speaking','🔊 Sprachausgabe…'); var ef=document.getElementById('esra-float');if(ef){ef.classList.add('speaking');ef.classList.remove('listening');} };
+    audio.onended = function(){ document.getElementById('micBtn').classList.remove('speak'); setStatus('','Bereit'); URL.revokeObjectURL(url); var ef=document.getElementById('esra-float');if(ef){ef.classList.remove('speaking','listening');} };
     audio.play();
   } catch(e) { console.warn('Audio-Wiedergabe:', e); }
 }
@@ -511,8 +616,8 @@ async function serverTTS(text) {
     var blob  = await r.blob();
     var url   = URL.createObjectURL(blob);
     var audio = new Audio(url);
-    audio.onplay  = function(){ document.getElementById('micBtn').classList.add('speak'); setStatus('speaking','🔊 Sprachausgabe…'); };
-    audio.onended = function(){ document.getElementById('micBtn').classList.remove('speak'); setStatus('','Bereit'); URL.revokeObjectURL(url); };
+    audio.onplay  = function(){ document.getElementById('micBtn').classList.add('speak'); setStatus('speaking','🔊 Sprachausgabe…'); var ef=document.getElementById('esra-float');if(ef){ef.classList.add('speaking');ef.classList.remove('listening');} };
+    audio.onended = function(){ document.getElementById('micBtn').classList.remove('speak'); setStatus('','Bereit'); URL.revokeObjectURL(url); var ef=document.getElementById('esra-float');if(ef){ef.classList.remove('speaking','listening');} };
     audio.play();
   } catch(e) { console.warn('Server-TTS:', e); speakBrowser(text); }
 }
