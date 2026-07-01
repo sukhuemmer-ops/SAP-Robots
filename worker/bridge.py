@@ -391,6 +391,54 @@ def voice_status():
     })
 
 
+@app.get("/teams/status")
+def teams_status():
+    """Prüft ob Teams-Webhook konfiguriert ist."""
+    url = os.getenv("TEAMS_WEBHOOK_URL", "").strip()
+    return jsonify({
+        "configured": bool(url),
+        "hint": "" if url else "TEAMS_WEBHOOK_URL in worker/.env eintragen",
+    })
+
+
+@app.post("/teams/send")
+def teams_send():
+    """Sendet eine Nachricht an den konfigurierten Teams-Kanal."""
+    import urllib.request as _ur, json as _js
+    url = os.getenv("TEAMS_WEBHOOK_URL", "").strip()
+    if not url:
+        return jsonify({"ok": False, "error": "TEAMS_WEBHOOK_URL nicht konfiguriert"}), 503
+    data = request.get_json(silent=True) or {}
+    title   = data.get("title",   "Esra – Finance-Assistentin")
+    message = data.get("message", "")
+    if not message:
+        return jsonify({"ok": False, "error": "message fehlt"}), 400
+    card = {
+        "type": "message",
+        "attachments": [{
+            "contentType": "application/vnd.microsoft.card.adaptive",
+            "content": {
+                "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+                "type": "AdaptiveCard", "version": "1.4",
+                "body": [
+                    {"type": "TextBlock", "text": title, "weight": "Bolder", "size": "Medium"},
+                    {"type": "TextBlock", "text": message, "wrap": True},
+                ],
+            },
+        }],
+    }
+    try:
+        payload = _js.dumps(card, ensure_ascii=False).encode("utf-8")
+        req = _ur.Request(url, data=payload,
+            headers={"Content-Type": "application/json; charset=utf-8"}, method="POST")
+        with _ur.urlopen(req, timeout=10) as r:
+            r.read()
+        return jsonify({"ok": True})
+    except Exception as exc:
+        log.exception("Teams-Send Fehler")
+        return jsonify({"ok": False, "error": str(exc)}), 500
+
+
 @app.get("/reports")
 def list_reports():
     files = []

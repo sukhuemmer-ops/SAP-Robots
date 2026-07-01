@@ -370,14 +370,13 @@ async function init() {
   if (!serverOk) {
     var bridgeOk = await checkBridgeFallback();
     initWebSpeech();
+    initBrowserWakeWord();          // Wake-Word im Browser aktivieren
     if (bridgeOk) {
-      // Normalbetrieb: Bridge aktiv, Web Speech API für STT/TTS
       showBanner('info',
         'ℹ Browser-Modus · KI-Chat über Bridge aktiv · Sprache via Web Speech API' +
         ' · <a href="#" onclick="showServerSetup()" style="color:var(--accent)">Voice Server starten</a>'
       );
     } else {
-      // Bridge auch nicht erreichbar → echte Warnung
       showBanner('warn',
         '⚠ Bridge (8765) und Voice Server (8766) nicht erreichbar — nur Offline-Modus verfügbar. ' +
         '<a href="#" onclick="showServerSetup()" style="color:var(--yellow)">Setup anzeigen</a>'
@@ -386,13 +385,14 @@ async function init() {
   } else {
     connectWebSocket();
     initMediaRecorder();
+    initBrowserWakeWord();
   }
 
   addBotMessage(
     '👋 Hallo! Ich bin Esra, Ihre Finance-Assistentin von Catensys.\n\n' +
     (_useServer
       ? '🎤 Whisper aktiv · 🔊 Neural TTS · 📣 Teams\n\nSagen Sie einfach **"Esra"** oder drücken Sie 🎤.'
-      : '🎤 Web Speech API · KI-Chat via Bridge\n\nTippen Sie oder drücken Sie 🎤.')
+      : '🎤 Web Speech API aktiv · KI-Chat via Bridge\n\nSagen Sie **"Esra"** oder drücken Sie 🎤.')
   );
 }
 
@@ -438,19 +438,53 @@ async function checkBridgeFallback() {
     var r = await _fetchWithTimeout(BRIDGE_URL + '/voice/status', 3000);
     var d = await r.json();
     _updateWebSpeechBadges();
+    // WS-Badge: Bridge ist die Kommunikationsschicht im Browser-Modus
+    updateBadge('badgeWs', 'ok', '🔗 Bridge ✓');
+    document.getElementById('wsCount').textContent = 'Bridge aktiv';
+    // KI-Badge
     var prov = (d.provider || 'offline').toLowerCase();
     if (d.api_key_set) {
       if (prov === 'openai')       updateBadge('badgeKI', 'ok',     '🤖 ChatGPT');
       else if (prov === 'claude')  updateBadge('badgeKI', 'purple', '✦ Claude');
       else                         updateBadge('badgeKI', 'muted',  'KI Offline');
     } else {
-      updateBadge('badgeKI', 'muted', 'KI – kein Key');
+      // Bridge antwortet aber kein Key → direkt Orchestrator fragen
+      _refreshKiFromOrchestrator();
     }
-    return true;   // Bridge erreichbar
+    // Teams-Badge
+    try {
+      var tr = await _fetchWithTimeout(BRIDGE_URL + '/teams/status', 2000);
+      var td = await tr.json();
+      updateBadge('badgeTeams', td.configured ? 'purple' : 'muted',
+                  td.configured ? '📣 Teams ✓' : 'Teams –');
+    } catch(_) { updateBadge('badgeTeams', 'muted', 'Teams –'); }
+    return true;
   } catch(e) {
     _updateWebSpeechBadges();
-    updateBadge('badgeKI', 'err', 'KI ✗');
-    return false;  // Bridge nicht erreichbar
+    updateBadge('badgeWs',   'warn', 'Bridge –');
+    updateBadge('badgeTeams','muted','Teams –');
+    // Kein Bridge → Orchestrator direkt für KI
+    _refreshKiFromOrchestrator();
+    return false;
+  }
+}
+
+/** Liest KI-Config direkt aus Orchestrator (Port 8000) und setzt KI-Badge. */
+async function _refreshKiFromOrchestrator() {
+  try {
+    var r = await _fetchWithTimeout('http://localhost:8000/ai_config/full', 3000);
+    var d = await r.json();
+    var key  = (d.api_key || '').trim();
+    var prov = (d.provider || 'claude').toLowerCase();
+    if (key) {
+      if (prov === 'openai')      updateBadge('badgeKI', 'ok',     '🤖 ChatGPT');
+      else if (prov === 'claude') updateBadge('badgeKI', 'purple', '✦ Claude');
+      else                        updateBadge('badgeKI', 'muted',  'KI Offline');
+    } else {
+      updateBadge('badgeKI', 'muted', 'KI – kein Key');
+    }
+  } catch(_) {
+    updateBadge('badgeKI', 'muted', 'KI – kein Key');
   }
 }
 
@@ -657,6 +691,68 @@ function initWebSpeech() {
 }
 function startWebSpeech() { if (_recognition) _recognition.start(); }
 function stopWebSpeech()  { if (_recognition) _recognition.stop(); }
+
+// ── BROWSER WAKE-WORD ("Esra") ────────────────────────────────────────────────
+var _wakeRec = null;
+var _wakeActive = false;
+var WAKE_WORDS = ['esra', 'hey esra', 'hallo esra'];
+
+function initBrowserWakeWord() {
+  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) {
+    updateBadge('badgeWake', 'err', 'Wake ✗');
+    return;
+  }
+  _wakeRec = new SR();
+  _wakeRec.lang = 'de-DE';
+  _wakeRec.continuous = true;
+  _wakeRec.interimResults = true;
+  _wakeRec.maxAlternatives = 3;
+
+  _wakeRec.onresult = function(e) {
+    if (_isListening || _isRecording) return;   // schon aktiv → ignorieren
+    for (var i = e.resultIndex; i < e.results.length; i++) {
+      for (var a = 0; a < e.results[i].length; a++) {
+        var t = (e.results[i][a].transcript || '').toLowerCase().trim();
+        if (WAKE_WORDS.some(function(w){ return t.includes(w); })) {
+          // Wake-Word erkannt!
+          setStatus('listening', '🟢 Wake-Word erkannt: "' + t + '"');
+          if (!_isListening && !_isRecording) {
+            document.getElementById('micBtn').click();
+          }
+          return;
+        }
+      }
+    }
+  };
+
+  _wakeRec.onend = function() {
+    // Automatisch neu starten (kontinuierliches Lauschen)
+    if (_wakeActive) {
+      try { _wakeRec.start(); } catch(_) {}
+    }
+  };
+
+  _wakeRec.onerror = function(e) {
+    if (e.error === 'no-speech') return;   // normal, kein echter Fehler
+    if (e.error === 'not-allowed') {
+      updateBadge('badgeWake', 'err', 'Wake: kein Mic');
+      _wakeActive = false;
+      return;
+    }
+    // bei anderen Fehlern kurz warten und neu starten
+    if (_wakeActive) setTimeout(function(){ try { _wakeRec.start(); } catch(_) {} }, 1000);
+  };
+
+  _wakeActive = true;
+  try {
+    _wakeRec.start();
+    updateBadge('badgeWake', 'ok', '👂 Wake aktiv');
+  } catch(e) {
+    updateBadge('badgeWake', 'err', 'Wake ✗');
+    _wakeActive = false;
+  }
+}
 
 // ── TTS ───────────────────────────────────────────────────────────────────────
 function playAudioB64(b64, type) {
