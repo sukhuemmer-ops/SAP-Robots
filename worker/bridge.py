@@ -74,6 +74,11 @@ except ImportError:
 
 from handlers import HANDLERS, REPORT_OUT_DIR, _rfc_connection_with_auth, _rfc_read  # noqa: E402
 
+# voice_bot aus dem Modul-Cache entfernen → beim nächsten Import wird die
+# aktuelle Datei frisch geladen (verhindert "alten Code läuft noch"-Probleme)
+import sys as _sys
+_sys.modules.pop("voice_bot", None)
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("bridge")
 

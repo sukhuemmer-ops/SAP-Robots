@@ -276,9 +276,39 @@ def chat(user_text: str, history: list[dict]) -> dict:
             log.info("Claude Antwort (%d Zeichen)", len(raw))
 
     except Exception as e:
-        log.error("KI API Fehler (%s): %s", provider, e)
-        fallback = f"Entschuldigung, der KI-Dienst ({provider}) ist gerade nicht erreichbar. ({e})"
-        return {"text": fallback, "intent": keyword_intent, "action": None, "raw": str(e), "provider": provider}
+        err_msg = str(e)
+        log.error("KI API Fehler (%s): %s", provider, err_msg)
+
+        # Automatischer Fallback: wenn OpenAI ausfällt → Claude (env-var) versuchen
+        if provider == "openai":
+            claude_key = os.getenv("ANTHROPIC_API_KEY", "").strip()
+            if claude_key:
+                try:
+                    log.warning("OpenAI fehlgeschlagen – versuche Claude-Fallback")
+                    raw = _call_claude(claude_key, "", system, messages)
+                    log.info("Claude-Fallback erfolgreich (%d Zeichen)", len(raw))
+                    intent, action, clean_text = _parse_claude_output(raw, keyword_intent)
+                    return {"text": clean_text, "intent": intent, "action": action,
+                            "raw": raw, "provider": "claude_fallback"}
+                except Exception as e2:
+                    log.error("Claude-Fallback auch fehlgeschlagen: %s", e2)
+
+        # Nutzerfreundliche Fehlermeldung je nach Fehlertyp
+        if "Kontingent erschöpft" in err_msg or "insufficient_quota" in err_msg or "billing" in err_msg:
+            user_msg = ("OpenAI-Guthaben aufgebraucht. Bitte unter "
+                        "platform.openai.com/account/billing Guthaben aufladen "
+                        "oder in den KI-Einstellungen auf Claude wechseln.")
+        elif "429" in err_msg or "Rate" in err_msg or "Anfrage-Limit" in err_msg:
+            user_msg = ("OpenAI-Anfragelimit erreicht. Bitte einen Moment warten "
+                        "und erneut versuchen, oder in den KI-Einstellungen "
+                        "das Modell 'GPT-3.5 Turbo' wählen.")
+        elif "401" in err_msg or "Unauthorized" in err_msg:
+            user_msg = "OpenAI-API-Key ungültig. Bitte in den KI-Einstellungen (⚙) prüfen."
+        else:
+            user_msg = f"KI-Dienst ({provider}) nicht erreichbar: {err_msg}"
+
+        return {"text": user_msg, "intent": keyword_intent, "action": None,
+                "raw": err_msg, "provider": provider}
 
     # Intent und Action aus Claude-Output parsen
     intent, action, clean_text = _parse_claude_output(raw, keyword_intent)
