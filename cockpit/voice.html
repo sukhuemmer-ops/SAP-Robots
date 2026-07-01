@@ -741,6 +741,7 @@ async function sendMessage() {
         headers:{'Content-Type':'application/json'},
         body: JSON.stringify({text:text, history:_history.slice(-8), tts:_ttsEnabled})
       });
+      if (!r.ok) throw new Error('Voice Server: HTTP ' + r.status);
       result = await r.json();
     } else {
       // Bridge Fallback
@@ -749,6 +750,11 @@ async function sendMessage() {
         headers:{'Content-Type':'application/json'},
         body: JSON.stringify({text:text, history:_history.slice(-8)})
       });
+      if (!r2.ok) {
+        var errText = '';
+        try { var errJson = await r2.json(); errText = errJson.message || ''; } catch(_) {}
+        throw new Error('Bridge HTTP ' + r2.status + (errText ? ': ' + errText : ''));
+      }
       result = await r2.json();
     }
 

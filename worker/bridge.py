@@ -78,7 +78,21 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(mess
 log = logging.getLogger("bridge")
 
 app = Flask(__name__)
-CORS(app)  # erlaubt fetch() aus file:// Cockpit
+CORS(app)  # erlaubt fetch() aus file:// und http://localhost:8000/cockpit/
+
+# Alle unbehandelten Fehler als JSON zurückgeben (nie HTML an den Browser)
+@app.errorhandler(Exception)
+def handle_all_errors(exc):
+    log.exception("Unbehandelter Fehler: %s", exc)
+    return jsonify({"status": "error", "message": str(exc)}), 500
+
+@app.errorhandler(404)
+def handle_404(exc):
+    return jsonify({"status": "error", "message": "Endpoint nicht gefunden"}), 404
+
+@app.errorhandler(405)
+def handle_405(exc):
+    return jsonify({"status": "error", "message": "Methode nicht erlaubt"}), 405
 
 # Cockpit-Verzeichnis: liegt eine Ebene über dem Worker-Ordner
 COCKPIT_DIR = here.parent / "cockpit"
@@ -327,13 +341,8 @@ def voice_chat():
     """
     Finance-Bot Chat.
     POST { text: "...", history: [{role, content}, ...] }
-    Returns { status, text, intent, action }
-
-    - text:   Antwort für TTS-Ausgabe
-    - intent: query | sap_action | schedule | invoice | loan | unknown
-    - action: Bridge-Aufruf-Objekt { method, tcode, payload } oder null
+    Returns { status, text, intent, action, provider }
     """
-    from voice_bot import chat as bot_chat
     data    = request.get_json(silent=True) or {}
     text    = (data.get("text") or "").strip()
     history = data.get("history") or []
@@ -343,11 +352,12 @@ def voice_chat():
 
     log.info(">>> /voice/chat: %r", text[:80])
     try:
+        from voice_bot import chat as bot_chat  # noqa: PLC0415 (lazy, gecachéd)
         result = bot_chat(text, history)
         return jsonify({"status": "ok", **result})
     except Exception as exc:
         log.exception("/voice/chat Fehler")
-        return jsonify({"status": "error", "message": str(exc)})
+        return jsonify({"status": "error", "message": str(exc), "text": f"Fehler: {exc}"})
 
 
 @app.get("/voice/status")
