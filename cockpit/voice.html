@@ -1069,6 +1069,7 @@ function showServerSetup() {
         <option value="claude-opus-4-8" data-provider="claude">Claude Opus 4.8 (leistungsstark)</option>
         <!-- OpenAI Optionen -->
         <option value="gpt-4o-mini" data-provider="openai">GPT-4o mini (schnell, günstig)</option>
+        <option value="gpt-3.5-turbo" data-provider="openai">GPT-3.5 Turbo (hohes Limit, sehr günstig)</option>
         <option value="gpt-4o" data-provider="openai">GPT-4o (leistungsstark)</option>
         <option value="gpt-4-turbo" data-provider="openai">GPT-4 Turbo</option>
       </select>
@@ -1092,7 +1093,13 @@ function showServerSetup() {
     </div>
 
     <!-- Status / Testergebnis -->
-    <div id="aiTestResult" style="min-height:28px;margin-bottom:14px;font-size:12px"></div>
+    <div id="aiTestResult" style="min-height:28px;margin-bottom:6px;font-size:12px"></div>
+    <!-- Hinweis 429 / Rate-Limit -->
+    <div style="font-size:11px;color:#6e7681;margin-bottom:14px;padding:8px 10px;background:rgba(139,148,158,.07);border-radius:6px;border-left:3px solid #30363d">
+      💡 Bei <b>Anfragelimit (429)</b>: Bridge neu starten oder Modell auf <em>GPT-3.5 Turbo</em> wechseln.<br>
+      Bei <b>erschöpftem Kontingent</b>: Guthaben unter
+      <a href="https://platform.openai.com/account/billing" target="_blank" style="color:#58a6ff;text-decoration:none">platform.openai.com/account/billing</a> aufladen.
+    </div>
 
     <!-- Buttons -->
     <div style="display:flex;gap:10px;justify-content:flex-end">
