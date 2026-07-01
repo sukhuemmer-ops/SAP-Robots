@@ -368,13 +368,21 @@ async function init() {
   _useServer   = serverOk;
 
   if (!serverOk) {
-    // Fallback: Bridge /voice/chat
-    await checkBridgeFallback();
+    var bridgeOk = await checkBridgeFallback();
     initWebSpeech();
-    showBanner('warn',
-      '⚠ Voice Server (localhost:8766) nicht erreichbar — Phase 1 Fallback (Web Speech API). ' +
-      '<a href="#" onclick="showServerSetup()" style="color:var(--yellow)">Setup anzeigen</a>'
-    );
+    if (bridgeOk) {
+      // Normalbetrieb: Bridge aktiv, Web Speech API für STT/TTS
+      showBanner('info',
+        'ℹ Browser-Modus · KI-Chat über Bridge aktiv · Sprache via Web Speech API' +
+        ' · <a href="#" onclick="showServerSetup()" style="color:var(--accent)">Voice Server starten</a>'
+      );
+    } else {
+      // Bridge auch nicht erreichbar → echte Warnung
+      showBanner('warn',
+        '⚠ Bridge (8765) und Voice Server (8766) nicht erreichbar — nur Offline-Modus verfügbar. ' +
+        '<a href="#" onclick="showServerSetup()" style="color:var(--yellow)">Setup anzeigen</a>'
+      );
+    }
   } else {
     connectWebSocket();
     initMediaRecorder();
@@ -384,7 +392,7 @@ async function init() {
     '👋 Hallo! Ich bin Esra, Ihre Finance-Assistentin von Catensys.\n\n' +
     (_useServer
       ? '🎤 Whisper aktiv · 🔊 Neural TTS · 📣 Teams\n\nSagen Sie einfach **"Esra"** oder drücken Sie 🎤.'
-      : '🎤 Web Speech aktiv · Sagen Sie "Esra" oder tippen Sie.')
+      : '🎤 Web Speech API · KI-Chat via Bridge\n\nTippen Sie oder drücken Sie 🎤.')
   );
 }
 
@@ -422,24 +430,22 @@ async function checkBridgeFallback() {
   try {
     var r = await _fetchWithTimeout(BRIDGE_URL + '/voice/status', 3000);
     var d = await r.json();
+    updateBadge('badgeStt', 'warn', 'Web STT');
+    updateBadge('badgeTts', 'warn', 'Web TTS');
+    var prov = (d.provider || 'offline').toLowerCase();
     if (d.api_key_set) {
-      updateBadge('badgeStt', 'warn', 'Web STT');
-      updateBadge('badgeTts', 'warn', 'Web TTS');
-      var prov = (d.provider || 'offline').toLowerCase();
-      if (prov === 'openai') {
-        updateBadge('badgeKI', 'ok', '🤖 ChatGPT');
-      } else if (prov === 'claude') {
-        updateBadge('badgeKI', 'purple', '✦ Claude');
-      } else {
-        updateBadge('badgeKI', 'muted', 'KI Offline');
-      }
+      if (prov === 'openai')       updateBadge('badgeKI', 'ok',     '🤖 ChatGPT');
+      else if (prov === 'claude')  updateBadge('badgeKI', 'purple', '✦ Claude');
+      else                         updateBadge('badgeKI', 'muted',  'KI Offline');
     } else {
-      updateBadge('badgeKI', 'muted', 'KI Offline');
+      updateBadge('badgeKI', 'muted', 'KI – kein Key');
     }
+    return true;   // Bridge erreichbar
   } catch(e) {
     updateBadge('badgeStt', 'err', 'STT ✗');
     updateBadge('badgeTts', 'err', 'TTS ✗');
     updateBadge('badgeKI',  'err', 'KI ✗');
+    return false;  // Bridge nicht erreichbar
   }
 }
 
