@@ -295,4 +295,6 @@ def _offline_response(user_text: str, intent: str, context: str) -> str:
         return "Rechnungsinformationen finden Sie unter Rechnungen im Cockpit."
     if intent == "loan":
         return "Darlehens- und Zinsdetails finden Sie unter Zinsen → Rechner im Cockpit."
-    return ("Ich bin Esra, Ihre Finance-Assistentin von Ca
+    return ("Ich bin Esra, Ihre Finance-Assistentin von Catensys. "
+            "Ich beantworte Fragen zu SAP-Buchungen, Zinsen, Rechnungen und Zeitplänen. "
+            "Wie kann ich Ihnen helfen?")
