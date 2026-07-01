@@ -524,8 +524,7 @@ body::after {
 #elsa-float {
   position: fixed;
   right: 0;
-  top: 50%;
-  transform: translateY(-50%);
+  top: 72px;
   z-index: 50;
   display: flex;
   flex-direction: column;
@@ -534,29 +533,30 @@ body::after {
   cursor: pointer;
   text-decoration: none;
   animation: elsaFloat 6s ease-in-out infinite;
-  filter: drop-shadow(0 0 32px rgba(0,166,126,.35));
+  filter: drop-shadow(0 0 36px rgba(0,166,126,.38));
   transition: filter .3s;
 }
 #elsa-float:hover {
-  filter: drop-shadow(0 0 48px rgba(0,166,126,.65));
+  filter: drop-shadow(0 0 56px rgba(0,166,126,.70));
   animation-play-state: paused;
 }
 @keyframes elsaFloat {
-  0%,100% { transform: translateY(-50%) translateY(0px); }
-  50%      { transform: translateY(-50%) translateY(-14px); }
+  0%,100% { transform: translateY(0px); }
+  50%      { transform: translateY(-16px); }
 }
 #elsa-float .elsa-ring {
-  width: 210px;
-  height: 210px;
+  width: 280px;
+  height: 280px;
   border-radius: 50%;
   border: 3px solid #00a67e;
   box-shadow:
     0 0 0 1px rgba(0,166,126,.3),
-    0 0 30px rgba(0,166,126,.25),
-    inset 0 0 20px rgba(0,0,0,.5);
+    0 0 36px rgba(0,166,126,.28),
+    inset 0 0 24px rgba(0,0,0,.5);
   overflow: hidden;
   background: linear-gradient(135deg, #0a2820, #051a14);
   flex-shrink: 0;
+  position: relative;
 }
 #elsa-float .elsa-ring img {
   width: 100%; height: 100%;
@@ -565,20 +565,20 @@ body::after {
   display: block;
 }
 #elsa-float .elsa-label {
-  margin-top: 10px;
-  background: rgba(0,0,0,.7);
-  border: 1px solid rgba(0,166,126,.5);
+  margin-top: 11px;
+  background: rgba(0,0,0,.75);
+  border: 1px solid rgba(0,166,126,.55);
   border-radius: 999px;
-  padding: 5px 18px;
-  font-size: 13px; font-weight: 700;
+  padding: 6px 22px;
+  font-size: 14px; font-weight: 700;
   color: #00a67e;
-  letter-spacing: .5px;
+  letter-spacing: .6px;
   white-space: nowrap;
   backdrop-filter: blur(8px);
 }
 #elsa-float .elsa-bubble {
   position: absolute;
-  left: -220px;
+  left: -228px;
   top: 50%;
   transform: translateY(-50%);
   background: rgba(5,25,45,.92);
@@ -586,7 +586,7 @@ body::after {
   border-radius: 14px;
   padding: 12px 16px;
   font-size: 12px; color: #c0faea;
-  width: 200px;
+  width: 210px;
   text-align: center;
   line-height: 1.5;
   opacity: 0;
@@ -622,7 +622,7 @@ body::after {
 /* Glow-Pulse Ring */
 #elsa-float .elsa-glow {
   position: absolute;
-  width: 220px; height: 220px;
+  width: 294px; height: 294px;
   border-radius: 50%;
   border: 1px solid rgba(0,166,126,.2);
   animation: glowPulse 2.5s ease-in-out infinite;
