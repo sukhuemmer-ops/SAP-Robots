@@ -247,85 +247,83 @@ def _find_saplogon_entry_for_host(ashost: str) -> str:
 
 def _handle_multiple_logon_popup(session) -> bool:
     """
-    App-Regel G-7: Mehrfachanmeldungs-Dialog automatisch behandeln.
+    App-Regel G-8: Mehrfachanmeldungs-Dialog (und allgemeine wnd[1]-Popups) behandeln.
 
-    SAP zeigt beim Login diesen Dialog wenn der Benutzer bereits in einem anderen
-    Terminal angemeldet ist.  Wir wählen immer Option 2:
-      "Continue with this logon, without ending any other logons in the system."
-    (Radio-Button MULTI_LOGON_OPT2 / Index 1)
+    Strategie – kein Titel-Gate, da wnd1.text unter win32com oft leer zurückkommt:
+      1. Prüft ob wnd[1] existiert
+      2. Versucht Radio-Button Option 2 zu selektieren (MULTI_LOGON_OPT2)
+         → "Continue without ending other logons"
+      3. Drückt OK (btn[0]) oder als Fallback Enter
+      4. Wenn wnd[1] kein Mehrfach-Anmeldungs-Dialog war, ist Enter trotzdem sicher
+         (bestätigt allgemeine Hinweis-Dialoge)
 
-    Gibt True zurück wenn der Dialog erkannt und behandelt wurde, sonst False.
+    Gibt True zurück wenn wnd[1] gefunden und eine Aktion ausgeführt wurde.
     """
     import time as _t
     try:
         wnd1 = session.findById("wnd[1]", False)
         if wnd1 is None:
-            return False
+            return False   # kein Popup – alles gut
 
-        # Titel prüfen – nur den Mehrfach-Anmeldedialg behandeln
+        # Titel nur für Logging (NICHT als Gate – text kann leer sein)
         try:
             title = str(wnd1.text or "")
         except Exception:
-            title = ""
-        if "multiple logon" not in title.lower() and "mehrfach" not in title.lower() \
-                and "license information" not in title.lower():
-            return False
+            title = "(n/a)"
+        log.info("SAP Popup wnd[1] erkannt: '%s' – versuche Option 2 + OK", title)
 
-        log.info("Mehrfachanmeldungs-Dialog erkannt ('%s') – wähle Option 2 (ohne andere Sessions zu beenden)", title)
-
-        # Radio-Button Optionen (Standard SAP-IDs)
+        # ── Radio-Button Option 2 selektieren ─────────────────────────────
+        # Versuche mehrere bekannte SAP-IDs (variiert je nach Basis-Release)
         _opt2_ids = [
-            "wnd[1]/usr/radMULTI_LOGON_OPT2",   # Standard ID Option 2
-            "wnd[1]/usr/rad[1]",                  # Generischer Index
+            "wnd[1]/usr/radMULTI_LOGON_OPT2",    # Standard ABAP: 7.40+
+            "wnd[1]/usr/rad[1]",                   # Index-basiert (2. Radio = Index 1)
+            "wnd[1]/usr/subSCREEN_STEPLOOP:SAPMSSYD:0110/rad[1]",
         ]
-        selected = False
-        for opt_id in _opt2_ids:
+        _selected = False
+        for _oid in _opt2_ids:
             try:
-                radio = session.findById(opt_id, False)
-                if radio is not None:
-                    radio.select()
-                    selected = True
-                    log.info("Mehrfachanmeldung: Radio '%s' ausgewählt", opt_id)
+                _r = session.findById(_oid, False)
+                if _r is not None:
+                    _r.select()
+                    _selected = True
+                    log.info("Mehrfachanmeldung: Radio '%s' selektiert", _oid)
+                    _t.sleep(0.2)
                     break
             except Exception:
                 pass
 
-        if not selected:
-            # Fallback: VKey 2 (zweite Option per Tastatur) und dann Enter
-            log.warning("Mehrfachanmeldung: Radio-IDs nicht gefunden – versuche Tastatur-Fallback")
-            try:
-                wnd1.sendVKey(2)   # Tab zum zweiten Radio
-            except Exception:
-                pass
+        if not _selected:
+            log.info("Mehrfachanmeldung: Kein Radio gefunden – Option-2 vermutlich Default, fahre mit OK fort")
 
         _t.sleep(0.3)
-        # OK-Button (grünes Häkchen)
+
+        # ── OK-Button drücken (grünes Häkchen) ────────────────────────────
         _ok_ids = [
-            "wnd[1]/tbar[0]/btn[0]",
-            "wnd[1]/tbar[0]/btn[11]",
+            "wnd[1]/tbar[0]/btn[0]",     # Standard-Toolbar-OK
+            "wnd[1]/tbar[0]/btn[11]",    # Alternate-OK in einigen SAP-Versionen
         ]
-        for ok_id in _ok_ids:
+        for _oid in _ok_ids:
             try:
-                btn = session.findById(ok_id, False)
-                if btn is not None:
-                    btn.press()
-                    _t.sleep(0.5)
-                    log.info("Mehrfachanmeldung: OK gedrückt (%s)", ok_id)
+                _b = session.findById(_oid, False)
+                if _b is not None:
+                    _b.press()
+                    _t.sleep(0.6)
+                    log.info("Mehrfachanmeldung: OK '%s' gedrückt – Dialog geschlossen", _oid)
                     return True
             except Exception:
                 pass
 
-        # Letzter Ausweg: Enter auf wnd[1]
+        # ── Letzter Ausweg: Enter auf dem Popup-Fenster ───────────────────
         try:
             wnd1.sendVKey(0)
-            _t.sleep(0.5)
-            log.info("Mehrfachanmeldung: Enter (VKey 0) als Fallback")
+            _t.sleep(0.6)
+            log.info("Mehrfachanmeldung: sendVKey(0) als Fallback – Dialog hoffentlich geschlossen")
             return True
-        except Exception:
-            pass
+        except Exception as _ve:
+            log.warning("Mehrfachanmeldung: Auch sendVKey(0) fehlgeschlagen: %s", _ve)
 
     except Exception as _e:
-        log.debug("_handle_multiple_logon_popup: kein Dialog oder Fehler (%s)", _e)
+        log.debug("_handle_multiple_logon_popup: Fehler (%s)", _e)
 
     return False
 
@@ -387,7 +385,13 @@ def _gui_session(creds=None):
         session.findById("wnd[0]/usr/pwdRSYST-BCODE").text = cfg["password"]
         session.findById("wnd[0]/usr/txtRSYST-LANGU").text = cfg["lang"]
         session.findById("wnd[0]").sendVKey(0)
-        import time as _t; _t.sleep(1.0)
+        import time as _t
+        # SAP braucht nach dem Login-Enter etwas Zeit bis der Dialog erscheint.
+        # 1 Sek. reicht oft nicht – 2.5 Sek. sind robuster.
+        _t.sleep(2.5)
+        _handle_multiple_logon_popup(session)
+        # Zweiter Versuch: manchmal erscheint der Dialog leicht verzögert
+        _t.sleep(0.8)
         _handle_multiple_logon_popup(session)
     return connection, session
 
@@ -2623,6 +2627,22 @@ def gui_xd02_kzterm_change(task: dict, payload: dict) -> dict:
 
     results = []
     try:
+        # ── Session-Bereinigung vor dem ersten Kunden ──────────────────────
+        # Wenn die Session z.B. noch den Mehrfachanmeldungs-Dialog offen hat
+        # (wnd[1] aktiv), scheitern ALLE nachfolgenden wnd[0]-Operationen lautlos.
+        # Hier einmalig vor der Schleife bereinigen.
+        import time as _t
+        for _pre in range(5):
+            try:
+                _w1 = session.findById("wnd[1]", False)
+                if _w1 is None:
+                    break
+                _handle_multiple_logon_popup(session)
+                _t.sleep(0.8)
+                log.info("XD02 pre-loop: Popup-Bereinigung Versuch %d", _pre + 1)
+            except Exception:
+                break
+
         for kunnr in customers:
             kunnr = str(kunnr).strip()
             if not kunnr:
