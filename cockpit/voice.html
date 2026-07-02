@@ -395,12 +395,15 @@ async function init() {
     initBrowserWakeWord();
   }
 
+  var greetText = 'Hallo! Ich bin Esra 2.0 aus Catensys – Ihre intelligente SAP Finance-Assistentin.';
   addBotMessage(
-    '👋 Hallo! Ich bin Esra, Ihre Finance-Assistentin von Catensys.\n\n' +
+    '👋 ' + greetText + '\n\n' +
     (_useServer
       ? '🎤 Whisper aktiv · 🔊 Neural TTS · 📣 Teams\n\nSagen Sie einfach **"Esra"** oder drücken Sie 🎤.'
       : '🎤 Web Speech API aktiv · KI-Chat via Bridge\n\nSagen Sie **"Esra"** oder drücken Sie 🎤.')
   );
+  // Begrüßung sprechen
+  if (_ttsEnabled) setTimeout(function(){ speakBrowser(greetText); }, 800);
 }
 
 // ── VOICE SERVER STATUS ────────────────────────────────────────────────────────
@@ -750,7 +753,16 @@ function initWebSpeech() {
       updateBadge('badgeWake', 'err', 'Mic: gesperrt');
       updateBadge('badgeStt',  'err', 'STT ✗');
       _srMode = 'idle';
+      setStatus('err',
+        '🚫 Mikrofon-Zugriff verweigert! ' +
+        'Klicken Sie auf das 🔒 in der Adressleiste → Mikrofon → Erlauben → Seite neu laden.');
+      showBanner('error',
+        '🚫 Mikrofon gesperrt — Klicken Sie auf das Schloss 🔒 in der Adressleiste, ' +
+        'wählen Sie "Mikrofon → Zulassen" und laden Sie die Seite neu (F5).');
       return;
+    }
+    if (e.error === 'network') {
+      setStatus('warn', '⚠ Spracherkennung: Netzwerkfehler – bitte tippen Sie Ihre Frage ins Textfeld.');
     }
     _isListening = false;
     document.getElementById('micBtn').classList.remove('active');
@@ -912,9 +924,18 @@ async function sendMessage() {
         _useServer ? await serverTTS(botText) : speakBrowser(botText);
       }
 
-      // Teams-Benachrichtigung bei SAP-Aktionen
-      if (result.intent === 'sap_action' && result.action) {
-        await teamsNotifySapAction(result);
+      // ── Navigate-Aktion von Claude ausführen ──────────────────
+      var act = result.action;
+      if (act) {
+        var navUrl = act.type === 'navigate' ? act.url : (act.navigate || null);
+        if (navUrl) {
+          // Chip anzeigen + nach kurzer Verzögerung navigieren
+          _showNavigateChip(navUrl, botText);
+        }
+        // Teams bei SAP-Aktionen
+        if (result.intent === 'sap_action') {
+          await teamsNotifySapAction(result);
+        }
       }
     } else {
       addBotMessage('❌ ' + (result.message || result.error || 'Fehler'));
@@ -931,6 +952,56 @@ async function sendMessage() {
 function sendText(text) {
   document.getElementById('textInput').value = text;
   sendMessage();
+}
+
+// ── Esra Navigate-Chip ────────────────────────────────────────────────────────
+// Zeigt einen grünen Chip: "📂 Zinsen öffnen →" der nach 2s automatisch navigiert
+// oder sofort beim Klick.
+function _showNavigateChip(url, spokenText) {
+  var moduleNames = {
+    'zinsen.html':       '📊 Zinsbuchungen',
+    'rechnung.html':     '🧾 Rechnungen',
+    'payroll.html':      '💰 Payroll',
+    'kundenstamm.html':  '👥 Kundenstamm',
+    'cockpit.html':      '🗂 Cockpit',
+    'startseite.html':   '🏠 Startseite',
+    'verbindungen.html': '🔌 Verbindungen',
+    'brain.html':        '🧠 Digitales Gehirn',
+    'voice.html':        '🎤 Sprachsteuerung',
+  };
+  var label = moduleNames[url] || ('📂 ' + url.replace('.html',''));
+
+  // Chip in Chat-Bereich einfügen
+  var chip = document.createElement('div');
+  chip.style.cssText = 'margin:6px 0 6px 12px;';
+  var countdown = 3;
+  chip.innerHTML =
+    '<button onclick="_esraNavigate(\'' + url + '\',this)" ' +
+    'style="background:rgba(63,185,80,.18);border:1px solid rgba(63,185,80,.5);' +
+    'border-radius:20px;padding:7px 16px;color:#3fb950;font-size:12px;font-weight:700;' +
+    'cursor:pointer;transition:all .2s" id="navChip_' + url.replace('.','_') + '">' +
+    label + ' öffnen → (' + countdown + 's)' +
+    '</button>';
+  var chatArea = document.getElementById('chatArea');
+  chatArea.appendChild(chip);
+  scrollToBottom();
+
+  // Countdown
+  var chipBtn = chip.querySelector('button');
+  var timer = setInterval(function() {
+    countdown--;
+    if (countdown <= 0) {
+      clearInterval(timer);
+      _esraNavigate(url, chipBtn);
+    } else {
+      if (chipBtn) chipBtn.textContent = label + ' öffnen → (' + countdown + 's)';
+    }
+  }, 1000);
+}
+
+function _esraNavigate(url, btn) {
+  if (btn) { btn.textContent = '✓ Öffne…'; btn.disabled = true; }
+  setTimeout(function(){ location.href = url; }, 300);
 }
 
 function navigate(url) {

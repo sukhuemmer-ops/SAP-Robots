@@ -11,11 +11,31 @@ Python Desktop-App mit:
 """
 
 import os
+import sys
 import json
 import time
 import threading
 import asyncio
 import tempfile
+import subprocess
+
+# ─── Auto-Install fehlender KI-Pakete ────────────────────────
+def _ensure_package(pkg_name: str, import_name: str = None):
+    """Installiert ein Paket automatisch falls es fehlt."""
+    name = import_name or pkg_name
+    try:
+        __import__(name)
+    except ImportError:
+        print(f"[Esra] Installiere {pkg_name} ...")
+        subprocess.run(
+            [sys.executable, "-m", "pip", "install", pkg_name, "-q"],
+            check=False
+        )
+
+_ensure_package("anthropic")
+_ensure_package("openai")
+# ─────────────────────────────────────────────────────────────
+
 import requests
 import customtkinter as ctk
 import speech_recognition as sr
@@ -63,10 +83,11 @@ ORCH_URL      = _cfg.get("orch_url",     os.getenv("ORCH_URL",     "http://local
 OPENAI_KEY    = _cfg.get("openai_key",   os.getenv("OPENAI_API_KEY", ""))
 CLAUDE_KEY    = _cfg.get("claude_key",   os.getenv("ANTHROPIC_API_KEY", ""))
 CLAUDE_MODEL  = _cfg.get("claude_model", os.getenv("CLAUDE_MODEL", "claude-haiku-4-5-20251001"))
-TTS_VOICE     = os.getenv("ESRA_VOICE",  "de-DE-KatjaNeural")
+TTS_VOICE     = os.getenv("ESRA_VOICE",  "de-DE-AmalaNeural")
 TTS_ENABLED   = os.getenv("ESRA_TTS",    "1") == "1"
 
-SYSTEM_PROMPT = """Du bist Esra, eine intelligente Assistentin für das YCONN SAP Finance-Cockpit.
+_DEFAULT_GREETING = "Hallo! Ich bin Esra 2.0 aus Catensys – Ihre intelligente SAP Finance-Assistentin."
+_DEFAULT_SYSTEM_PROMPT = """Du bist Esra, eine intelligente Assistentin für das YCONN SAP Finance-Cockpit.
 Du hilfst dem Benutzer mit Fragen zu Rechnungen, Buchungen, SAP-Daten und dem Cockpit-System.
 Antworte immer auf Deutsch, präzise, freundlich und kompakt (max. 3-4 Sätze wenn möglich).
 
@@ -74,6 +95,9 @@ Wenn der Benutzer nach Rechnungsdaten fragt, werden dir automatisch aktuelle Dat
 im Kontext mitgegeben – nutze diese für eine präzise Antwort.
 
 Vermeide lange Listen – antworte in natürlicher Sprache."""
+
+GREETING_TEXT = _cfg.get("greeting_text", _DEFAULT_GREETING)
+SYSTEM_PROMPT = _cfg.get("system_prompt", _DEFAULT_SYSTEM_PROMPT)
 
 # ─── Themes ───────────────────────────────────────────────────
 ctk.set_appearance_mode("dark")
@@ -320,8 +344,11 @@ class EsraTTS:
                 tmp = asyncio.run(_gen())
                 try:
                     import pygame
+                    # 48000 Hz = edge-tts MP3 native Rate (verhindert Verzerrung)
+                    pygame.mixer.pre_init(frequency=48000, size=-16, channels=2, buffer=1024)
                     pygame.mixer.init()
                     pygame.mixer.music.load(tmp)
+                    pygame.mixer.music.set_volume(1.0)
                     pygame.mixer.music.play()
                     while pygame.mixer.music.get_busy():
                         time.sleep(0.05)
@@ -349,8 +376,8 @@ class EsraSettings(ctk.CTkToplevel):
         super().__init__(parent)
         self._parent = parent
         self.title("⚙ Einstellungen – ESRA")
-        self.geometry("520x560")
-        self.resizable(False, False)
+        self.geometry("560x820")
+        self.resizable(False, True)
         self.configure(fg_color=COLOR["bg2"])
         self.grab_set()
         self.focus_force()
@@ -362,7 +389,7 @@ class EsraSettings(ctk.CTkToplevel):
         self.update_idletasks()
         pw = self._parent.winfo_x() + self._parent.winfo_width() // 2
         ph = self._parent.winfo_y() + self._parent.winfo_height() // 2
-        w, h = 520, 560
+        w, h = 560, 820
         self.geometry(f"{w}x{h}+{pw - w//2}+{ph - h//2}")
 
     def _build(self):
@@ -395,6 +422,47 @@ class EsraSettings(ctk.CTkToplevel):
         self._e_model = _row("Ollama Modell", OLLAMA_MODEL)
         self._e_key   = _row("OpenAI API Key (optional)", OPENAI_KEY, show="•")
         self._e_claude = _row("Claude (Anthropic) API Key (optional)", CLAUDE_KEY, show="•")
+
+        # ── Persönlichkeit-Sektion ──
+        ctk.CTkFrame(self, height=1, fg_color=COLOR["border"]).pack(fill="x", padx=28, pady=(14, 8))
+        ctk.CTkLabel(
+            self, text="✨  Persönlichkeit & Begrüßung",
+            font=("Segoe UI", 13, "bold"), text_color="#f0a500"
+        ).pack(padx=28, anchor="w")
+
+        ctk.CTkLabel(
+            self, text="Begrüßungstext (wird gesprochen beim Start)",
+            font=("Segoe UI", 12), text_color=COLOR["muted"]
+        ).pack(padx=28, anchor="w", pady=(8, 0))
+        self._e_greeting = ctk.CTkEntry(
+            self, width=500, height=38,
+            font=("Segoe UI", 12),
+            fg_color=COLOR["bg3"], border_color="#f0a500",
+            text_color=COLOR["text"],
+        )
+        self._e_greeting.insert(0, GREETING_TEXT)
+        self._e_greeting.pack(padx=28, pady=(2, 0))
+
+        ctk.CTkLabel(
+            self, text="System-Prompt (Esras Persönlichkeit & Verhalten)",
+            font=("Segoe UI", 12), text_color=COLOR["muted"]
+        ).pack(padx=28, anchor="w", pady=(10, 0))
+        self._e_sysprompt = ctk.CTkTextbox(
+            self, width=500, height=110,
+            font=("Segoe UI", 11),
+            fg_color=COLOR["bg3"], border_color="#f0a500",
+            border_width=1, text_color=COLOR["text"],
+        )
+        self._e_sysprompt.insert("1.0", SYSTEM_PROMPT)
+        self._e_sysprompt.pack(padx=28, pady=(2, 0))
+
+        ctk.CTkButton(
+            self, text="↩ Standard wiederherstellen", width=220, height=28,
+            font=("Segoe UI", 10),
+            fg_color=COLOR["bg3"], hover_color=COLOR["border"],
+            text_color=COLOR["muted"],
+            command=self._reset_personality
+        ).pack(padx=28, anchor="w", pady=(4, 0))
 
         # ── Mikrofon-Sektion ──
         ctk.CTkFrame(self, height=1, fg_color=COLOR["border"]).pack(fill="x", padx=28, pady=(14, 8))
@@ -512,13 +580,22 @@ class EsraSettings(ctk.CTkToplevel):
                 return idx
         return None
 
-    def _save(self):
-        global OLLAMA_URL, OLLAMA_MODEL, OPENAI_KEY, CLAUDE_KEY
+    def _reset_personality(self):
+        """Setzt Begrüßung und System-Prompt auf Standard zurück."""
+        self._e_greeting.delete(0, "end")
+        self._e_greeting.insert(0, _DEFAULT_GREETING)
+        self._e_sysprompt.delete("1.0", "end")
+        self._e_sysprompt.insert("1.0", _DEFAULT_SYSTEM_PROMPT)
 
-        new_url    = self._e_url.get().strip()
-        new_model  = self._e_model.get().strip()
-        new_key    = self._e_key.get().strip()
-        new_claude = self._e_claude.get().strip()
+    def _save(self):
+        global OLLAMA_URL, OLLAMA_MODEL, OPENAI_KEY, CLAUDE_KEY, GREETING_TEXT, SYSTEM_PROMPT
+
+        new_url      = self._e_url.get().strip()
+        new_model    = self._e_model.get().strip()
+        new_key      = self._e_key.get().strip()
+        new_claude   = self._e_claude.get().strip()
+        new_greeting = self._e_greeting.get().strip()
+        new_sysprompt= self._e_sysprompt.get("1.0", "end").strip()
 
         if not new_url:
             self._e_url.configure(border_color=COLOR["red"])
@@ -527,10 +604,12 @@ class EsraSettings(ctk.CTkToplevel):
             self._e_model.configure(border_color=COLOR["red"])
             return
 
-        OLLAMA_URL  = new_url
+        OLLAMA_URL   = new_url
         OLLAMA_MODEL = new_model
-        OPENAI_KEY  = new_key
-        CLAUDE_KEY  = new_claude
+        OPENAI_KEY   = new_key
+        CLAUDE_KEY   = new_claude
+        GREETING_TEXT = new_greeting or _DEFAULT_GREETING
+        SYSTEM_PROMPT = new_sysprompt or _DEFAULT_SYSTEM_PROMPT
 
         mic_idx = self._selected_device_index()
 
@@ -541,6 +620,8 @@ class EsraSettings(ctk.CTkToplevel):
             "openai_key":       OPENAI_KEY,
             "claude_key":       CLAUDE_KEY,
             "mic_device_index": mic_idx,
+            "greeting_text":    GREETING_TEXT,
+            "system_prompt":    SYSTEM_PROMPT,
         })
 
         # Router neu initialisieren (liest neue Keys)
@@ -558,7 +639,8 @@ class EsraSettings(ctk.CTkToplevel):
         self._parent.after(100, lambda: self._parent._write(
             f"\n✅ Einstellungen gespeichert\n"
             f"   {' | '.join(llm_status)}\n"
-            f"   Mikrofon: {mic_label}\n",
+            f"   Mikrofon: {mic_label}\n"
+            f"   Begrüßung: {GREETING_TEXT[:60]}{'…' if len(GREETING_TEXT) > 60 else ''}\n",
             "system_tag"
         ))
 
@@ -925,25 +1007,38 @@ class EsraApp(ctk.CTk):
                 self.after(0, lambda: self._mic_btn.configure(text="👂"))
                 audio = self.recognizer.listen(src, timeout=8, phrase_time_limit=20)
 
-            # STT: Google (online) → Whisper (offline)
+            # STT: Google (online) → Whisper (offline Fallback)
             text = ""
+            stt_error = ""
             try:
                 text = self.recognizer.recognize_google(audio, language="de-DE")
-            except (sr.UnknownValueError, sr.RequestError):
+            except sr.UnknownValueError:
+                stt_error = "Sprache nicht erkannt (zu leise / undeutlich?)"
+            except sr.RequestError as e:
+                stt_error = f"Google STT nicht erreichbar: {e}"
+                # Whisper offline versuchen (braucht: pip install openai-whisper)
                 try:
                     text = self.recognizer.recognize_whisper(
-                        audio, language="german", model="base"
+                        audio, language="german", model="tiny"
                     )
-                except Exception:
-                    pass
+                    stt_error = ""
+                except Exception as we:
+                    stt_error += f" | Whisper-Fallback: {we}"
 
             if text:
                 self.after(0, lambda t=text: self._send(t))
             else:
-                self.after(0, lambda: self._write("(nichts erkannt)\n", "system_tag"))
+                msg = f"(nichts erkannt – {stt_error})\n" if stt_error else "(nichts erkannt)\n"
+                self.after(0, lambda m=msg: self._write(m, "system_tag"))
 
         except sr.WaitTimeoutError:
-            self.after(0, lambda: self._write("(Timeout – kein Sprechen erkannt)\n", "system_tag"))
+            self.after(0, lambda: self._write(
+                "(Timeout – bitte sprechen Sie direkt nach dem 👂 Symbol)\n", "system_tag"))
+        except OSError as e:
+            self.after(0, lambda err=str(e): self._write(
+                f"⚠ Mikrofon-Fehler: {err}\n"
+                f"→ Windows: Einstellungen → Datenschutz → Mikrofon → App-Zugriff erlauben\n",
+                "error_tag"))
         except Exception as e:
             self.after(0, lambda err=str(e): self._write(f"⚠ Mikrofon-Fehler: {err}\n", "error_tag"))
         finally:
@@ -955,18 +1050,20 @@ class EsraApp(ctk.CTk):
     # ── Begrüßung ─────────────────────────────────────────────
 
     def _greet(self):
-        llm = "Ollama" if self.router.ollama_ok else ("OpenAI" if self.router.openai_ok else "–")
+        llm   = "Ollama" if self.router.ollama_ok else ("Claude" if self.router.claude_ok else ("OpenAI" if self.router.openai_ok else "–"))
         yconn = "✓" if self.yconn.ping() else "✗"
         self._add_message_header("esra")
+        greeting = GREETING_TEXT   # aus esra_config.json oder Default
         self._write(
-            f"Hallo! Ich bin Esra, deine intelligente SAP-Assistentin. 👋\n\n"
-            f"Status: LLM = {llm}  |  YCONN = {yconn}\n\n"
+            f"{greeting} 👋\n\n"
+            f"Status: KI = {llm}  |  YCONN = {yconn}\n\n"
             f"Stelle mir eine Frage oder drücke 🎤 zum Sprechen.\n"
             f"Beispiele:\n"
-            f"  • \"Wie viele offene Rechnungen gibt es?\"\n"
-            f"  • \"Was ist der Gesamtbetrag der offenen Rechnungen?\"\n"
-            f"  • \"Erkläre mir den Unterschied zwischen SEP und SEQ.\"\n"
+            f"  • \"Wie viele Rechnungen gibt es diesen Monat?\"\n"
+            f"  • \"Öffne die Zinsbuchungen\"\n"
+            f"  • \"Was ist der Payroll-Status?\"\n"
         )
+        self.tts.speak(greeting)
 
 
 # ══════════════════════════════════════════════════════════════

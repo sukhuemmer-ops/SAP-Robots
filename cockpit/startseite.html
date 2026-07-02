@@ -97,6 +97,10 @@ body::after {
 
 /* ─── Layout ───────────────────────────────────────────────────── */
 .wrap { max-width: 1380px; margin: 0 auto; padding: 24px 28px; position: relative; z-index: 1; }
+@media (max-width: 1500px) {
+  /* Platz rechts im Header für Esra-Avatar (180px + 18px Abstand) */
+  .page-header { padding-right: 210px; }
+}
 
 /* ─── Header ───────────────────────────────────────────────────── */
 .page-header {
@@ -639,7 +643,49 @@ body::after {
   0%,100% { transform: scale(1); opacity: .5; }
   50%      { transform: scale(1.08); opacity: 0; }
 }
+/* ── Laptop (≤1500px): Avatar oben rechts im Header-Bereich, 180px ── */
 @media (max-width: 1500px) {
+  #esra-float {
+    top: 6px;
+    bottom: auto;
+    right: 18px;
+    animation: none;
+    transform: none !important;
+  }
+  #esra-float .esra-ring {
+    width: 180px;
+    height: 180px;
+    border-width: 2px;
+    box-shadow:
+      0 0 0 1px rgba(0,166,126,.3),
+      0 0 22px rgba(0,166,126,.28),
+      inset 0 0 14px rgba(0,0,0,.5);
+  }
+  #esra-float .esra-glow {
+    width: 190px;
+    height: 190px;
+  }
+  #esra-float .esra-label {
+    font-size: 12px;
+    padding: 4px 14px;
+    margin-top: 6px;
+  }
+  #esra-float .esra-bubble {
+    left: auto;
+    right: 196px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 200px;
+  }
+  #esra-float .esra-bubble::after {
+    right: -8px;
+    left: auto;
+    border-left-color: rgba(0,166,126,.4);
+    border-right: 0;
+  }
+}
+/* ── Sehr kleiner Bildschirm (<900px): ausblenden ── */
+@media (max-width: 900px) {
   #esra-float { display: none; }
 }
 </style>

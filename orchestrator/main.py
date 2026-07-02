@@ -1967,14 +1967,25 @@ def test_ai_config(db: Session = Depends(get_db)):
                 result = _js.loads(r.read().decode())
             text = result["choices"][0]["message"]["content"]
         else:
+            # Claude via urllib (kein anthropic-Paket nötig)
             model = model or "claude-haiku-4-5-20251001"
-            import anthropic  # type: ignore
-            client = anthropic.Anthropic(api_key=key)
-            resp = client.messages.create(
-                model=model, max_tokens=5,
-                messages=[{"role": "user", "content": "Ping"}],
+            payload = _js.dumps({
+                "model": model, "max_tokens": 5,
+                "messages": [{"role": "user", "content": "Ping"}],
+            }).encode()
+            req = _ur.Request(
+                "https://api.anthropic.com/v1/messages",
+                data=payload,
+                headers={
+                    "Content-Type": "application/json",
+                    "x-api-key": key,
+                    "anthropic-version": "2023-06-01",
+                },
+                method="POST",
             )
-            text = resp.content[0].text
+            with _ur.urlopen(req, timeout=15) as r:
+                result = _js.loads(r.read().decode())
+            text = result["content"][0]["text"]
         return {"ok": True, "provider": provider, "model": model, "response": text}
     except Exception as exc:
         return {"ok": False, "provider": provider, "model": model, "error": str(exc)}

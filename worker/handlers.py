@@ -2548,11 +2548,11 @@ def gui_xd02_kzterm_change(task: dict, payload: dict) -> dict:
                 _t.sleep(1.5)
 
                 # ── 2. Einstiegsmaske befuellen ───────────────────────────────
-                # Bukrs LEER lassen → XD02 zeigt nur Sales Area Data (KNVV)
-                # Mit Bukrs gefüllt → Views-Popup → landet auf Company Code Data → Faktura-Tab nicht sichtbar
+                # BUKRS muss gefuellt sein – ohne Buchungskreis navigiert SAP nicht
+                # weg von der Einstiegsmaske und TAXI_TABSTRIP_HEAD fehlt komplett.
                 for fid, val in [
                     ("wnd[0]/usr/ctxtRF02D-KUNNR", kunnr),
-                    ("wnd[0]/usr/ctxtRF02D-BUKRS", ""),       # bewusst leer: nur Sales Area
+                    ("wnd[0]/usr/ctxtRF02D-BUKRS", bukrs),    # Buchungskreis immer mitgeben
                     ("wnd[0]/usr/ctxtRF02D-VKORG", vkorg),
                     ("wnd[0]/usr/ctxtRF02D-VTWEG", vtweg),
                     ("wnd[0]/usr/ctxtRF02D-SPART", spart),
@@ -2574,40 +2574,53 @@ def gui_xd02_kzterm_change(task: dict, payload: dict) -> dict:
                     except Exception:
                         break
 
-                # ── 4. Faktura-Tab auswaehlen (wie VBS: tabsTAXI_TABSTRIP_HEAD/tabpT\03) ──
-                # WICHTIG: "T\03" = literal backslash-03 (SAP Tab-ID), kein Escape!
+                # ── 4. Vertriebsbereich-Tab (T\03) auswaehlen ──────────────
+                # Mit BUKRS gefuellt: TAXI_TABSTRIP_HEAD hat T\01=Allg, T\02=BuKr, T\03=VKBer
                 tab_selected = False
-                tab_attempts = [
-                    "wnd[0]/usr/tabsTAXI_TABSTRIP_HEAD/tabpT\\03",   # Standard (VBS-Vorlage)
-                    "wnd[0]/usr/tabsTAXI_TABSTRIP_HEAD/tabpFAKT",
+                outer_tab_attempts = [
+                    "wnd[0]/usr/tabsTAXI_TABSTRIP_HEAD/tabpT\\03",   # Vertriebsbereich (Standard)
+                    "wnd[0]/usr/tabsTAXI_TABSTRIP_HEAD/tabpKNVV",
                     "wnd[0]/usr/tabsTABSTRIP_VERK/tabpT\\03",
                     "wnd[0]/usr/tabsTABSTRIP1/tabpT\\03",
                 ]
-                for tab_id in tab_attempts:
+                for tab_id in outer_tab_attempts:
                     try:
                         session.findById(tab_id).select()
                         _t.sleep(1.0)
                         tab_selected = True
-                        log.info("XD02: Faktura-Tab gewaehlt: %s", tab_id)
+                        log.info("XD02: Vertriebsbereich-Tab gewaehlt: %s", tab_id)
                         break
                     except Exception:
                         pass
 
-                if not tab_selected:
-                    # Fallback: Menü Springen → Vertriebsbereich → Faktura (wie VBS-Vorlage)
+                # ── 4b. Faktura-Unterreiter im Vertriebsbereich anwaehlen ────
+                # Immer versuchen, da SAP sonst evtl. auf Vertrieb/Versand-Tab steht
+                faktura_tab_selected = False
+                faktura_tab_attempts = [
+                    # Menü: Springen → Vertriebsbereichsdaten → Faktura  (zuverlaessigste Methode)
+                    "wnd[0]/mbar/menu[2]/menu[1]/menu[2]",
+                ]
+                for ftab_id in faktura_tab_attempts:
                     try:
-                        session.findById("wnd[0]/mbar/menu[2]/menu[1]/menu[2]").select()
+                        session.findById(ftab_id).select()
                         _t.sleep(1.0)
-                        tab_selected = True
-                        log.info("XD02: Faktura via Menu Springen→Vertriebsbereich→Faktura")
-                    except Exception as _me:
-                        log.warning("XD02: Menu-Fallback fehlgeschlagen: %s – versuche direkte Feld-Adressierung", _me)
+                        faktura_tab_selected = True
+                        log.info("XD02: Faktura-Unterreiter gewaehlt: %s", ftab_id)
+                        break
+                    except Exception:
+                        pass
+
+                # Wenn weder Outer-Tab noch Faktura-Menü – letzter Fallback direkt
+                if not tab_selected and not faktura_tab_selected:
+                    log.warning("XD02: Weder Outer-Tab noch Faktura-Menü gefunden – versuche direkte Feld-Adressierung")
 
                 # ── 5. KNVV-ZTERM lesen und setzen (Screen 7325, Faktura-Tab) ──
                 # Pfade gemaess VBS-Vorlage (KNVV, nicht KNB1; Screen 7325, nicht 7215)
+                # T\03 = Vertriebsbereich-Outer-Tab; ssubSUBSCREEN_BODY nach Faktura-Unterreiter
                 field_paths = [
                     "wnd[0]/usr/tabsTAXI_TABSTRIP_HEAD/tabpT\\03/ssubSUBSCREEN_BODY:SAPMF02D:7325/ctxtKNVV-ZTERM",
                     "wnd[0]/usr/subSUBSCREEN_BODY:SAPMF02D:7325/ctxtKNVV-ZTERM",
+                    "wnd[0]/usr/ssubSUBSCREEN_BODY:SAPMF02D:7325/ctxtKNVV-ZTERM",
                     "wnd[0]/usr/tabsTAXI_TABSTRIP_HEAD/tabpFAKT/ssubSUBSCREEN_BODY:SAPMF02D:7325/ctxtKNVV-ZTERM",
                     "wnd[0]/usr/tabsTABSTRIP_VERK/tabpT\\03/ssubSUBSCREEN_BODY:SAPMF02D:7325/ctxtKNVV-ZTERM",
                     "wnd[0]/usr/tabsTABSTRIP1/tabpT\\03/ssubSUBSCREEN_BODY:SAPMF02D:7325/ctxtKNVV-ZTERM",

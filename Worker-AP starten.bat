@@ -40,6 +40,13 @@ if errorlevel 1 (
     echo.
 )
 
+REM ----- 3b. KI-Pakete sicherstellen (anthropic, openai für Voice Bot) -----
+".venv\Scripts\python.exe" -m pip show anthropic >nul 2>nul
+if errorlevel 1 (
+    echo === Installiere KI-Pakete (anthropic, openai) ===
+    ".venv\Scripts\python.exe" -m pip install anthropic openai -q
+)
+
 set ROBOT_ID=AP
 set WORKER_ID=worker-ap-local
 set ORCHESTRATOR_URL=http://localhost:8000

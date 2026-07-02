@@ -147,6 +147,16 @@ header{background:var(--bg2);border-bottom:1px solid var(--border);padding:0 20p
 .section-card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;margin-bottom:14px;overflow:hidden}
 .section-head{display:flex;align-items:center;justify-content:space-between;padding:12px 18px;border-bottom:1px solid var(--border);background:var(--bg3)}
 .section-head h3{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;display:flex;align-items:center;gap:8px}
+/* Farbige Bereichs-Header */
+.sh-xd02{background:rgba(88,166,255,.10);border-bottom-color:rgba(88,166,255,.25);border-left:3px solid rgba(88,166,255,.7)}
+.sh-xd02 h3{color:#7ec8ff}
+.sh-xd02 .tcode-tag{background:rgba(88,166,255,.2);color:#7ec8ff;border:1px solid rgba(88,166,255,.4)}
+.sh-vk12{background:rgba(210,162,26,.10);border-bottom-color:rgba(210,162,26,.25);border-left:3px solid rgba(210,162,26,.7)}
+.sh-vk12 h3{color:#e6b84a}
+.sh-vk12 .tcode-tag{background:rgba(210,162,26,.2);color:#e6b84a;border:1px solid rgba(210,162,26,.4)}
+.sh-va42{background:rgba(188,140,255,.10);border-bottom-color:rgba(188,140,255,.25);border-left:3px solid rgba(188,140,255,.7)}
+.sh-va42 h3{color:#d0adff}
+.sh-va42 .tcode-tag{background:rgba(188,140,255,.2);color:#d0adff;border:1px solid rgba(188,140,255,.4)}
 .section-body{padding:16px 18px}
 .field-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px}
 .field-item{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 14px}
@@ -680,7 +690,7 @@ function renderOverview() {
           va42ExecBtn+
           ' <button class="btn btn-sm btn-err" onclick="setStep(\''+c.num+'\',\''+sr.step+'\',\'err\')">✗ Fehler</button>';
       return '<tr><td style="padding:8px 12px 8px 14px;width:36px"></td>'+
-        '<td style="padding:8px 12px"><span class="tcode-tag">'+sr.tcode+'</span>'+
+        '<td style="padding:8px 12px"><span class="tcode-tag" style="'+(sr.tcode==='XD02'?'background:rgba(88,166,255,.2);color:#7ec8ff;border:1px solid rgba(88,166,255,.4)':sr.tcode==='VK12'?'background:rgba(210,162,26,.2);color:#e6b84a;border:1px solid rgba(210,162,26,.4)':'background:rgba(188,140,255,.2);color:#d0adff;border:1px solid rgba(188,140,255,.4)')+'">'+sr.tcode+'</span>'+
         '<span style="font-size:11px;color:var(--muted)">'+esc(sr.lbl)+'</span>'+
         '<div style="font-size:10px;color:var(--muted);margin-top:2px">'+esc(sr.desc)+'</div></td>'+
         '<td style="padding:8px 12px" colspan="3">'+changeHtml+'</td>'+
@@ -851,9 +861,9 @@ function renderDetail(c){
       '</div>'+
       (need?'<button class="btn btn-sm" onclick="goToOverview()">📋 Zur Übersicht</button>':'')+
     '</div>'+kpi+
-    '<div class="section-card"><div class="section-head"><h3><span class="tcode-tag">XD02</span>Stammdaten – Kundenstamm (KNVV)</h3><div style="display:flex;align-items:center;gap:8px">'+spill('xd02')+xb+'</div></div><div class="section-body">'+sd_body+'</div></div>'+
-    '<div class="section-card"><div class="section-head"><h3><span class="tcode-tag">VK12</span>Konditionssätze – ZB00</h3><div style="display:flex;align-items:center;gap:8px">'+spill('vk12')+vb+'</div></div><div class="section-body">'+vk_body+'</div></div>'+
-    '<div class="section-card"><div class="section-head"><h3><span class="tcode-tag">VA42</span>Kundenverträge &amp; Fakturaliste (VF04)</h3><div style="display:flex;align-items:center;gap:8px">'+vapill+vab+'</div></div><div class="section-body">'+va_body+'</div></div>'+
+    '<div class="section-card"><div class="section-head sh-xd02"><h3><span class="tcode-tag">XD02</span>Stammdaten – Kundenstamm (KNVV)</h3><div style="display:flex;align-items:center;gap:8px">'+spill('xd02')+xb+'</div></div><div class="section-body">'+sd_body+'</div></div>'+
+    '<div class="section-card"><div class="section-head sh-vk12"><h3><span class="tcode-tag">VK12</span>Konditionssätze – ZB00</h3><div style="display:flex;align-items:center;gap:8px">'+spill('vk12')+vb+'</div></div><div class="section-body">'+vk_body+'</div></div>'+
+    '<div class="section-card"><div class="section-head sh-va42"><h3><span class="tcode-tag">VA42</span>Kundenverträge &amp; Fakturaliste (VF04)</h3><div style="display:flex;align-items:center;gap:8px">'+vapill+vab+'</div></div><div class="section-body">'+va_body+'</div></div>'+
     chk+
     '<div class="section-card"><div class="section-head"><h3>📝 Notizen</h3></div><div class="section-body"><textarea placeholder="Notizen…" oninput="saveNote(\''+c.num+'\',this.value)">'+esc(notesMap[c.num]||'')+'</textarea></div></div>';
 }

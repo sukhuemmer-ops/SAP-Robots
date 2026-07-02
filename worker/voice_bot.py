@@ -41,82 +41,144 @@ def _fetch_url(url: str, timeout: int = 5) -> Any:
         return None
 
 
+def _fetch_post(url: str, payload: dict, timeout: int = 10) -> Any:
+    """HTTP-POST Helper ohne requests-Abhängigkeit."""
+    import urllib.request
+    try:
+        data = json.dumps(payload).encode()
+        req  = urllib.request.Request(url, data=data,
+                                      headers={"Content-Type": "application/json"},
+                                      method="POST")
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            return json.loads(r.read().decode())
+    except Exception as e:
+        log.warning("_fetch_post %s: %s", url, e)
+        return None
+
+
 def fetch_finance_context() -> dict:
     """
-    Holt aktuellen Finance-Kontext aus dem Orchestrator:
-    - Letzte 10 Buchungen
-    - Aktive Darlehen (aus localStorage-Konfiguration)
-    - Aktive Zeitpläne
-    - Aktuelle Invoice-Records
-    Gibt einen kompakten Text-Kontext für den System-Prompt zurück.
+    Holt aktuellen Finance-Kontext aus dem Orchestrator.
+    Alle verfügbaren Datenquellen werden kompakt zusammengefasst.
     """
-    context_parts = []
+    parts = []
+    month = datetime.now().strftime("%Y-%m")
     today = datetime.now().strftime("%Y-%m-%d")
-    context_parts.append(f"Aktuelles Datum: {today}")
+    parts.append(f"Aktuelles Datum: {today}  |  Monat: {month}")
 
-    # Buchungshistorie
-    hist = _fetch_url(f"{ORCHESTRATOR_URL}/api/booking-history?limit=10")
-    if hist and isinstance(hist, list) and hist:
-        lines = []
-        for b in hist[:10]:
-            lines.append(
-                f"  - {b.get('date','?')}: {b.get('tcode','?')} | "
-                f"Kunde {b.get('kunnr','?')} | "
-                f"ZTERM {b.get('zterm_old','?')}→{b.get('zterm_new','?')} | "
-                f"{b.get('status','?')}"
-            )
-        context_parts.append("Letzte Buchungen (YCONN):\n" + "\n".join(lines))
-    else:
-        context_parts.append("Buchungshistorie: keine Daten verfügbar.")
-
-    # Zeitpläne
-    sched = _fetch_url(f"{ORCHESTRATOR_URL}/api/schedules")
+    # ── Zeitpläne ────────────────────────────────────────────────
+    sched = _fetch_url(f"{ORCHESTRATOR_URL}/schedules")
     if sched and isinstance(sched, list):
         active = [s for s in sched if s.get("enabled")]
         if active:
-            lines = [f"  - {s.get('name','?')}: {s.get('cron','?')} ({s.get('last_run','nie')})"
-                     for s in active[:5]]
-            context_parts.append("Aktive Zeitpläne:\n" + "\n".join(lines))
+            lines = [
+                f"  - {s.get('name','?')}: {s.get('cron','?')} "
+                f"(letzter Lauf: {s.get('last_run','nie')})"
+                for s in active[:5]
+            ]
+            parts.append("Aktive Zeitpläne:\n" + "\n".join(lines))
+        else:
+            parts.append("Zeitpläne: keine aktiven Zeitpläne.")
 
-    # Rechnungen diesen Monat
-    month = datetime.now().strftime("%Y-%m")
-    inv = _fetch_url(f"{ORCHESTRATOR_URL}/api/invoices?month={month}")
+    # ── Payroll-Imports ──────────────────────────────────────────
+    payroll = _fetch_url(f"{ORCHESTRATOR_URL}/payroll/imports?limit=5")
+    if payroll and isinstance(payroll, list):
+        lines = [
+            f"  - {p.get('periode','?')}: {p.get('dateiname','?')} | "
+            f"Status={p.get('status','?')} | "
+            f"Gesamt={p.get('gesamtbetrag','?')} EUR"
+            for p in payroll[:5]
+        ]
+        parts.append("Payroll-Imports (letzte 5):\n" + "\n".join(lines))
+    else:
+        parts.append("Payroll: keine Daten verfügbar.")
+
+    # ── Rechnungen diesen Monat ──────────────────────────────────
+    inv = _fetch_url(f"{ORCHESTRATOR_URL}/invoice_records?month={month}&limit=10")
     if inv and isinstance(inv, list):
-        lines = [f"  - {i.get('subsidiary','?')}: {i.get('amount','?')} EUR, Status={i.get('status','?')}"
-                 for i in inv[:5]]
-        context_parts.append(f"Rechnungen {month}:\n" + "\n".join(lines))
+        total = sum(float(i.get("amount", 0) or 0) for i in inv)
+        booked = sum(1 for i in inv if i.get("status") == "booked")
+        lines  = [
+            f"  - {i.get('subsidiary','?')}: "
+            f"{i.get('amount','?')} EUR | Status={i.get('status','?')}"
+            for i in inv[:6]
+        ]
+        parts.append(
+            f"Rechnungen {month} ({len(inv)} gesamt, {booked} gebucht, "
+            f"Summe: {total:,.0f} EUR):\n" + "\n".join(lines)
+        )
+    else:
+        parts.append(f"Rechnungen {month}: keine Daten.")
 
-    return {"text": "\n\n".join(context_parts)}
+    # ── ZTERM-Log (Zahlungsbedingungen-Änderungen) ───────────────
+    zlog = _fetch_url(f"{ORCHESTRATOR_URL}/zterm-log?limit=5")
+    if zlog and isinstance(zlog, list) and zlog:
+        lines = [
+            f"  - {z.get('created_at','?')[:10]}: "
+            f"Kunde {z.get('kunnr','?')} | "
+            f"{z.get('old_zterm','?')}→{z.get('new_zterm','?')} | "
+            f"User: {z.get('sap_user','?')}"
+            for z in zlog[:5]
+        ]
+        parts.append("Letzte ZTERM-Änderungen:\n" + "\n".join(lines))
+
+    return {"text": "\n\n".join(parts)}
 
 
 # ──────────────────────────────────────────────────────────────────────────────
 # System-Prompt
 # ──────────────────────────────────────────────────────────────────────────────
 
-SYSTEM_PROMPT_TEMPLATE = """Du bist Esra – die intelligente Finance-Assistentin von Catensys.
+SYSTEM_PROMPT_TEMPLATE = """Du bist Esra 2.0 aus Catensys – die intelligente Finance-Assistentin für das YCONN SAP-Cockpit.
 Du antwortest freundlich, professionell und präzise – wie Alexa, aber für SAP und Finance.
+Dein Name ist Esra. Wenn jemand fragt wer du bist, sagst du: "Ich bin Esra 2.0 aus Catensys."
+Antworte IMMER auf Deutsch, kurz (max 2-3 Sätze – für Sprachausgabe optimiert).
 
-Du kannst:
-- Fragen zu Buchungshistorie, Zinsbuchungen, Darlehen, Rechnungen beantworten
-- SAP-Aktionen ankündigen (Zahlungsbedingungen ändern via XD02/VA42)
-- Buchungsstatus und Zeitpläne erklären
-- Finance-Begriffe auf Deutsch erklären (SAP, ZTERM, Buchungskreis, etc.)
+═══════════════════════════════════════════════════
+VERFÜGBARE MODULE – öffne sie mit NAVIGATE:
+═══════════════════════════════════════════════════
+• Zinsbuchungen / Darlehen  → NAVIGATE: zinsen.html
+• Rechnungen / SAP-SD       → NAVIGATE: rechnung.html
+• Payroll / Gehaltsimport   → NAVIGATE: payroll.html
+• Kundenstamm               → NAVIGATE: kundenstamm.html
+• Cockpit / Buchungshistorie→ NAVIGATE: cockpit.html
+• Startseite / Übersicht    → NAVIGATE: startseite.html
+• Verbindungen / SAP-RFC    → NAVIGATE: verbindungen.html
+• Digitales Gehirn / 3W     → NAVIGATE: brain.html
 
-Dein Name ist Esra. Wenn jemand fragt wer du bist, sagst du: "Ich bin Esra, Ihre Finance-Assistentin von Catensys."
-Antworte immer auf Deutsch, kurz und präzise (max 2-3 Sätze – optimiert für Sprachausgabe).
-Bei SAP-Aktionen frage immer erst nach Bestätigung bevor du handelst.
-Wenn du etwas nicht weißt, sage es ehrlich.
+═══════════════════════════════════════════════════
+REGELN FÜR NAVIGATE:
+═══════════════════════════════════════════════════
+- Wenn Benutzer ein Modul öffnen möchte → NAVIGATE: <datei>
+- Bei Buchungen: ERST öffne das Modul, DANN erkläre was zu tun ist
+- KEINE automatischen Buchungen ausführen – nur navigieren und erklären
 
-Aktueller Finance-Kontext:
-{context}
+═══════════════════════════════════════════════════
+WAS DU BEANTWORTEST (aus dem Kontext unten):
+═══════════════════════════════════════════════════
+- Payroll: Status, Betrag, welcher Monat bereits importiert
+- Rechnungen: Anzahl, Summe, Status (offen/gebucht) diesen Monat
+- Zeitpläne: Wann läuft was automatisch, letzter Lauf
+- ZTERM: Letzte Zahlungsbedingungen-Änderungen
+- Finance-Begriffe erklären (ZTERM, Buchungskreis, IC-Buchung, etc.)
 
-Erkannte Intents (gib am Ende deiner Antwort in einer neuen Zeile an):
-INTENT: [query|sap_action|schedule|invoice|loan|unknown]
-ACTION: [optional JSON für Bridge-Aufruf oder null]
+═══════════════════════════════════════════════════
+AUSGABEFORMAT (am Ende der Antwort):
+═══════════════════════════════════════════════════
+INTENT: [query|navigate|invoice|payroll|schedule|sap_action|unknown]
+NAVIGATE: <dateiname.html>   ← nur wenn Navigation sinnvoll/gewünscht
+ACTION: <JSON oder null>     ← nur für SAP-Aktionen mit Bestätigung
 
 Beispiele:
-- "Zeige letzte Buchungen" → INTENT: query, ACTION: null
-- "Ändere Zahlungsbedingung Maruti auf X004" → INTENT: sap_action, ACTION: {{"method":"GUI","tcode":"XD02_KZTERM","payload":{{"customers":["1012588"],"new_zterm":"X004","bukrs":"0439"}}}}
+- "Öffne Zinsen" → INTENT: navigate\nNAVIGATE: zinsen.html
+- "Wie viele Rechnungen diesen Monat?" → INTENT: invoice (aus Kontext beantworten)
+- "Was ist ZTERM?" → INTENT: query (direkt erklären)
+- "Buche die Zinsen" → INTENT: sap_action, NAVIGATE: zinsen.html + erklären dass Benutzer dort buchen soll
+
+═══════════════════════════════════════════════════
+AKTUELLER FINANCE-KONTEXT:
+═══════════════════════════════════════════════════
+{context}
 """
 
 
@@ -145,16 +207,46 @@ def detect_intent_keywords(text: str) -> str:
 # ──────────────────────────────────────────────────────────────────────────────
 
 def _load_ai_config() -> dict:
-    """Liest KI-Provider + API-Key aus Orchestrator-DB (mit Env-Var-Fallback)."""
+    """
+    Liest KI-Provider + API-Key in dieser Reihenfolge:
+    1. Orchestrator-DB (/ai_config/full)
+    2. Umgebungsvariablen (.env)
+    3. esra_config.json (vom Esra Desktop-App gespeichert)
+    """
+    # 1. Orchestrator-DB
     cfg = _fetch_url(f"{ORCHESTRATOR_URL}/ai_config/full")
     if cfg and cfg.get("api_key"):
         return cfg
-    # Env-Var-Fallback: Anthropic
-    return {
-        "provider": "claude",
-        "api_key":  os.getenv("ANTHROPIC_API_KEY", "").strip(),
-        "model":    "",
-    }
+
+    # 2. Env-Var
+    claude_key = os.getenv("ANTHROPIC_API_KEY", "").strip()
+    openai_key = os.getenv("OPENAI_API_KEY", "").strip()
+    if claude_key:
+        return {"provider": "claude", "api_key": claude_key, "model": ""}
+    if openai_key:
+        return {"provider": "openai", "api_key": openai_key, "model": ""}
+
+    # 3. esra_config.json (Einstellungen aus Esra Desktop-App)
+    try:
+        esra_cfg_path = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            "esra", "esra_config.json"
+        )
+        if os.path.isfile(esra_cfg_path):
+            with open(esra_cfg_path, "r", encoding="utf-8") as f:
+                esra_cfg = json.load(f)
+            ck = esra_cfg.get("claude_key", "").strip()
+            ok = esra_cfg.get("openai_key", "").strip()
+            if ck:
+                log.info("KI-Key aus esra_config.json geladen (Claude)")
+                return {"provider": "claude", "api_key": ck, "model": "claude-haiku-4-5-20251001"}
+            if ok:
+                log.info("KI-Key aus esra_config.json geladen (OpenAI)")
+                return {"provider": "openai", "api_key": ok, "model": "gpt-4o-mini"}
+    except Exception as e:
+        log.warning("esra_config.json Lesefehler: %s", e)
+
+    return {"provider": "claude", "api_key": "", "model": ""}
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -323,19 +415,22 @@ def chat(user_text: str, history: list[dict]) -> dict:
 
 
 def _parse_claude_output(raw: str, fallback_intent: str) -> tuple[str, Any, str]:
-    """Extrahiert INTENT: und ACTION: Zeilen aus Claude-Antwort."""
-    intent = fallback_intent
-    action = None
-    lines  = raw.strip().split("\n")
+    """Extrahiert INTENT:, NAVIGATE: und ACTION: Zeilen aus Claude-Antwort."""
+    intent   = fallback_intent
+    action   = None
+    navigate = None
+    lines    = raw.strip().split("\n")
     text_lines = []
 
     for line in lines:
         ls = line.strip()
         if ls.startswith("INTENT:"):
-            intent = ls.replace("INTENT:", "").strip().lower()
+            intent = ls.replace("INTENT:", "").strip().lower().split()[0]
+        elif ls.startswith("NAVIGATE:"):
+            navigate = ls.replace("NAVIGATE:", "").strip()
         elif ls.startswith("ACTION:"):
             action_str = ls.replace("ACTION:", "").strip()
-            if action_str and action_str.lower() != "null":
+            if action_str and action_str.lower() not in ("null", "none", ""):
                 try:
                     action = json.loads(action_str)
                 except Exception:
@@ -346,6 +441,14 @@ def _parse_claude_output(raw: str, fallback_intent: str) -> tuple[str, Any, str]
     clean_text = "\n".join(text_lines).strip()
     if not clean_text:
         clean_text = raw.strip()
+
+    # Navigate-Aktion in action einbetten (Frontend wertet aus)
+    if navigate:
+        nav_action = {"type": "navigate", "url": navigate}
+        if action and isinstance(action, dict):
+            action["navigate"] = navigate
+        else:
+            action = nav_action
 
     return intent, action, clean_text
 
