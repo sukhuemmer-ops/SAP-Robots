@@ -23,7 +23,7 @@ echo.
 start "YCONN Orchestrator [PROD]" cmd /k "cd /d %~dp0orchestrator && echo [PROD] Orchestrator startet... && uvicorn main:app --host 0.0.0.0 --port 8000"
 timeout /t 3 /nobreak >nul
 
-start "YCONN Bridge [PROD]" cmd /k "cd /d %~dp0worker && echo [PROD] Bridge startet... && python bridge.py"
+start "YCONN Bridge [PROD]" cmd /k "cd /d %~dp0worker && del /q __pycache__\handlers.cpython-*.pyc 2>nul && echo [PROD] Bridge startet... && python bridge.py"
 timeout /t 2 /nobreak >nul
 
 start "YCONN Voice [PROD]" cmd /k "cd /d %~dp0worker && uvicorn voice_server:app --port 8766"
