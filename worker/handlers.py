@@ -2632,31 +2632,81 @@ def gui_xd02_kzterm_change(task: dict, payload: dict) -> dict:
                 # ── 1. XD02 aufrufen ──────────────────────────────────────
                 session.findById("wnd[0]/tbar[0]/okcd").text = "/nXD02"
                 session.findById("wnd[0]").sendVKey(0)
-                _t.sleep(1.5)
+                _t.sleep(2.0)
+
+                # Popups direkt nach Navigation abräumen (Mehrfachanmeldung,
+                # Hinweistext, Mode-Change-Dialog …) BEVOR wir Felder setzen.
+                # Ohne diesen Schritt scheitern alle findById-Aufrufe auf wnd[0]
+                # lautlos, wenn wnd[1] noch offen ist.
+                for _pn in range(4):
+                    try:
+                        wnd1 = session.findById("wnd[1]", False)
+                        if wnd1 is None:
+                            break
+                        # Mehrfachanmeldungs-Dialog spezifisch behandeln (App-Regel G-8)
+                        handled = _handle_multiple_logon_popup(session)
+                        if not handled:
+                            wnd1.sendVKey(0)   # allgemeiner Hinweis → Enter
+                        _t.sleep(0.8)
+                        log.info("XD02 %s: Post-Nav Popup Versuch %d behandelt (G-8)", kunnr, _pn + 1)
+                    except Exception:
+                        break
 
                 # ── 2. Einstiegsmaske befuellen ───────────────────────────────
                 # BUKRS muss gefuellt sein – ohne Buchungskreis navigiert SAP nicht
                 # weg von der Einstiegsmaske und TAXI_TABSTRIP_HEAD fehlt komplett.
+                log.info("XD02 %s: Befuelle Einstiegsmaske (KUNNR=%s BUKRS=%s VKORG=%s VTWEG=%s SPART=%s)",
+                         kunnr, kunnr, bukrs, vkorg, vtweg, spart)
+                _fields_set = 0
                 for fid, val in [
                     ("wnd[0]/usr/ctxtRF02D-KUNNR", kunnr),
-                    ("wnd[0]/usr/ctxtRF02D-BUKRS", bukrs),    # Buchungskreis immer mitgeben
+                    ("wnd[0]/usr/ctxtRF02D-BUKRS", bukrs),    # Buchungskreis immer mitgeben (G-8)
                     ("wnd[0]/usr/ctxtRF02D-VKORG", vkorg),
                     ("wnd[0]/usr/ctxtRF02D-VTWEG", vtweg),
                     ("wnd[0]/usr/ctxtRF02D-SPART", spart),
                 ]:
                     try:
                         session.findById(fid).text = val
-                    except Exception:
-                        pass
+                        _fields_set += 1
+                    except Exception as _fe:
+                        log.warning("XD02 %s: Feld '%s' nicht setzbar: %s", kunnr, fid, _fe)
+
+                # Kein einziges Feld gesetzt → Screen vermutlich noch nicht bereit
+                # Retry nach zusaetzlicher Wartezeit
+                if _fields_set == 0:
+                    log.warning("XD02 %s: 0 Felder gesetzt – Screen noch nicht bereit? Warte und retry …", kunnr)
+                    _t.sleep(2.5)
+                    for fid, val in [
+                        ("wnd[0]/usr/ctxtRF02D-KUNNR", kunnr),
+                        ("wnd[0]/usr/ctxtRF02D-BUKRS", bukrs),
+                        ("wnd[0]/usr/ctxtRF02D-VKORG", vkorg),
+                        ("wnd[0]/usr/ctxtRF02D-VTWEG", vtweg),
+                        ("wnd[0]/usr/ctxtRF02D-SPART", spart),
+                    ]:
+                        try:
+                            session.findById(fid).text = val
+                            _fields_set += 1
+                        except Exception as _fe2:
+                            log.error("XD02 %s: Retry Feld '%s' fehlgeschlagen: %s", kunnr, fid, _fe2)
+                    if _fields_set == 0:
+                        raise RuntimeError(
+                            f"XD02 Einstiegsmaske nicht erreichbar – kein Feld setzbar. "
+                            f"SAP-Screen ist moeglicherweise kein XD02-Einstieg "
+                            f"(Popup noch offen oder falsche Transaktion)."
+                        )
+
+                log.info("XD02 %s: %d/5 Felder gesetzt", kunnr, _fields_set)
 
                 session.findById("wnd[0]").sendVKey(0)   # Enter
                 _t.sleep(2.0)
 
-                # ── 3. Evtl. Dialoge bestaetigen ──────────────────────────
+                # ── 3. Evtl. Dialoge nach Enter bestaetigen ───────────────
                 for _ in range(3):
                     try:
-                        wnd1 = session.findById("wnd[1]")
-                        wnd1.sendVKey(0)
+                        wnd1 = session.findById("wnd[1]", False)
+                        if wnd1 is None:
+                            break
+                        _handle_multiple_logon_popup(session) or wnd1.sendVKey(0)
                         _t.sleep(0.8)
                     except Exception:
                         break
