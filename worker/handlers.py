@@ -2731,13 +2731,12 @@ def gui_xd02_kzterm_change(task: dict, payload: dict) -> dict:
                 # ── 3. Evtl. Dialoge nach Enter bestaetigen ───────────────
                 for _ in range(3):
                     try:
-                        wnd1 = session.findById("wnd[1]", False)
-                        if wnd1 is None:
-                            break
-                        _handle_multiple_logon_popup(session) or wnd1.sendVKey(0)
+                        _wnd1 = session.findById("wnd[1]")   # Exception wenn nicht vorhanden
+                        if not _handle_multiple_logon_popup(session):
+                            _wnd1.sendVKey(0)
                         _t.sleep(0.8)
                     except Exception:
-                        break
+                        break   # kein wnd[1] → weiter
 
                 # ── 4. Vertriebsbereich-Tab (T\03) auswaehlen ──────────────
                 # Mit BUKRS gefuellt: TAXI_TABSTRIP_HEAD hat T\01=Allg, T\02=BuKr, T\03=VKBer
