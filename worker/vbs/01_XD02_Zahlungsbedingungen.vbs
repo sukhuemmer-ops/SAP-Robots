@@ -241,12 +241,60 @@ Sub SafeSet(session, path, value)
 End Sub
 
 Sub AkzeptierePopup()
+    ' App-Regel G-7: Mehrfachanmeldungs-Dialog → immer Option 2 wählen
+    ' (Continue without ending other logons)
     On Error Resume Next
     Dim popup : Set popup = session.findById("wnd[1]")
-    If Not popup Is Nothing And Err.Number = 0 Then
-        popup.sendVKey 0   ' Enter bestätigt Standard-Popup
-        WScript.Sleep 600
+    If popup Is Nothing Or Err.Number <> 0 Then
+        Err.Clear : On Error GoTo 0 : Exit Sub
     End If
+    Err.Clear
+
+    Dim popupTitle : popupTitle = ""
+    popupTitle = popup.text
+    Err.Clear
+
+    ' Mehrfachanmeldungs-Dialog erkennen
+    Dim isMultiLogon : isMultiLogon = False
+    If InStr(1, LCase(popupTitle), "multiple logon",  vbTextCompare) > 0 Or _
+       InStr(1, LCase(popupTitle), "license information", vbTextCompare) > 0 Or _
+       InStr(1, LCase(popupTitle), "mehrfach",        vbTextCompare) > 0 Then
+        isMultiLogon = True
+    End If
+
+    If isMultiLogon Then
+        LogWrite "  INFO: Mehrfachanmeldungs-Dialog erkannt – wähle Option 2 (ohne andere Sessions zu beenden)"
+        ' Radio-Button Option 2: "Continue with this logon, without ending any other logons"
+        Dim radio2
+        Set radio2 = session.findById("wnd[1]/usr/radMULTI_LOGON_OPT2")
+        If Err.Number = 0 And Not radio2 Is Nothing Then
+            radio2.select
+            Err.Clear
+        Else
+            Err.Clear
+            ' Fallback: zweiten Radio-Button per generischem Index
+            Set radio2 = session.findById("wnd[1]/usr/rad[1]")
+            If Err.Number = 0 And Not radio2 Is Nothing Then
+                radio2.select
+                Err.Clear
+            End If
+        End If
+        WScript.Sleep 300
+        ' OK-Button (grünes Häkchen)
+        Dim okBtn
+        Set okBtn = session.findById("wnd[1]/tbar[0]/btn[0]")
+        If Err.Number = 0 And Not okBtn Is Nothing Then
+            okBtn.press
+        Else
+            Err.Clear
+            popup.sendVKey 0
+        End If
+    Else
+        ' Standard-Popup (Sichtenauswahl etc.) → Enter
+        popup.sendVKey 0
+    End If
+
+    WScript.Sleep 600
     Err.Clear
     On Error GoTo 0
 End Sub

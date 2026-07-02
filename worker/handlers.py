@@ -245,6 +245,91 @@ def _find_saplogon_entry_for_host(ashost: str) -> str:
     return ""
 
 
+def _handle_multiple_logon_popup(session) -> bool:
+    """
+    App-Regel G-7: Mehrfachanmeldungs-Dialog automatisch behandeln.
+
+    SAP zeigt beim Login diesen Dialog wenn der Benutzer bereits in einem anderen
+    Terminal angemeldet ist.  Wir wählen immer Option 2:
+      "Continue with this logon, without ending any other logons in the system."
+    (Radio-Button MULTI_LOGON_OPT2 / Index 1)
+
+    Gibt True zurück wenn der Dialog erkannt und behandelt wurde, sonst False.
+    """
+    import time as _t
+    try:
+        wnd1 = session.findById("wnd[1]", False)
+        if wnd1 is None:
+            return False
+
+        # Titel prüfen – nur den Mehrfach-Anmeldedialg behandeln
+        try:
+            title = str(wnd1.text or "")
+        except Exception:
+            title = ""
+        if "multiple logon" not in title.lower() and "mehrfach" not in title.lower() \
+                and "license information" not in title.lower():
+            return False
+
+        log.info("Mehrfachanmeldungs-Dialog erkannt ('%s') – wähle Option 2 (ohne andere Sessions zu beenden)", title)
+
+        # Radio-Button Optionen (Standard SAP-IDs)
+        _opt2_ids = [
+            "wnd[1]/usr/radMULTI_LOGON_OPT2",   # Standard ID Option 2
+            "wnd[1]/usr/rad[1]",                  # Generischer Index
+        ]
+        selected = False
+        for opt_id in _opt2_ids:
+            try:
+                radio = session.findById(opt_id, False)
+                if radio is not None:
+                    radio.select()
+                    selected = True
+                    log.info("Mehrfachanmeldung: Radio '%s' ausgewählt", opt_id)
+                    break
+            except Exception:
+                pass
+
+        if not selected:
+            # Fallback: VKey 2 (zweite Option per Tastatur) und dann Enter
+            log.warning("Mehrfachanmeldung: Radio-IDs nicht gefunden – versuche Tastatur-Fallback")
+            try:
+                wnd1.sendVKey(2)   # Tab zum zweiten Radio
+            except Exception:
+                pass
+
+        _t.sleep(0.3)
+        # OK-Button (grünes Häkchen)
+        _ok_ids = [
+            "wnd[1]/tbar[0]/btn[0]",
+            "wnd[1]/tbar[0]/btn[11]",
+        ]
+        for ok_id in _ok_ids:
+            try:
+                btn = session.findById(ok_id, False)
+                if btn is not None:
+                    btn.press()
+                    _t.sleep(0.5)
+                    log.info("Mehrfachanmeldung: OK gedrückt (%s)", ok_id)
+                    return True
+            except Exception:
+                pass
+
+        # Letzter Ausweg: Enter auf wnd[1]
+        try:
+            wnd1.sendVKey(0)
+            _t.sleep(0.5)
+            log.info("Mehrfachanmeldung: Enter (VKey 0) als Fallback")
+            return True
+        except Exception:
+            pass
+
+    except Exception as _e:
+        log.debug("_handle_multiple_logon_popup: kein Dialog oder Fehler (%s)", _e)
+
+    return False
+
+
 def _gui_session(creds=None):
     """
     Oeffnet eine NEUE SAP-GUI-Scripting-Session via SAP Logon (OpenConnection).
@@ -302,6 +387,8 @@ def _gui_session(creds=None):
         session.findById("wnd[0]/usr/pwdRSYST-BCODE").text = cfg["password"]
         session.findById("wnd[0]/usr/txtRSYST-LANGU").text = cfg["lang"]
         session.findById("wnd[0]").sendVKey(0)
+        import time as _t; _t.sleep(1.0)
+        _handle_multiple_logon_popup(session)
     return connection, session
 
 

@@ -385,6 +385,36 @@ header {
         </div>
       </div>
 
+      <div class="rule-card" style="border-color:rgba(168,85,247,.4)">
+        <div class="rule-id" style="background:rgba(168,85,247,.12);color:#c084fc">G-8</div>
+        <div class="rule-body">
+          <div class="rule-name">🔁 SAP Mehrfachanmeldung — immer &quot;Continue without ending other logons&quot;</div>
+          <div class="rule-desc">
+            Wenn beim Login der SAP-Dialog <em>«License Information for Multiple Logons»</em> erscheint
+            (Benutzer ist bereits in einem anderen Terminal angemeldet), wählt die App automatisch
+            <strong>Option 2: «Continue with this logon, without ending any other logons in the system»</strong>.
+            <br><br>
+            <strong>Option 1</strong> («end any other logons») wird nie verwendet — sie würde eine
+            laufende manuelle SAP-Sitzung des Anwenders abmelden und dort ungespeicherte Daten vernichten.
+            <strong>Option 3</strong> («Terminate this logon») würde den Robot-Zugang verhindern.
+            <br><br>
+            Die Auswahl erfolgt über den Radio-Button <code>wnd[1]/usr/radMULTI_LOGON_OPT2</code>,
+            gefolgt von OK (<code>wnd[1]/tbar[0]/btn[0]</code>).
+            Gilt für Python (handlers.py) <strong>und</strong> VBS-Scripting (AkzeptierePopup).
+          </div>
+          <div class="rule-tech">
+            <span class="tech-chip locked">MULTI_LOGON_OPT2</span>
+            <span class="tech-chip ok">Python: _handle_multiple_logon_popup()</span>
+            <span class="tech-chip ok">VBS: AkzeptierePopup()</span>
+            <span class="tech-chip">wnd[1]/usr/radMULTI_LOGON_OPT2</span>
+          </div>
+        </div>
+        <div class="rule-badges">
+          <span class="badge badge-active">● Aktiv</span>
+          <span class="badge-module bm-global">Global</span>
+        </div>
+      </div>
+
       <div class="rule-card" style="border-color:rgba(251,191,36,.4)">
         <div class="rule-id" style="background:rgba(251,191,36,.15);color:#fbbf24">G-5</div>
         <div class="rule-body">
