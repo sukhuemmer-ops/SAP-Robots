@@ -395,13 +395,15 @@ def _gui_session(creds=None):
             pass
         session.findById("wnd[0]").sendVKey(0)
 
-        # SAP-GUI-Scripting sendVKey ist synchron – Dialog erscheint direkt danach.
-        # Kleiner Puffer für langsame Verbindungen, dann sofort behandeln.
-        _t.sleep(1.0)
-        _handle_multiple_logon_popup(session)
+        # App-Regel G-8: Mehrfachanmeldungs-Dialog nach Login behandeln.
+        # VBS-Muster: sendVKey 0 → sofort radMULTI_LOGON_OPT2.select+setFocus → btn[0].press × 2
+        # Python: nach sendVKey kurz warten (Verbindungslatenz), dann 3 Versuche mit Abstand.
         _t.sleep(0.5)
-        # Zweiter Versuch für den Fall dass der Dialog etwas verzögert erscheint
-        _handle_multiple_logon_popup(session)
+        if not _handle_multiple_logon_popup(session):
+            _t.sleep(0.8)
+            if not _handle_multiple_logon_popup(session):
+                _t.sleep(1.2)
+                _handle_multiple_logon_popup(session)
 
     return connection, session
 
