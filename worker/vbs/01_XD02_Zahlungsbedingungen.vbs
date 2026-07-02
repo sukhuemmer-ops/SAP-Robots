@@ -241,8 +241,12 @@ Sub SafeSet(session, path, value)
 End Sub
 
 Sub AkzeptierePopup()
-    ' App-Regel G-7: Mehrfachanmeldungs-Dialog → immer Option 2 wählen
-    ' (Continue without ending other logons)
+    ' App-Regel G-8: Mehrfachanmeldungs-Dialog → Option 2 wählen
+    ' Exakt nach dem funktionierenden Muster:
+    '   radMULTI_LOGON_OPT2.select
+    '   radMULTI_LOGON_OPT2.setFocus
+    '   btn[0].press  (1. Mal)
+    '   btn[0].press  (2. Mal – SAP-Eigenheit)
     On Error Resume Next
     Dim popup : Set popup = session.findById("wnd[1]")
     If popup Is Nothing Or Err.Number <> 0 Then
@@ -250,47 +254,36 @@ Sub AkzeptierePopup()
     End If
     Err.Clear
 
-    Dim popupTitle : popupTitle = ""
-    popupTitle = popup.text
+    ' ── Prüfen ob Mehrfachanmeldungs-Dialog (radMULTI_LOGON_OPT2 vorhanden?) ──
+    Dim radio2
+    Set radio2 = session.findById("wnd[1]/usr/radMULTI_LOGON_OPT2")
+    Dim isMultiLogon : isMultiLogon = (Err.Number = 0 And Not radio2 Is Nothing)
     Err.Clear
 
-    ' Mehrfachanmeldungs-Dialog erkennen
-    Dim isMultiLogon : isMultiLogon = False
-    If InStr(1, LCase(popupTitle), "multiple logon",  vbTextCompare) > 0 Or _
-       InStr(1, LCase(popupTitle), "license information", vbTextCompare) > 0 Or _
-       InStr(1, LCase(popupTitle), "mehrfach",        vbTextCompare) > 0 Then
-        isMultiLogon = True
-    End If
-
     If isMultiLogon Then
-        LogWrite "  INFO: Mehrfachanmeldungs-Dialog erkannt – wähle Option 2 (ohne andere Sessions zu beenden)"
-        ' Radio-Button Option 2: "Continue with this logon, without ending any other logons"
-        Dim radio2
-        Set radio2 = session.findById("wnd[1]/usr/radMULTI_LOGON_OPT2")
-        If Err.Number = 0 And Not radio2 Is Nothing Then
-            radio2.select
-            Err.Clear
-        Else
-            Err.Clear
-            ' Fallback: zweiten Radio-Button per generischem Index
-            Set radio2 = session.findById("wnd[1]/usr/rad[1]")
-            If Err.Number = 0 And Not radio2 Is Nothing Then
-                radio2.select
-                Err.Clear
-            End If
-        End If
+        LogWrite "  INFO: Mehrfachanmeldungs-Dialog – wähle Option 2 (ohne andere Sessions zu beenden)"
+
+        ' 1. Radio-Button selektieren UND Fokus setzen (beide Schritte erforderlich)
+        radio2.select
+        Err.Clear
+        radio2.setFocus
+        Err.Clear
         WScript.Sleep 300
-        ' OK-Button (grünes Häkchen)
+
+        ' 2. OK-Button ZWEIMAL drücken (SAP-Eigenheit bei diesem Dialog)
         Dim okBtn
         Set okBtn = session.findById("wnd[1]/tbar[0]/btn[0]")
         If Err.Number = 0 And Not okBtn Is Nothing Then
             okBtn.press
+            WScript.Sleep 300
+            okBtn.press   ' zweiter Druck – wie im getesteten Muster
+            Err.Clear
         Else
             Err.Clear
             popup.sendVKey 0
         End If
     Else
-        ' Standard-Popup (Sichtenauswahl etc.) → Enter
+        ' Standard-Popup (Sichtenauswahl, Hinweis etc.) → Enter
         popup.sendVKey 0
     End If
 

@@ -247,80 +247,71 @@ def _find_saplogon_entry_for_host(ashost: str) -> str:
 
 def _handle_multiple_logon_popup(session) -> bool:
     """
-    App-Regel G-8: Mehrfachanmeldungs-Dialog (und allgemeine wnd[1]-Popups) behandeln.
+    App-Regel G-8: SAP Mehrfachanmeldungs-Dialog automatisch mit Option 2 bestätigen.
 
-    Strategie – kein Titel-Gate, da wnd1.text unter win32com oft leer zurückkommt:
-      1. Prüft ob wnd[1] existiert
-      2. Versucht Radio-Button Option 2 zu selektieren (MULTI_LOGON_OPT2)
-         → "Continue without ending other logons"
-      3. Drückt OK (btn[0]) oder als Fallback Enter
-      4. Wenn wnd[1] kein Mehrfach-Anmeldungs-Dialog war, ist Enter trotzdem sicher
-         (bestätigt allgemeine Hinweis-Dialoge)
+    Exakt nach dem funktionierenden VBS-Muster implementiert:
 
-    Gibt True zurück wenn wnd[1] gefunden und eine Aktion ausgeführt wurde.
+        session.findById("wnd[1]/usr/radMULTI_LOGON_OPT2").select
+        session.findById("wnd[1]/usr/radMULTI_LOGON_OPT2").setFocus
+        session.findById("wnd[1]/tbar[0]/btn[0]").press   ' 1. Mal
+        session.findById("wnd[1]/tbar[0]/btn[0]").press   ' 2. Mal (wichtig!)
+
+    Wichtig:
+    - Kein Titel-Check (wnd1.text gibt unter win32com oft leeren String)
+    - setFocus() nach select() ist zwingend (sonst ignoriert SAP die Auswahl)
+    - btn[0].press() wird ZWEIMAL aufgerufen (SAP-Eigenheit bei diesem Dialog)
+    - Gilt für Login (neu geöffnete Session) UND laufende Sessions (XD02 etc.)
+
+    Gibt True zurück wenn wnd[1] vorhanden war und behandelt wurde.
     """
     import time as _t
     try:
         wnd1 = session.findById("wnd[1]", False)
         if wnd1 is None:
-            return False   # kein Popup – alles gut
+            return False   # kein Popup – nichts zu tun
 
-        # Titel nur für Logging (NICHT als Gate – text kann leer sein)
+        # Titel nur für Logging – NICHT als Entscheidungsgate
         try:
-            title = str(wnd1.text or "")
+            title = str(wnd1.text or "(n/a)")
         except Exception:
             title = "(n/a)"
-        log.info("SAP Popup wnd[1] erkannt: '%s' – versuche Option 2 + OK", title)
+        log.info("SAP Popup wnd[1] erkannt: '%s' – behandle als Mehrfachanmeldungs-Dialog (G-8)", title)
 
-        # ── Radio-Button Option 2 selektieren ─────────────────────────────
-        # Versuche mehrere bekannte SAP-IDs (variiert je nach Basis-Release)
-        _opt2_ids = [
-            "wnd[1]/usr/radMULTI_LOGON_OPT2",    # Standard ABAP: 7.40+
-            "wnd[1]/usr/rad[1]",                   # Index-basiert (2. Radio = Index 1)
-            "wnd[1]/usr/subSCREEN_STEPLOOP:SAPMSSYD:0110/rad[1]",
-        ]
-        _selected = False
-        for _oid in _opt2_ids:
-            try:
-                _r = session.findById(_oid, False)
-                if _r is not None:
-                    _r.select()
-                    _selected = True
-                    log.info("Mehrfachanmeldung: Radio '%s' selektiert", _oid)
-                    _t.sleep(0.2)
-                    break
-            except Exception:
-                pass
-
-        if not _selected:
-            log.info("Mehrfachanmeldung: Kein Radio gefunden – Option-2 vermutlich Default, fahre mit OK fort")
+        # ── 1. Radio-Button Option 2: select() + setFocus() ───────────────
+        # Genau wie im funktionierenden VBS-Skript: erst select, dann setFocus
+        _radio_id = "wnd[1]/usr/radMULTI_LOGON_OPT2"
+        try:
+            _radio = session.findById(_radio_id)
+            _radio.select()
+            _radio.setFocus()
+            log.info("Mehrfachanmeldung: '%s' selektiert + Fokus gesetzt", _radio_id)
+        except Exception as _re:
+            log.warning("Mehrfachanmeldung: Radio '%s' nicht gefunden (%s) – fahre trotzdem fort", _radio_id, _re)
 
         _t.sleep(0.3)
 
-        # ── OK-Button drücken (grünes Häkchen) ────────────────────────────
-        _ok_ids = [
-            "wnd[1]/tbar[0]/btn[0]",     # Standard-Toolbar-OK
-            "wnd[1]/tbar[0]/btn[11]",    # Alternate-OK in einigen SAP-Versionen
-        ]
-        for _oid in _ok_ids:
-            try:
-                _b = session.findById(_oid, False)
-                if _b is not None:
-                    _b.press()
-                    _t.sleep(0.6)
-                    log.info("Mehrfachanmeldung: OK '%s' gedrückt – Dialog geschlossen", _oid)
-                    return True
-            except Exception:
-                pass
+        # ── 2. OK-Button ZWEIMAL drücken ──────────────────────────────────
+        # Das VBS-Skript drückt btn[0] zweimal – SAP-Eigenheit bei diesem Dialog
+        _ok_id = "wnd[1]/tbar[0]/btn[0]"
+        try:
+            _btn = session.findById(_ok_id)
+            _btn.press()
+            _t.sleep(0.3)
+            _btn.press()          # zweiter Druck – wie im VBS-Muster
+            _t.sleep(0.6)
+            log.info("Mehrfachanmeldung: OK '%s' 2× gedrückt – Dialog geschlossen", _ok_id)
+            return True
+        except Exception as _be:
+            log.warning("Mehrfachanmeldung: OK-Button '%s' fehlgeschlagen (%s) – versuche Enter", _ok_id, _be)
 
-        # ── Letzter Ausweg: Enter auf dem Popup-Fenster ───────────────────
+        # ── 3. Letzter Ausweg: Enter auf wnd[1] ───────────────────────────
         try:
             wnd1.sendVKey(0)
             _t.sleep(0.6)
-            log.info("Mehrfachanmeldung: sendVKey(0) als Fallback – Dialog hoffentlich geschlossen")
+            log.info("Mehrfachanmeldung: sendVKey(0) als Fallback")
             return True
         except Exception as _ve:
-            log.warning("Mehrfachanmeldung: Auch sendVKey(0) fehlgeschlagen: %s", _ve)
+            log.error("Mehrfachanmeldung: Alle Versuche fehlgeschlagen: %s", _ve)
 
     except Exception as _e:
         log.debug("_handle_multiple_logon_popup: Fehler (%s)", _e)
