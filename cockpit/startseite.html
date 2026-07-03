@@ -753,16 +753,31 @@ body::after {
   <div class="section-title">Aufgaben</div>
   <div class="aufgaben-grid">
 
-    <!-- a) Darlehen -->
-    <a class="aufg-tile" href="zinsen.html"
-       style="--at-color:#3b82f6;--at-dark:#1d4ed8;--at-bg1:#1a2f5e;--at-bg2:#0e1d3f;--at-border:rgba(59,130,246,.55)">
-      <div class="at-icon">💶</div>
-      <div>
-        <div class="at-name">Darlehen</div>
-        <div class="at-desc">IC-Zinsbuchungen, Zinsplan, Buchungshistorie</div>
+    <!-- a) Interest Posting / Zinsbuchungen -->
+    <div class="aufg-tile"
+       style="--at-color:#3b82f6;--at-dark:#1d4ed8;--at-bg1:#1a2f5e;--at-bg2:#0e1d3f;--at-border:rgba(59,130,246,.55);">
+      <!-- Hauptbereich → zinsen.html -->
+      <a href="zinsen.html" style="display:flex;align-items:center;gap:12px;text-decoration:none;color:inherit;">
+        <div class="at-icon">💶</div>
+        <div style="flex:1;">
+          <div class="at-name">Interest Posting</div>
+          <div class="at-desc">IC-Zinsbuchungen · Zeitpläne</div>
+        </div>
+        <span class="at-badge ok">● Verfügbar</span>
+      </a>
+      <!-- Sub-Link: Darlehen Übersicht -->
+      <div style="border-top:1px solid rgba(59,130,246,.22);padding-top:10px;">
+        <a href="cockpit.html#darlehen"
+           style="display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;
+                  color:#60a5fa;text-decoration:none;padding:4px 12px;border-radius:6px;
+                  border:1px solid rgba(96,165,250,.35);background:rgba(96,165,250,.1);
+                  transition:background .15s;"
+           onmouseover="this.style.background='rgba(96,165,250,.22)'"
+           onmouseout="this.style.background='rgba(96,165,250,.1)'">
+          🏦 Darlehen Übersicht
+        </a>
       </div>
-      <span class="at-badge ok">● Verfügbar</span>
-    </a>
+    </div>
 
     <!-- b) SAP-Stammdaten -->
     <a class="aufg-tile" href="stammdaten.html"
@@ -784,6 +799,50 @@ body::after {
         <div class="at-desc">Zahlungsbedingungen prüfen und korrigieren (XD02 / VK12)</div>
       </div>
       <span class="at-badge ok">● Verfügbar</span>
+    </a>
+
+    <!-- c2) SAP Lieferantenstammdaten -->
+    <a class="aufg-tile" href="lieferanten.html"
+       style="--at-color:#a371f7;--at-dark:#7c3aed;--at-bg1:#1e1030;--at-bg2:#14091f;--at-border:rgba(163,113,247,.4)">
+      <div class="at-icon">🏭</div>
+      <div>
+        <div class="at-name">SAP Lieferantenstammdaten</div>
+        <div class="at-desc">Zahlungsbedingungen aktualisieren (MK02) · 292 Lieferanten</div>
+      </div>
+      <span class="at-badge ok">● Verfügbar</span>
+    </a>
+
+    <!-- c4) Datenbank-Konfiguration -->
+    <a class="aufg-tile" href="db-config.html"
+       style="--at-color:#06b6d4;--at-dark:#0e7490;--at-bg1:#082030;--at-bg2:#04121c;--at-border:rgba(6,182,212,.45)">
+      <div class="at-icon">🗄</div>
+      <div>
+        <div class="at-name">Datenbank-Konfiguration</div>
+        <div class="at-desc">Verbindung konfigurieren · Netzlaufwerk Z:\DB · Datenmigration</div>
+      </div>
+      <span class="at-badge ok">● Multi-User</span>
+    </a>
+
+    <!-- c4b) Netzwerk-Zugang -->
+    <a class="aufg-tile" href="server-info.html"
+       style="--at-color:#22d3ee;--at-dark:#0891b2;--at-bg1:#071e2a;--at-bg2:#041219;--at-border:rgba(34,211,238,.4)">
+      <div class="at-icon">🌐</div>
+      <div>
+        <div class="at-name">Netzwerk-Zugang</div>
+        <div class="at-desc">Server-IP · Cockpit-URL für Netzwerk-Benutzer · Dienste-Status</div>
+      </div>
+      <span class="at-badge ok">● Netzwerk</span>
+    </a>
+
+    <!-- c3) Modul-Versionen / Backup -->
+    <a class="aufg-tile" href="versions.html"
+       style="--at-color:#34d399;--at-dark:#059669;--at-bg1:#0a2a1e;--at-bg2:#061a12;--at-border:rgba(52,211,153,.45)">
+      <div class="at-icon">📦</div>
+      <div>
+        <div class="at-name">Modul-Versionen</div>
+        <div class="at-desc">Automatische Datei-Snapshots nach erfolgreichem Modul-Lauf – Backup &amp; Restore</div>
+      </div>
+      <span class="at-badge ok">● Aktiv</span>
     </a>
 
     <!-- c2) Finance-Sprachassistent -->
@@ -929,6 +988,14 @@ body::after {
           <div class="qa-icon" style="background:rgba(31,111,235,.12)">🗄️</div>
           <div>3W DB<br>Details</div>
         </a>
+        <a href="db-config.html" class="qa-btn">
+          <div class="qa-icon" style="background:rgba(6,182,212,.12)">🗄</div>
+          <div>DB-Konfigur-<br>ation</div>
+        </a>
+        <a href="server-info.html" class="qa-btn">
+          <div class="qa-icon" style="background:rgba(34,211,238,.1)">🌐</div>
+          <div>Netzwerk-<br>Zugang</div>
+        </a>
         <div class="qa-btn" style="cursor:pointer" onclick="checkBridge()">
           <div class="qa-icon" style="background:rgba(52,211,153,.12)">🔍</div>
           <div>Bridge prüfen</div>
@@ -966,8 +1033,11 @@ body::after {
       <a href="brain.html">Digitales Gehirn</a>
       <a href="db-kontrollzentrum.html">3W-Kontrollzentrum</a>
       <a href="db-admin.html">3W-Details</a>
+      <a href="db-config.html">DB-Konfiguration</a>
+      <a href="lieferanten.html">Lieferantenstammdaten</a>
+      <a href="server-info.html">Netzwerk-Zugang</a>
       <a href="cockpit-bridge.html">Bridge</a>
-      <a href="http://localhost:8000/docs" target="_blank">API Docs</a>
+      <a href="/docs" target="_blank">API Docs</a>
     </div>
   </footer>
 </div>
@@ -990,7 +1060,7 @@ body::after {
 <script>
 "use strict";
 // ─── Config ────────────────────────────────────────────────────────
-var BRIDGE_URL = "http://localhost:8765";
+var BRIDGE_URL = window.location.origin.replace(':8000',':8765');
 var STORE_KEY  = "sap-cockpit-real-v4";
 
 var ROBOTS = [
@@ -1153,29 +1223,4 @@ function renderRobots(){
         "<div class=\"rc-actions\">" +
           "<button class=\"rc-btn primary\" onclick=\"event.stopPropagation();openRunModal('" + r.id + "')\">▶ Alle starten</button>" +
           "<button class=\"rc-btn\" onclick=\"event.stopPropagation();location.href='cockpit.html'\" style=\"flex:0;padding:9px 14px\">Aufgaben</button>" +
-          "<button class=\"rc-btn\" onclick=\"event.stopPropagation();location.href='cockpit-v2.html'\" style=\"flex:0;padding:9px 14px\">Zeitplan</button>" +
-        "</div>" +
-      "</div>";
-    grid.appendChild(card);
-  });
-}
-
-function renderConns(){
-  var list = document.getElementById("connList");
-  list.innerHTML = CONNS.map(function(c){
-    var typeLabel = { RFC:"RFC / BAPI", GUI:"GUI Scripting", OData:"OData / REST" }[c.type] || c.type;
-    var robots = c.robots && c.robots.length
-      ? c.robots.map(function(r){ return "<span style=\"font-size:10px;color:var(--muted)\">" + r + "</span>"; }).join(" ")
-      : "<span style=\"font-size:10px;color:var(--muted)\">—</span>";
-    return "<div class=\"conn-row\">" +
-      "<div class=\"conn-row-left\">" +
-        "<span class=\"env-badge env-" + c.env + "\">" + c.env + "</span>" +
-        "<div><div class=\"conn-name\">" + esc(c.name) + "</div>" +
-        "<div class=\"conn-type\">" + typeLabel + "</div></div>" +
-      "</div>" +
-      "<div style=\"display:flex;align-items:center;gap:4px\">" + robots + "</div>" +
-    "</div>";
-  }).join("");
-}
-
-// ─── Run Modal ────────────────────────────────────────────────────
+          "<button class=\"rc-btn\" onclick=\"event.stopPropagatio

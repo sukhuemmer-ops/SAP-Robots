@@ -621,8 +621,8 @@ select{padding:6px 10px;background:var(--bg3);border:1px solid var(--border);bor
 AUTH.renderHeader('headerRight');
 
 // ─── Konstanten ────────────────────────────────────────────
-var BRIDGE_URL = 'http://localhost:8765';
-var ORCH_URL   = 'http://localhost:8000';
+var BRIDGE_URL = window.location.origin.replace(':8000',':8765');
+var ORCH_URL   = window.location.origin;
 var SAP_SYSTEMS = {
   SEQ: { ashost:'172.28.189.11', sysnr:'05', client:'600', lang:'DE' },
   SEP: { ashost:'172.28.189.8',  sysnr:'06', client:'600', lang:'DE' }

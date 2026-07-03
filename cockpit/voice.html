@@ -332,9 +332,9 @@ body { font-family:-apple-system,'Segoe UI',sans-serif; background:var(--bg); co
 
 <script>
 // ── KONFIG ───────────────────────────────────────────────────────────────────
-var BRIDGE_URL       = 'http://localhost:8765';
-var VOICE_SERVER_URL = 'http://localhost:8766';
-var VOICE_WS_URL     = 'ws://localhost:8766/ws';
+var BRIDGE_URL = window.location.origin.replace(':8000',':8765');
+var VOICE_SERVER_URL = window.location.origin.replace(':8000',':8766');
+var VOICE_WS_URL = window.location.origin.replace('http','ws').replace(':8000',':8766') + '/ws';
 
 // Navigation-Commands (Keyword → URL)
 var NAV_COMMANDS = {
@@ -483,7 +483,7 @@ async function checkBridgeFallback() {
 /** Liest KI-Config direkt aus Orchestrator (Port 8000) und setzt KI-Badge. */
 async function _refreshKiFromOrchestrator() {
   try {
-    var r = await _fetchWithTimeout('http://localhost:8000/ai_config/full', 3000);
+    var r = await _fetchWithTimeout(window.location.origin+'/ai_config/full', 3000);
     var d = await r.json();
     var key  = (d.api_key || '').trim();
     var prov = (d.provider || 'claude').toLowerCase();
@@ -1328,7 +1328,7 @@ function showServerSetup() {
 
 <script>
 // ── KI-Einstellungen ─────────────────────────────────────────────────────────
-var ORCH_URL_VOICE = 'http://localhost:8000';
+var ORCH_URL_VOICE = window.location.origin;
 
 function openAiSettings() {
   document.getElementById('aiSettingsModal').style.display = 'flex';
@@ -1451,7 +1451,7 @@ async function testAiConnection() {
     <div id="micDiagOut" style="font-size:12px;line-height:1.7;color:#e6edf3;min-height:80px"></div>
     <div style="margin-top:18px;padding:12px;background:rgba(88,166,255,.06);border:1px solid rgba(88,166,255,.2);border-radius:8px;font-size:11px;color:#8b949e">
       <b style="color:#58a6ff">Schnelle Lösung:</b> Seite über
-      <a href="http://localhost:8000/cockpit/voice.html" style="color:#58a6ff" target="_blank">http://localhost:8000/cockpit/voice.html</a>
+      <a href="/cockpit/voice.html" style="color:#58a6ff" target="_blank">http://localhost:8000/cockpit/voice.html</a>
       öffnen (statt als file://) — dann funktioniert das Mikrofon in allen Browsern.
     </div>
     <div style="margin-top:12px;display:flex;gap:10px;justify-content:flex-end">

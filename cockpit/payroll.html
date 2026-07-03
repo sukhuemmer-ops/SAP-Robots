@@ -1018,7 +1018,7 @@ async function applyFieldChange(el, nr, field, oldVal, newVal) {
     var body = {};
     body[field] = newVal;
     try {
-      var resp = await fetch('http://localhost:8000/payroll/imports/' + state.dbImportId +
+      var resp = await fetch(_ORCH+'/payroll/imports/' + state.dbImportId +
                              '/lines/' + nr, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -1104,7 +1104,8 @@ var SAP_SYSTEMS = {
   SEQ: { ashost:'172.28.189.11', sysnr:'05', client:'600', lang:'DE', user:'RFC_COFACE' },
   SEP: { ashost:'172.28.189.8',  sysnr:'06', client:'600', lang:'DE', user:'RFC_COFACE' }
 };
-var BRIDGE_URL = 'http://localhost:8765';
+var _ORCH = window.location.origin;
+var BRIDGE_URL = _ORCH.replace(':8000',':8765');
 
 // ─── Tab switching ─────────────────────────────────────────
 function switchTab(name, btn) {
@@ -2202,7 +2203,7 @@ async function postToSap() {
         '</div>';
       // Status in DB aktualisieren
       if (state.dbImportId) {
-        fetch('http://localhost:8000/payroll/imports/' + state.dbImportId + '/status', {
+        fetch(_ORCH+'/payroll/imports/' + state.dbImportId + '/status', {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ status: 'booked', booking_doc_nr: docNr || '' })
@@ -2337,7 +2338,7 @@ async function checkMonthDuplicateAndSave(meta, output) {
   var thisKey    = runDateToMonthKey(meta.runDate);
   var thisCocode = meta.cocode || '';
   try {
-    var resp = await fetch('http://localhost:8000/payroll/imports?limit=200');
+    var resp = await fetch(_ORCH+'/payroll/imports?limit=200');
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
     var list = await resp.json();
     var duplicate = list.find(function(imp) {
@@ -2415,7 +2416,7 @@ async function saveToDb(meta, output) {
   try {
     var ctrl  = new AbortController();
     var timer = setTimeout(function(){ ctrl.abort(); }, 10000);
-    var resp  = await fetch('http://localhost:8000/payroll/imports', {
+    var resp  = await fetch(_ORCH+'/payroll/imports', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body), signal: ctrl.signal
     });
@@ -2454,7 +2455,7 @@ async function loadImportIntoTabs(id) {
   var btn = document.querySelector('[data-loadbtn="' + id + '"]');
   if (btn) { btn.textContent = '⏳ Lade…'; btn.disabled = true; }
   try {
-    var resp = await fetch('http://localhost:8000/payroll/imports/' + id);
+    var resp = await fetch(_ORCH+'/payroll/imports/' + id);
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
     var data = await resp.json();
     var meta = {
@@ -2553,7 +2554,7 @@ async function loadImportHistory() {
   try {
     var ctrl  = new AbortController();
     var timer = setTimeout(function(){ ctrl.abort(); }, 8000);
-    var resp  = await fetch('http://localhost:8000/payroll/imports?limit=200', { signal: ctrl.signal });
+    var resp  = await fetch(_ORCH+'/payroll/imports?limit=200', { signal: ctrl.signal });
     clearTimeout(timer);
 
     if (!resp.ok) {
@@ -2585,7 +2586,7 @@ async function loadImportHistory() {
         'border:1px solid var(--border);border-radius:8px;max-width:420px;margin:0 auto;text-align:left">' +
         '<strong>Checkliste:</strong><br>' +
         '1. Orchestrator läuft? → <code>python orchestrator/main.py</code><br>' +
-        '2. Port 8000 erreichbar? → <code>http://localhost:8000/health</code><br>' +
+        '2. Port 8000 erreichbar? → <code>'+_ORCH+'/health</code><br>' +
         '3. DB-Tabelle vorhanden? → nach Neustart des Orchestrators prüfen' +
       '</div>' +
       '<div style="margin-top:14px">' +
@@ -2670,7 +2671,7 @@ async function stornoImport(importId, bookingDocNr, compCode) {
 
   var origLines = [];
   try {
-    var lresp = await fetch('http://localhost:8000/payroll/imports/' + importId);
+    var lresp = await fetch(_ORCH+'/payroll/imports/' + importId);
     if (!lresp.ok) throw new Error('HTTP ' + lresp.status);
     var importData = await lresp.json();
     origLines = importData.lines || [];
@@ -2857,7 +2858,7 @@ async function executeStorno() {
     }
     var stornoNrDisplay = stornoNr && stornoNr.length === 18 ? stornoNr.substring(0, 10) : stornoNr;
 
-    await fetch('http://localhost:8000/payroll/imports/' + importId + '/storno', {
+    await fetch(_ORCH+'/payroll/imports/' + importId + '/storno', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ storno_doc_nr: stornoNr || '' })
@@ -2931,7 +2932,7 @@ async function deleteImport(importId, fileName, status) {
     : 'Import "' + fileName + '" löschen?\n\nStatus: ' + status;
   if (!confirm(msg)) return;
   try {
-    var resp = await fetch('http://localhost:8000/payroll/imports/' + importId, { method: 'DELETE' });
+    var resp = await fetch(_ORCH+'/payroll/imports/' + importId, { method: 'DELETE' });
     if (!resp.ok) {
       var err = await resp.json().catch(function(){ return {}; });
       throw new Error(err.detail || 'HTTP ' + resp.status);
@@ -2948,7 +2949,7 @@ async function patchDocNr(importId) {
   if (!nr || !nr.trim()) return;
   nr = nr.trim();
   try {
-    var resp = await fetch('http://localhost:8000/payroll/imports/' + importId + '/status', {
+    var resp = await fetch(_ORCH+'/payroll/imports/' + importId + '/status', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: 'booked', booking_doc_nr: nr })
@@ -2999,7 +3000,7 @@ async function exportPayrollXlsx() {
 
       var lines = [];
       try {
-        var resp = await fetch('http://localhost:8000/payroll/imports/' + imp.id);
+        var resp = await fetch(_ORCH+'/payroll/imports/' + imp.id);
         if (resp.ok) {
           var data = await resp.json();
           lines = data.lines || [];
@@ -3186,7 +3187,7 @@ async function toggleHistPreview(id) {
   btn.textContent  = '▼ Vorschau';
   if (el.dataset.loaded) return;
   try {
-    var resp = await fetch('http://localhost:8000/payroll/imports/' + id);
+    var resp = await fetch(_ORCH+'/payroll/imports/' + id);
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
     var data = await resp.json();
     el.dataset.loaded = '1';
@@ -3280,7 +3281,7 @@ function handleResyFile(lineNr, file) {
 function handleResyPdf(lineNr, file) {
   var fd = new FormData();
   fd.append('file', file, file.name);
-  fetch('http://localhost:8000/payroll/resy-parse', { method: 'POST', body: fd })
+  fetch(_ORCH+'/payroll/resy-parse', { method: 'POST', body: fd })
     .then(function(r) {
       if (!r.ok) return r.json().then(function(e) { throw new Error(e.detail || r.status); });
       return r.json();
@@ -3291,7 +3292,7 @@ function handleResyPdf(lineNr, file) {
     })
     .catch(function(err) {
       alert('Fehler beim Parsen der RESY-PDF:\n' + err.message +
-            '\n\nOrchestratorStatus prüfen (http://localhost:8000/health).');
+            '\n\nOrchestratorStatus prüfen ('+_ORCH+'/health).');
     });
 }
 
@@ -3446,7 +3447,7 @@ async function saveResySplit() {
     })
   };
   try {
-    var resp = await fetch('http://localhost:8000/payroll/imports/' + state.dbImportId + '/lines', {
+    var resp = await fetch(_ORCH+'/payroll/imports/' + state.dbImportId + '/lines', {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
     });

@@ -268,10 +268,15 @@ textarea:focus{border-color:var(--acc)}
           <div class="overview-sub" id="protokollSub"></div>
         </div>
         <div class="overview-actions">
-          <input type="text" id="protokollFilter" placeholder="Kundennummer filtern…"
+          <select id="protokollBkFilter" onchange="filterProtokoll(document.getElementById('protokollFilter').value)"
+            style="background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:6px 8px;font-size:12px">
+            <option value="">Alle BK</option>
+          </select>
+          <input type="text" id="protokollFilter" placeholder="Suche Kunde / Name…"
             style="background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:6px 10px;font-size:12px;width:180px"
             oninput="filterProtokoll(this.value)">
           <button class="btn btn-sm" onclick="loadProtokoll()">↺ Neu laden</button>
+          <button class="btn btn-sm" onclick="exportProtokoll()" style="background:rgba(63,185,80,.15);border-color:rgba(63,185,80,.4);color:#3fb950;font-weight:600">⬇ Excel exportieren</button>
         </div>
       </div>
       <div style="overflow-x:auto;margin-top:8px">
@@ -282,7 +287,7 @@ textarea:focus{border-color:var(--acc)}
               <th style="padding:8px 10px">Kunden-Nr</th>
               <th style="padding:8px 10px">Name</th>
               <th style="padding:8px 10px">TCode</th>
-              <th style="padding:8px 10px">BK</th>
+              <th style="padding:8px 10px;color:var(--acc)">BK</th>
               <th style="padding:8px 10px">Vertrag</th>
               <th style="padding:8px 10px">Alt</th>
               <th style="padding:8px 10px">→ Neu</th>
@@ -350,8 +355,8 @@ textarea:focus{border-color:var(--acc)}
 <script>
 AUTH.renderHeader('headerRight');
 
-const BRIDGE_URL = 'http://localhost:8765';
-const ORCH_URL   = 'http://localhost:8000';
+const BRIDGE_URL = window.location.origin.replace(':8000',':8765');
+const ORCH_URL = window.location.origin;
 // GUI-BG wird global über AUTH.getGuiBg() gesteuert (auth.js / Header-Toggle)
 const SAP_SYSTEMS = {
   SEP: { ashost:'172.28.189.8',  sysnr:'06', client:'600', lang:'DE' },
@@ -526,18 +531,59 @@ function processFile(file) {
       var wb = XLSX.read(e.target.result, {type:'array'});
       var ws = wb.Sheets[wb.SheetNames[0]];
       var rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:null});
+      if (!rows.length) throw new Error('Leere Datei');
+
+      // ── Header-basierte Spaltenerkennung ──────────────────────
+      // Unterstützt verschiedene Spaltenreihenfolgen je nach Herkunft der Datei.
+      var hdr = (rows[0] || []).map(function(h){ return h ? String(h).toLowerCase().trim() : ''; });
+      function col(keywords) {
+        for (var k = 0; k < keywords.length; k++) {
+          for (var j = 0; j < hdr.length; j++) {
+            if (hdr[j].indexOf(keywords[k]) !== -1) return j;
+          }
+        }
+        return -1;
+      }
+      var cBk     = col(['company code','buchungskreis','bukrs']);
+      var cNum    = col(['customer','kunnr','kundennummer']);
+      var cName   = col(['customer name','name']);
+      var cCurT   = col(['terms of payment','zahlungsbedingung','zterm']);
+      var cCurD   = col(['current sap terms','current sap desc','aktuell']);
+      var cCheckD = col(['sales checked','checked description','sales desc','about days','tage']);
+      var cStatus = col(['matched or not','status','übereinstimmung']);
+      var cNewT   = col(['need modify','neuer term','new term','neues zterm','customer need']);
+      var cNewD   = col(['description in sap','neue beschreibung','new desc']);
+      var cQty    = col(['quantity','menge','qty']);
+      var cSales  = col(['sales value','umsatz','value']);
+
+      // Fallback auf feste Indizes wenn Header nicht erkannt
+      if (cBk   < 0) cBk   = 0;
+      if (cNum  < 0) cNum  = 1;
+      if (cName < 0) cName = 2;
+      if (cCurT < 0) cCurT = 3;
+      if (cCurD < 0) cCurD = 4;
+
       var imported = [];
       for (var i = 1; i < rows.length; i++) {
         var r = rows[i];
-        if (!r || !r[1]) continue;
+        if (!r || r[cNum] == null || String(r[cNum]).trim() === '') continue;
+        var rawStatus = cStatus >= 0 && r[cStatus] != null ? String(r[cStatus]).trim() : 'OK';
+        // Case-insensitive: "Not matched" / "Not Matched" / "NOT MATCHED" → normalisiert
+        var normStatus = rawStatus.toLowerCase().replace(/\s+/g,' ');
+        var status = (normStatus === 'not matched' || normStatus === 'not match' || normStatus === 'no match')
+                     ? 'Not Matched' : 'OK';
         imported.push({
-          bk: String(r[0]||'0439'), num: String(r[1]).trim(),
-          name: String(r[2]||'').replace(/\xa0/g,' ').trim(),
-          curT: String(r[3]||'').trim(), curD: String(r[4]||'').trim(),
-          checkD: String(r[9]||'').trim(), status: String(r[10]||'OK').trim(),
-          newT: r[11] ? String(r[11]).trim() : null, newD: r[12] ? String(r[12]).trim() : null,
-          qty: (r[7]!=null&&r[7]!=='') ? Number(r[7]) : null,
-          sales: (r[8]!=null&&r[8]!=='') ? Number(r[8]) : null,
+          bk:     String(r[cBk]  != null ? r[cBk]  : '0439'),
+          num:    String(r[cNum]).trim(),
+          name:   String(r[cName]||'').replace(/\xa0/g,' ').trim(),
+          curT:   String(r[cCurT]||'').trim(),
+          curD:   String(r[cCurD]||'').trim(),
+          checkD: cCheckD >= 0 && r[cCheckD] != null ? String(r[cCheckD]).trim() : '',
+          status: status,
+          newT:   cNewT  >= 0 && r[cNewT]  != null ? String(r[cNewT] ).trim() : null,
+          newD:   cNewD  >= 0 && r[cNewD]  != null ? String(r[cNewD] ).trim() : null,
+          qty:    cQty   >= 0 && r[cQty]   != null && r[cQty]   !== '' ? Number(r[cQty])   : null,
+          sales:  cSales >= 0 && r[cSales] != null && r[cSales] !== '' ? Number(r[cSales]) : null,
         });
       }
       if (!imported.length) throw new Error('Keine Daten erkannt');
@@ -955,7 +1001,8 @@ async function execXD02K(num, bk, newT, _skipConfirm) {
     }
     // Protokoll-Einträge speichern
     var cAuth = _sapAuth();
-    var cInfo = PRELOADED.find(function(p){ return p.num === num; }) || {};
+    var cInfo = customers.find(function(p){ return p.num === num; }) ||
+                PRELOADED.find(function(p){ return p.num === num; }) || {};
     (data.results || []).forEach(function(r) {
       logZtermChange({
         kunnr:      r.kunnr || num,
@@ -1040,7 +1087,8 @@ async function execVA42(num, newT, _skipConfirm) {
       setStep(num, 'va42', 'done');
       if (activeCust && activeCust.num === num) renderDetail(activeCust);
     }
-    var cInfoV = PRELOADED.find(function(p){ return p.num === num; }) || {};
+    var cInfoV = customers.find(function(p){ return p.num === num; }) ||
+                 PRELOADED.find(function(p){ return p.num === num; }) || {};
     (data.results || []).forEach(function(r) {
       if (r.status === 'ok') logZtermChange({
         kunnr: num, kname: cInfoV.name || '', bukrs: cInfoV.bk || '', tcode: 'VA42',
@@ -1136,60 +1184,4 @@ async function logZtermChange(entry) {
 }
 
 async function loadProtokoll() {
-  var sub = document.getElementById('protokollSub');
-  if (sub) sub.textContent = 'Lädt…';
-  try {
-    var resp = await fetch(ORCH_URL + '/zterm-log?limit=500');
-    _protokollData = await resp.json();
-    renderProtokoll(_protokollData);
-    if (sub) sub.textContent = _protokollData.length + ' Einträge';
-  } catch(e) {
-    var tb = document.getElementById('protokollBody');
-    if (tb) tb.innerHTML = '<tr><td colspan="11" style="padding:20px;text-align:center;color:var(--err)">Orchestrator nicht erreichbar: ' + e.message + '</td></tr>';
-    if (sub) sub.textContent = 'Fehler beim Laden';
-  }
-}
-
-function filterProtokoll(q) {
-  if (!q) { renderProtokoll(_protokollData); return; }
-  q = q.toLowerCase();
-  renderProtokoll(_protokollData.filter(function(r){
-    return (r.kunnr||'').toLowerCase().includes(q) ||
-           (r.kname||'').toLowerCase().includes(q) ||
-           (r.changed_by||'').toLowerCase().includes(q) ||
-           (r.tcode||'').toLowerCase().includes(q);
-  }));
-}
-
-function renderProtokoll(rows) {
-  var tb = document.getElementById('protokollBody');
-  if (!tb) return;
-  if (!rows || !rows.length) {
-    tb.innerHTML = '<tr><td colspan="11" style="padding:20px;text-align:center;color:var(--muted)">Keine Einträge vorhanden</td></tr>';
-    return;
-  }
-  tb.innerHTML = rows.map(function(r) {
-    var dt = r.changed_at ? new Date(r.changed_at) : null;
-    var datStr = dt ? dt.toLocaleDateString('de-DE') + ' ' + dt.toLocaleTimeString('de-DE') : '–';
-    var stColor = r.status === 'ok' ? '#7cc852' : r.status === 'warn' ? '#f0a04b' : 'var(--err)';
-    var stIcon  = r.status === 'ok' ? '✓' : r.status === 'warn' ? '⚠' : '✗';
-    return '<tr style="border-bottom:1px solid var(--border)">' +
-      '<td style="padding:7px 10px;white-space:nowrap;color:var(--muted);font-size:11px">' + datStr + '</td>' +
-      '<td style="padding:7px 10px;font-weight:600">' + (r.kunnr||'') + '</td>' +
-      '<td style="padding:7px 10px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + (r.kname||'') + '">' + (r.kname||'–') + '</td>' +
-      '<td style="padding:7px 10px;font-family:monospace;font-size:11px">' + (r.tcode||'') + '</td>' +
-      '<td style="padding:7px 10px">' + (r.bukrs||'–') + '</td>' +
-      '<td style="padding:7px 10px;font-family:monospace;font-size:11px">' + (r.vbeln||'–') + '</td>' +
-      '<td style="padding:7px 10px;color:#f0a04b;font-weight:600">' + (r.zterm_old||'–') + '</td>' +
-      '<td style="padding:7px 10px;color:#7cc852;font-weight:600">→ ' + (r.zterm_new||'') + '</td>' +
-      '<td style="padding:7px 10px;font-size:11px">' + (r.sap_system||'–') + '</td>' +
-      '<td style="padding:7px 10px">' + (r.changed_by||'–') + '</td>' +
-      '<td style="padding:7px 10px;color:' + stColor + ';font-weight:600">' + stIcon + ' ' + r.status + '</td>' +
-    '</tr>';
-  }).join('');
-}
-
-function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
-</script>
-</body>
-</html>
+  var sub = document.getElementById('

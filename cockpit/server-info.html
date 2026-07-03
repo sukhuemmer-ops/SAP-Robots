@@ -1,0 +1,295 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<script>
+if (location.protocol === 'file:') {
+  var _fn = (location.pathname.split('/').pop() || location.pathname.split('\\').pop());
+  location.replace('http://localhost:8000/cockpit/' + _fn + location.search + location.hash);
+}
+</script>
+<title>Netzwerk-Zugang – YCONN</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<script src="auth.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0d1117;--bg2:#161b22;--bg3:#21262d;
+  --border:#30363d;--text:#e6edf3;--muted:#8b949e;
+  --acc:#58a6ff;--ok:#3fb950;--warn:#d2a21a;--err:#f85149;--teal:#39d353;
+}
+html,body{min-height:100vh;background:var(--bg);color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;font-size:13px;}
+a{color:inherit;text-decoration:none;}
+
+.header{background:var(--bg2);border-bottom:1px solid var(--border);
+  padding:10px 20px;display:flex;align-items:center;gap:12px;}
+.header h1{font-size:15px;font-weight:700;flex:1;}
+.btn-nav{padding:5px 11px;border-radius:6px;background:var(--bg3);
+  border:1px solid var(--border);color:var(--muted);font-size:12px;cursor:pointer;}
+.btn-nav:hover{color:var(--text);border-color:var(--muted);}
+.header-right{display:flex;align-items:center;gap:8px;margin-left:auto}
+
+.page{max-width:860px;margin:0 auto;padding:28px 20px;display:grid;gap:20px;}
+
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;overflow:hidden;}
+.card-head{padding:14px 18px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:10px;}
+.card-head h2{font-size:13px;font-weight:700;flex:1;}
+.card-body{padding:20px;}
+
+/* URL hero */
+.url-hero{background:linear-gradient(135deg,rgba(31,111,235,.15),rgba(88,166,255,.08));
+  border:1px solid rgba(88,166,255,.3);border-radius:12px;padding:24px;text-align:center;
+  margin-bottom:20px;}
+.url-hero .label{font-size:11px;color:var(--muted);text-transform:uppercase;
+  letter-spacing:.6px;margin-bottom:8px;}
+.url-hero .url{font-family:monospace;font-size:18px;font-weight:700;color:var(--acc);
+  word-break:break-all;line-height:1.4;}
+.url-hero .sub{font-size:11px;color:var(--muted);margin-top:6px;}
+
+.btn-copy{display:inline-flex;align-items:center;gap:6px;margin-top:14px;
+  padding:8px 20px;border-radius:8px;background:var(--acc);color:#0d1117;
+  font-weight:700;font-size:12px;cursor:pointer;border:none;font-family:inherit;}
+.btn-copy:hover{opacity:.85;}
+.btn-copy.copied{background:var(--ok);color:#0d1117;}
+
+/* IP list */
+.ip-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;}
+.ip-card{background:var(--bg3);border:1px solid var(--border);border-radius:8px;
+  padding:12px 14px;display:flex;flex-direction:column;gap:4px;}
+.ip-badge{font-size:9px;background:rgba(88,166,255,.15);color:var(--acc);
+  border-radius:999px;padding:1px 7px;font-weight:700;width:fit-content;}
+.ip-badge.primary{background:rgba(63,185,80,.15);color:var(--ok);}
+.ip-val{font-family:monospace;font-size:14px;font-weight:700;color:var(--text);}
+.ip-sub{font-size:10px;color:var(--muted);}
+
+/* Steps */
+.steps{display:flex;flex-direction:column;gap:14px;}
+.step{display:flex;gap:14px;align-items:flex-start;}
+.step-num{width:28px;height:28px;border-radius:50%;background:var(--acc);
+  color:#0d1117;font-size:12px;font-weight:800;display:flex;align-items:center;
+  justify-content:center;flex-shrink:0;}
+.step-body h4{font-size:13px;font-weight:700;margin-bottom:3px;}
+.step-body p{font-size:12px;color:var(--muted);line-height:1.5;}
+.step-body code{background:var(--bg3);border:1px solid var(--border);
+  border-radius:4px;padding:1px 6px;font-size:11px;color:var(--teal);}
+
+/* Status row */
+.svc-row{display:flex;align-items:center;gap:10px;padding:10px 0;
+  border-bottom:1px solid var(--border);}
+.svc-row:last-child{border-bottom:none;}
+.svc-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
+.svc-dot.ok{background:var(--ok);box-shadow:0 0 6px var(--ok);}
+.svc-dot.err{background:var(--err);}
+.svc-dot.chk{background:var(--warn);animation:blink .8s infinite;}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+.svc-name{font-weight:600;font-size:12px;flex:1;}
+.svc-url{font-family:monospace;font-size:11px;color:var(--muted);}
+.svc-badge{font-size:10px;font-weight:700;padding:2px 8px;border-radius:999px;border:1px solid;}
+.svc-badge.ok{background:rgba(63,185,80,.12);border-color:rgba(63,185,80,.3);color:var(--ok);}
+.svc-badge.err{background:rgba(248,81,73,.12);border-color:rgba(248,81,73,.3);color:var(--err);}
+
+/* Spinner */
+@keyframes spin{to{transform:rotate(360deg)}}
+.spin{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.2);
+  border-top-color:var(--acc);border-radius:50%;animation:spin .6s linear infinite;}
+
+.toast-wrap{position:fixed;bottom:24px;right:24px;z-index:9999;}
+.toast{padding:9px 16px;border-radius:8px;font-size:12px;font-weight:700;
+  margin-top:8px;border:1px solid;}
+.toast.ok{background:rgba(63,185,80,.15);border-color:rgba(63,185,80,.4);color:var(--ok);}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>🌐 Netzwerk-Zugang</h1>
+  <div class="header-right" id="headerRight">
+    <button class="btn-nav" onclick="loadInfo()">↻ Aktualisieren</button>
+    <a class="btn-nav" href="db-config.html">🗄 DB-Config</a>
+    <a class="btn-nav" href="startseite.html">⌂ Startseite</a>
+  </div>
+</div>
+
+<div class="page">
+
+  <!-- ── Zugriffs-URL ─────────────────────────────────────────── -->
+  <div class="card">
+    <div class="card-head">
+      <h2>🔗 Cockpit-URL für Netzwerk-Benutzer</h2>
+    </div>
+    <div class="card-body">
+      <div class="url-hero">
+        <div class="label">Anderen Benutzern diese URL mitteilen:</div>
+        <div class="url" id="mainUrl"><span class="spin"></span></div>
+        <div class="sub" id="hostnameInfo">Wird geladen…</div>
+        <button class="btn-copy" id="btnCopy" onclick="copyUrl()">
+          📋 URL kopieren
+        </button>
+      </div>
+
+      <div id="allIpsWrap">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:10px;
+          text-transform:uppercase;letter-spacing:.5px;">Alle Netzwerk-Adressen</div>
+        <div class="ip-grid" id="ipGrid">
+          <div style="color:var(--muted);font-size:12px;">Lade…</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Dienste-Status ───────────────────────────────────────── -->
+  <div class="card">
+    <div class="card-head">
+      <h2>⚙️ Dienste-Status</h2>
+      <button class="btn-nav" onclick="checkServices()" style="padding:4px 10px;font-size:11px;">
+        Prüfen
+      </button>
+    </div>
+    <div class="card-body" style="padding:14px 18px;">
+      <div id="svcList">
+        <div class="svc-row">
+          <div class="svc-dot chk"></div>
+          <div class="svc-name">Orchestrator</div>
+          <div class="svc-url" id="orchUrl">Port 8000</div>
+          <div class="svc-badge" id="orchBadge">Prüfe…</div>
+        </div>
+        <div class="svc-row">
+          <div class="svc-dot chk" id="brdgDot"></div>
+          <div class="svc-name">SAP Bridge</div>
+          <div class="svc-url" id="brdgUrl">Port 8765</div>
+          <div class="svc-badge" id="brdgBadge">Prüfe…</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Client-Einrichtung ──────────────────────────────────── -->
+  <div class="card">
+    <div class="card-head">
+      <h2>👥 Andere Benutzer einrichten</h2>
+    </div>
+    <div class="card-body">
+      <div class="steps">
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-body">
+            <h4>Firewall öffnen (Server — einmalig, als Admin)</h4>
+            <p>Auf dem <strong>Server-PC</strong>:
+              <code>C:\WF\sap-robots\Firewall freischalten.bat</code>
+              als Administrator ausführen. Öffnet Ports 8000, 8765, 8766.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-body">
+            <h4>URL an Benutzer weitergeben</h4>
+            <p>Die URL oben per E-Mail oder Chat schicken. Benutzer öffnen sie einfach
+              im Browser — kein Software-Download nötig.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-body">
+            <h4>Desktop-Verknüpfung erstellen (optional)</h4>
+            <p>Auf dem <strong>Client-PC</strong>:
+              <code>C:\WF\sap-robots\Client Verknuepfung erstellen.bat</code>
+              ausführen → legt eine Desktop-Verknüpfung mit der Server-IP an.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">4</div>
+          <div class="step-body">
+            <h4>Autostart einrichten (Server — empfohlen)</h4>
+            <p>Damit der Server nach einem Neustart automatisch startet:
+              <code>C:\WF\sap-robots\Autostart einrichten.bat</code>
+              als Administrator ausführen.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="toast-wrap" id="toastWrap"></div>
+
+<script>
+AUTH.renderHeader('headerRight');
+
+let _info = null;
+
+async function loadInfo() {
+  try {
+    const r = await fetch(window.location.origin + '/server-info');
+    _info = await r.json();
+    renderInfo(_info);
+    checkServices();
+  } catch (e) {
+    document.getElementById('mainUrl').textContent = 'Orchestrator nicht erreichbar';
+  }
+}
+
+function renderInfo(d) {
+  const url = d.login_url || d.cockpit_url || '';
+  document.getElementById('mainUrl').textContent = url;
+  document.getElementById('hostnameInfo').textContent =
+    `Server: ${d.hostname}  ·  Primäre IP: ${d.primary_ip}  ·  Port: ${d.port}`;
+
+  // IP Grid
+  const grid = document.getElementById('ipGrid');
+  const ips  = d.all_ips || [d.primary_ip];
+  grid.innerHTML = ips.map(ip => {
+    const isPrimary = ip === d.primary_ip;
+    return `<div class="ip-card">
+      <div class="ip-badge ${isPrimary ? 'primary' : ''}">${isPrimary ? '● Primär' : 'Alternativ'}</div>
+      <div class="ip-val">${ip}</div>
+      <div class="ip-sub">Port ${d.port} · <a href="http://${ip}:${d.port}/cockpit/login.html" target="_blank" style="color:var(--acc)">öffnen ↗</a></div>
+    </div>`;
+  }).join('');
+
+  // Service URLs
+  document.getElementById('orchUrl').textContent = `http://${d.primary_ip}:${d.port}`;
+  document.getElementById('brdgUrl').textContent = `http://${d.primary_ip}:8765`;
+}
+
+async function checkServices() {
+  // Orchestrator
+  try {
+    const r = await fetch(window.location.origin + '/health', { signal: AbortSignal.timeout(3000) });
+    const ok = r.ok;
+    setServiceBadge('orch', ok);
+  } catch { setServiceBadge('orch', false); }
+
+  // Bridge (via /health or direct)
+  try {
+    const bridgeOrigin = window.location.origin.replace(':8000', ':8765');
+    const r = await fetch(bridgeOrigin + '/health', { signal: AbortSignal.timeout(3000) });
+    setServiceBadge('brdg', r.ok);
+  } catch { setServiceBadge('brdg', false); }
+}
+
+function setServiceBadge(prefix, ok) {
+  const dot   = document.querySelector(`.svc-row:${prefix === 'orch' ? 'first-child' : 'last-child'} .svc-dot`);
+  const badge = document.getElementById(prefix + 'Badge');
+  if (dot)   { dot.className   = 'svc-dot ' + (ok ? 'ok' : 'err'); }
+  if (badge) { badge.className = 'svc-badge ' + (ok ? 'ok' : 'err');
+               badge.textContent = ok ? '● Online' : '✗ Offline'; }
+}
+
+function copyUrl() {
+  const url = document.getElementById('mainUrl').textContent;
+  if (!url || url.includes('spin')) return;
+  navigator.clipboard.writeText(url).then(() => {
+    const btn = document.getElementById('btnCopy');
+    btn.textContent = '✓ Kopiert!';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = '📋 URL kopieren'; btn.classList.remove('copied'); }, 2000);
+  });
+}
+
+loadInfo();
+</script>
+</body>
+</html>

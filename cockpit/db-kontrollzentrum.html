@@ -429,7 +429,7 @@ body::before {
           <div class="qa-icon">🔍</div>
           <div class="qa-label">Audit-Eintrag</div>
         </div>
-        <div class="qa-card" onclick="window.open('http://localhost:8000/docs','_blank')">
+        <div class="qa-card" onclick="window.open(window.location.origin+'/docs','_blank')">
           <div class="qa-icon">📡</div>
           <div class="qa-label">API Explorer</div>
         </div>
@@ -610,8 +610,8 @@ body::before {
 
 <script src="auth.js"></script>
 <script>
-const API = 'http://localhost:8000';
-const BRIDGE = 'http://localhost:8765';
+const API = window.location.origin;
+const BRIDGE = window.location.origin.replace(':8000',':8765');
 let _stats = {};
 let _refreshTimer = null;
 

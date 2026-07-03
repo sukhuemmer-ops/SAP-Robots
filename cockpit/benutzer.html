@@ -339,7 +339,7 @@ tr:hover td{background:rgba(255,255,255,.02);}
 
 <script>
 // ─── Konfiguration ───────────────────────────────────────────────────────────
-const ORC_URL = 'http://localhost:8000';
+const ORC_URL = window.location.origin;
 
 // ─── State ───────────────────────────────────────────────────────────────────
 let users = [];
@@ -590,7 +590,7 @@ async function testConnection() {
   const resultEl = document.getElementById('testResult');
   resultEl.innerHTML = '<span class="spinner"></span> Verbinde…';
 
-  const BRIDGE = 'http://localhost:8765';
+  const BRIDGE = window.location.origin.replace(':8000',':8765');
   const conn = {
     ashost: document.getElementById('fAshost').value.trim(),
     sysnr:  document.getElementById('fSysnr').value.trim() || '00',

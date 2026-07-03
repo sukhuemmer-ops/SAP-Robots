@@ -275,7 +275,7 @@ code{background:var(--bg3);padding:1px 6px;border-radius:4px;font-size:12px;colo
   <button class="tab" onclick="show('aufgaben', this)">Aufgaben</button>
   <button class="tab" onclick="show('verbindungen', this)">Verbindungen</button>
   <button class="tab" onclick="show('reports', this)">Reports</button>
-  <button class="tab" onclick="show('darlehen', this)">Darlehen</button>
+  <button class="tab" onclick="show('darlehen', this)">Darlehen Übersicht</button>
   <button class="tab" onclick="show('logs', this)">Logs</button>
   <button class="tab" onclick="show('historie', this)">📋 Buchungshistorie</button>
 </div>
@@ -969,7 +969,7 @@ code{background:var(--bg3);padding:1px 6px;border-radius:4px;font-size:12px;colo
 </div>
 
 <script>
-var BRIDGE_URL = "http://localhost:8765";
+var BRIDGE_URL = window.location.origin.replace(':8000',':8765');
 var REAL_MODE = false;
 
 var ROBOTS = [
@@ -1142,7 +1142,7 @@ function hasHandler(method, tcode){
 
 // ==================== DARLEHEN-TAB ====================
 var LOANS = [
-  {nr:"011",cocode:"VV9",borrower:"Catensys Holding",account:"120000",start:"2022-12-30",end:"2026-12-31",amount:5000000,currency:"EUR",rate:5.44,residual:2800000},
+  {nr:"011",cocode:"VV9",borrower:"Catensys Holding",account:"120000",start:"2022-12-30",end:"2026-12-31",amount:4800000,currency:"EUR",rate:5.44,residual:4800000,flatFrom:"2026-07"},
   {nr:"013",cocode:"0436",borrower:"Catensys China",account:"120000",start:"2022-06-10",end:"2026-06-08",amount:137850000,currency:"CNY",rate:4.54,residual:137850000},
   {nr:"014",cocode:"VV9",borrower:"Catensys Holding",account:"120020",start:"2022-10-17",end:"2029-07-31",amount:1500000,currency:"EUR",rate:4.13,residual:1500000},
   {nr:"015",cocode:"VV9",borrower:"Catensys Holding",account:"120020",start:"2022-08-04",end:"2029-07-31",amount:500000,currency:"EUR",rate:4.13,residual:500000},
@@ -1175,7 +1175,8 @@ var LOANS = [
   {nr:"041",cocode:"VV9",borrower:"Catensys Holding",account:"120000",start:"2025-09-17",end:"2026-12-31",amount:220000,currency:"EUR",rate:4.54,residual:220000},
   {nr:"042",cocode:"VV9",borrower:"Catensys Holding",account:"120000",start:"2025-11-03",end:"2026-12-31",amount:20000,currency:"EUR",rate:4.54,residual:20000},
   {nr:"043",cocode:"VV9",borrower:"Catensys Holding",account:"120000",start:"2026-04-20",end:"2027-04-30",amount:75000,currency:"EUR",rate:4.54,residual:75000},
-  {nr:"044",cocode:"VV9",borrower:"Catensys Holding",account:"120000",start:"2024-12-31",end:"2030-12-31",amount:50000,currency:"EUR",rate:4.54,residual:50000}
+  {nr:"044",cocode:"VV9",borrower:"Catensys Holding",account:"120000",start:"2024-12-31",end:"2030-12-31",amount:50000,currency:"EUR",rate:4.54,residual:50000},
+  {nr:"045",cocode:"VV9",borrower:"Catensys Holding",account:"120020",start:"2026-07-01",end:"2029-07-31",amount:3883301.99,currency:"EUR",rate:4.0,residual:3883301.99,flatFrom:"2026-07"}
 ];
 
 // ── Custom-Darlehen aus zinsen.html localStorage einlesen ────────────────
@@ -1861,6 +1862,10 @@ function calcLoan(){
     sonderTilgungen.sort(function(a,b){ return a.date.localeCompare(b.date); });
   } catch(ex){}
 
+  // ── flatFrom: Lookup für Z-5-F Flach-Formel ──────────────────────────────
+  var loanMeta = LOANS.find(function(l){ return l.nr === nr; });
+  var flatFrom = loanMeta && loanMeta.flatFrom; // 'YYYY-MM', z.B. '2026-07'
+
   // ── Startpunkt: immer ab Darlehensbeginn (vollständige Historie) ─────────
   var d     = new Date(loanStart);   // z.B. 2024-03-28
   var rest  = amount;
@@ -1898,7 +1903,17 @@ function calcLoan(){
     var vonStr = d.toISOString().slice(0,10);
     var bisStr = periodEnd.toISOString().slice(0,10);
 
-    var zinsen = tage > 0 ? rest * (rate / 100) * (tage / basis) : 0;
+    // Z-5-F Flach-Formel ab flatFrom: Restschuld × Zinssatz / 100 / 12
+    var periodYM  = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+    var useFlat   = !!(flatFrom && periodYM >= flatFrom);
+    var daysInMo  = endOfMon.getDate();
+    var zinsen;
+    if (useFlat) {
+      var flatMonthly = rest * rate / 100 / 12;
+      zinsen = tage > 0 ? flatMonthly * (tage < daysInMo ? tage / daysInMo : 1) : 0;
+    } else {
+      zinsen = tage > 0 ? rest * (rate / 100) * (tage / basis) : 0;
+    }
 
     // Sondertilgungen in diesem Monat?
     var sonder = 0;

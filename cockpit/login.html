@@ -146,8 +146,8 @@ h2{font-size:16px;font-weight:700;margin:0 0 20px;text-align:center;color:var(--
 </div>
 
 <script>
-const ORC_URL    = 'http://localhost:8000';
-const BRIDGE_URL = 'http://localhost:8765';
+const ORC_URL = window.location.origin;
+const BRIDGE_URL = window.location.origin.replace(':8000',':8765');
 const REDIRECT   = 'startseite.html';
 const SESSION_KEY = 'yconn_user';
 

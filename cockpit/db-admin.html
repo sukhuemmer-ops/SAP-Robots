@@ -418,7 +418,7 @@ html, body {
 
 <script src="auth.js"></script>
 <script>
-const API = 'http://localhost:8000';
+const API = window.location.origin;
 
 function switchTab(name) {
   document.querySelectorAll('.tab-btn').forEach((b, i) => {

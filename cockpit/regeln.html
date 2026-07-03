@@ -666,6 +666,36 @@ header {
         </div>
       </div>
 
+      <div class="rule-card" style="border-color:rgba(251,191,36,.4)">
+        <div class="rule-id" style="background:rgba(251,191,36,.12);color:#fbbf24">Z-6</div>
+        <div class="rule-body">
+          <div class="rule-name">🏦 VV6 als Darlehensgeber — kein SAP-Beleg auf DG-Seite</div>
+          <div class="rule-desc">
+            Buchungskreis <strong>VV6</strong> (Catensys Holding GmbH) gehört <strong>nicht zum Konsolidierungskreis</strong>.
+            Bei einem IC-Darlehen, bei dem VV6 als <em>Darlehensgeber (DG)</em> fungiert und VV9 als <em>Darlehensnehmer (DN)</em>:
+            <br><br>
+            <strong>Die IC-Buchung erfolgt ausschließlich auf der DN-Seite (VV9).</strong><br>
+            Die DG-Seite (VV6) wird in SAP <em>nicht</em> gebucht und nicht storniert.
+            <br><br>
+            Die App erkennt diesen Fall automatisch über <code>isVV6DgLoan(loan)</code>:
+            prüft ob <code>loan.ic.mirror.cocode === 'VV6'</code>. Ist die Bedingung erfüllt, werden
+            alle DG-seitigen SAP-Aufrufe (<code>BAPI_ACC_DOCUMENT_POST</code>) für Mirror/DG übersprungen.
+            Validierungschecks „Noch nicht gebucht (DG)" und „Soll = Haben (DG)" werden ebenfalls ausgeblendet.
+            Im Vorübergabe-Dialog erscheint der Hinweis <code>(Z-6: kein Beleg)</code> beim IC-Partner DG.
+          </div>
+          <div class="rule-tech">
+            <span class="tech-chip locked">isVV6DgLoan()</span>
+            <span class="tech-chip">_bookSingleExec · _stornoSingleExec</span>
+            <span class="tech-chip">executeBooking (Sammelbuchung)</span>
+            <span class="tech-chip">showZinsUebergabe</span>
+          </div>
+        </div>
+        <div class="rule-badges">
+          <span class="badge badge-active">● Aktiv</span>
+          <span class="badge-module bm-zinsen">Darlehen</span>
+        </div>
+      </div>
+
       <div class="rule-card">
         <div class="rule-id">Z-4</div>
         <div class="rule-body">

@@ -483,6 +483,7 @@ td.mono{font-family:monospace;font-size:12px;}
 .btn-row-book.btn-seq{background:rgba(16,185,129,.18);border-color:rgba(16,185,129,.5);color:#10b981;}
 .btn-row-book.btn-seq:hover{background:rgba(16,185,129,.35);}
 </style>
+<script src="auth.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="i18n.js"></script>
 </head>
@@ -497,22 +498,12 @@ td.mono{font-family:monospace;font-size:12px;}
       <img src="YCONN-logo_Web.png" width="156" height="156" alt="YCONN Logo" style="display:block;"/>
     </a>
   </div>
+  <!-- App-Regel G-9: Benutzer/SAP-System wird von auth.js via AUTH.renderHeader() eingefügt -->
   <div class="header-right" id="headerRight">
     <span class="badge badge-ok" id="hdrCoCode">● CoCode 0435</span>
-    <span class="badge badge-acc" id="hdrSapInfo">SAP: 172.28.189.8 · Mdt. 600</span>
     <a class="btn-nav" href="startseite.html">⌂ Startseite</a>
     <a class="btn-nav" href="cockpit.html">Cockpit v1</a>
     <a class="btn-nav" href="cockpit-v2.html">Cockpit v2</a>
-    <div class="hdr-user" id="hdrUser" style="display:none">
-      <div class="hdr-user-avatar" id="hdrUserAvatar">?</div>
-      <div>
-        <span class="hdr-user-name" id="hdrUserName">–</span>
-        <span class="hdr-user-role" id="hdrUserRole"></span>
-      </div>
-      <span class="hdr-user-sys" id="hdrUserSys">SEP</span>
-    </div>
-    <a class="btn-logout" id="btnLogout" href="login.html" style="display:none"
-       onclick="sessionStorage.removeItem('yconn_user');return true;">⏻ Abmelden</a>
   </div>
 </header>
 
@@ -525,6 +516,7 @@ td.mono{font-family:monospace;font-size:12px;}
     <select class="bukrs-sel" id="selBukrs" onchange="onBukrsChange()">
       <option value="0435">0435 – Catensys Germany GmbH</option>
       <option value="VV9">VV9 – Catensys Holding GmbH</option>
+      <option value="VV6">VV6 – Catensys Holding GmbH</option>
       <option value="0436">0436 – Catensys China Co. Ltd.</option>
       <option value="0438">0438 – Catensys Korea Co. Ltd.</option>
     </select>
@@ -834,6 +826,7 @@ td.mono{font-family:monospace;font-size:12px;}
           <label>Buchungskreis (Darlehensnehmer) *</label>
           <select id="dlCocode" onchange="dlOnCocodeChange()">
             <option value="VV9">VV9 – Catensys Holding</option>
+            <option value="VV6">VV6 – Catensys Holding</option>
             <option value="0435">0435 – Catensys Germany</option>
             <option value="0436">0436 – Catensys China</option>
             <option value="0438">0438 – Catensys Korea</option>
@@ -906,6 +899,7 @@ td.mono{font-family:monospace;font-size:12px;}
           <select id="dlDgCocode" onchange="dlOnDgCocodeChange()">
             <option value="0435">0435 – Catensys Germany GmbH</option>
             <option value="VV9">VV9 – Catensys Holding</option>
+            <option value="VV6">VV6 – Catensys Holding</option>
             <option value="0436">0436 – Catensys China</option>
             <option value="0438">0438 – Catensys Korea</option>
           </select>
@@ -963,7 +957,7 @@ td.mono{font-family:monospace;font-size:12px;}
 
   <!-- Title + Period selector -->
   <div class="title-bar">
-    <h1>💶 Buchung Zinsen <span>Catensys Germany GmbH</span></h1>
+    <h1>💶 Interest Posting <span>Catensys Germany GmbH</span></h1>
     <div class="period-row">
       <label style="color:var(--muted);font-size:12px;">Periode:</label>
       <select id="selMonth" onchange="updateView()">
@@ -1075,8 +1069,9 @@ td.mono{font-family:monospace;font-size:12px;}
 
   <!-- ── TAB BAR ── -->
   <div class="tab-bar">
-    <button class="tab-btn active" id="tabBtnDarlehen" onclick="switchTab('darlehen')">📋 Darlehen</button>
-    <button class="tab-btn" id="tabBtnDarlehenStammdaten" onclick="switchTab('darlehenStammdaten')">📂 Darlehen-Stammdaten</button>
+    <button class="tab-btn active" id="tabBtnDarlehen" onclick="switchTab('darlehen')">📋 Interest Posting</button>
+    <button class="tab-btn" id="tabBtnDarlehenStammdaten" onclick="switchTab('darlehenStammdaten')">💶 Loans</button>
+    <button class="tab-btn" id="tabBtnDarlehenUebersicht" onclick="switchTab('darlehenStammdaten')">🏦 Darlehen Übersicht</button>
     <button class="tab-btn" id="tabBtnSchnittstelle" onclick="switchTab('schnittstelle')">🔌 Schnittstelle</button>
     <button class="tab-btn" id="tabBtnStammdaten" onclick="switchTab('stammdaten')">🗄 Stammdaten</button>
     <button class="tab-btn" id="tabBtnZeitplaene" onclick="switchTab('zeitplaene')">📅 Zeitpläne</button>
@@ -1120,10 +1115,11 @@ td.mono{font-family:monospace;font-size:12px;}
   ═══════════════════════════════════════════ -->
   <div class="section">
     <div class="section-head">
-      <h2><span class="icon">💶</span> Zinsen-Buchungsliste</h2>
+      <h2><span class="icon">💶</span> Interest Posting – Buchungsliste</h2>
       <div class="section-actions">
         <span class="badge badge-muted" id="periodLabel">Periode: Mai 2026</span>
         <button class="btn-edit" id="btnEdit" onclick="toggleEditMode()">✏️ Beträge bearbeiten</button>
+        <button class="btn-nav" onclick="updateView();toast('ok','Darlehensberechnung aktualisiert')" title="Darlehensberechnung aus Stammdaten neu laden" style="font-size:12px">🔄 Aktualisierung</button>
         <button class="btn-nav" onclick="exportBuchungslisteXlsx()" style="font-size:12px">📥 Excel Export</button>
         <button class="btn-nav" id="btnResetList" onclick="resetPeriodBookings()" title="Alle Buchungen dieser Periode auf 'Offen' zurücksetzen" style="font-size:12px;background:rgba(239,68,68,.12);color:#ef4444;border:1px solid rgba(239,68,68,.25);display:none">🗑 Zurücksetzen</button>
         <button class="btn-nav" onclick="dlOpen(null)" style="font-size:12px">➕ Darlehen anlegen</button>
@@ -1448,7 +1444,7 @@ td.mono{font-family:monospace;font-size:12px;}
     <div id="zupEmptyState" style="text-align:center;padding:72px 20px;color:var(--muted);">
       <div style="font-size:44px;margin-bottom:14px;">🔎</div>
       <div style="font-size:15px;font-weight:700;margin-bottom:8px;color:var(--text);">SAP-Übergabe – Plausibilitätsprüfung</div>
-      <div style="font-size:13px;">Klicke auf <strong>▶ Buchen</strong> in der Buchungsliste, um die Vorab-Prüfung zu sehen und die Buchung zu bestätigen.<br>Oder klicke auf <strong>🔎</strong> nur zur Ansicht (ohne Buchen).</div>
+      <div style="font-size:13px;">Klicke auf <strong>▶ Buchen</strong> im Tab <em>Interest Posting</em>, um die Vorab-Prüfung zu sehen und die Buchung zu bestätigen.<br>Oder klicke auf <strong>🔎</strong> nur zur Ansicht (ohne Buchen).</div>
     </div>
 
     <!-- Prüf-Inhalt (initial versteckt) -->
@@ -1461,7 +1457,7 @@ td.mono{font-family:monospace;font-size:12px;}
           <div id="zupTitle" style="font-size:15px;font-weight:700;color:var(--text);">🔌 SAP-Übergabe – Vorab-Prüfung</div>
           <div id="zupSubtitle" style="font-size:11px;color:var(--muted);margin-top:3px;">Zinsbuchung · BAPI_ACC_DOCUMENT_POST</div>
         </div>
-        <button class="btn-nav" onclick="switchTab('darlehen')" style="font-size:12px;">← Buchungsliste</button>
+        <button class="btn-nav" onclick="switchTab('darlehen')" style="font-size:12px;">← Interest Posting</button>
       </div>
 
       <!-- Status-Banner -->
@@ -1776,7 +1772,7 @@ const MONTHS = ['Januar','Februar','März','April','Mai','Juni',
 const LOANS = [
   {
     nr:'014', cocode:'VV9', company:'Catensys Holding', account:120020, offset:570200,
-    start:'17.10.2022', end:'31.07.2029', amount:1500000, rate:null,
+    start:'17.10.2022', end:'31.07.2029', amount:1500000, rate:null, flatFrom:'07.2026',
     curr:'EUR', type:'S', kum:'nicht Kum.', status:'open', dtyp:'SX',
     ic:{partner:'0435',costcenter:'VV9-5013',profitcenter:'A-0101-000',acct:420200,gacc:759200,role:'borrower',
     mirror:{cocode:'0435',company:'Catensys Germany GmbH',role:'lender',partner:'VV9',acct:120000,gacc:570200,costcenter:''}},
@@ -1784,7 +1780,7 @@ const LOANS = [
   },
   {
     nr:'015', cocode:'VV9', company:'Catensys Holding', account:120020, offset:570200,
-    start:'04.08.2022', end:'31.07.2029', amount:500000, rate:null,
+    start:'04.08.2022', end:'31.07.2029', amount:500000, rate:null, flatFrom:'07.2026',
     curr:'EUR', type:'S', kum:'nicht Kum.', status:'open', dtyp:'SX',
     ic:{partner:'0435',costcenter:'VV9-5013',profitcenter:'A-0101-000',acct:420200,gacc:759200,role:'borrower',
     mirror:{cocode:'0435',company:'Catensys Germany GmbH',role:'lender',partner:'VV9',acct:120000,gacc:570200,costcenter:''}},
@@ -1792,11 +1788,11 @@ const LOANS = [
   },
   {
     nr:'011', cocode:'VV9', company:'Catensys Holding', account:120000, offset:570200,
-    start:'30.12.2022', end:'31.12.2026', amount:5000000, rate:5.44,
+    start:'30.12.2022', end:'31.12.2026', amount:4800000, rate:5.44, flatFrom:'07.2026',
     curr:'EUR', type:'S', kum:'nicht Kum.', status:'open', dtyp:'SX',
     ic:{partner:'0435',costcenter:'VV9-5013',profitcenter:'A-0101-000',acct:420200,gacc:759200,role:'borrower',
     mirror:{cocode:'0435',company:'Catensys Germany GmbH',role:'lender',partner:'VV9',acct:120000,gacc:570200,costcenter:''}},
-    // Z-5: 5.000.000 × 5,44% / 360 × Tage — abgerundet auf 2 Dezimalstellen
+    // Z-5-F ab 07/2026: 4.800.000 × 5,44% / 100 / 12 = 21.760,00 EUR/Monat (Restschuld)
     monthly:[23422.22,21155.56,23422.22,22666.67,23422.22,22666.67,23422.22,23422.22,22666.67,23422.22,22666.67,23422.22]
   },
   {
@@ -1879,6 +1875,15 @@ const LOANS = [
     ic:{partner:'0438',costcenter:'0435-5013',profitcenter:'A-0101-000',acct:420200,gacc:759200,role:'borrower',
     mirror:{cocode:'0438',company:'Catensys Korea',role:'lender',partner:'0435',acct:120000,gacc:570200,costcenter:''}},
     monthly:[7470.14,6585.58,5799.82,5612.73,5799.82,5612.73,null,null,null,null,null,null]
+  },
+  {
+    // Darlehen 045 – ab 07/2026 neue Formel: 3.883.301,99 × 4,0% / 100 / 12 = 12.944,34 EUR/Monat (Restschuld)
+    nr:'045', cocode:'VV9', company:'Catensys Holding', account:120020, offset:570200,
+    start:'01.07.2026', end:'31.07.2029', amount:3883301.99, rate:4.0, flatFrom:'07.2026',
+    curr:'EUR', type:'S', kum:'nicht Kum.', status:'open', dtyp:'SX',
+    ic:{partner:'0435',costcenter:'VV9-5013',profitcenter:'A-0101-000',acct:420200,gacc:759200,role:'borrower',
+    mirror:{cocode:'0435',company:'Catensys Germany GmbH',role:'lender',partner:'VV9',acct:120000,gacc:570200,costcenter:''}},
+    monthly:[null,null,null,null,null,null,12944.34,12944.34,12944.34,12944.34,12944.34,12944.34]
   }
 ];
 
@@ -1943,7 +1948,7 @@ function isSeqPeriod(yr, mi) {
 /** App-Regel G-7: SAP-RFC-Benutzer immer aus dem verknüpften App-Benutzer (session.sap_username).
  *  Manuelle Eingaben oder gespeicherte Credentials dürfen den RFC-Username NIEMALS überschreiben. */
 function getSapLinkedUser() {
-  // SAP_CONN.user wird in _initFromAuthSession aus session.sap_username gesetzt
+  // SAP_CONN.user wird in _initSapConnFromSession aus AUTH.user.sap_username gesetzt
   return SAP_CONN.user || '';
 }
 
@@ -2109,9 +2114,22 @@ function getLoanRestschuld(loan, yr, mi) {
   } catch(e) { return principal; }
 }
 
+/** Prüft ob Darlehen ab einer bestimmten Periode die flache Monatsformel nutzt.
+ *  flatFrom: 'MM.YYYY' — Attribut im Darlehen (z.B. '07.2026')
+ *  Formel Z-5-F: Darlehensbetrag × Zinssatz / 100 / 12
+ */
+function usesFlatMonthly(loan, yr, mi) {
+  if (!loan.flatFrom) return false;
+  const [fMm, fYy] = loan.flatFrom.split('.').map(Number);
+  const nYr = parseInt(yr), nMi = parseInt(mi);
+  return nYr > fYy || (nYr === fYy && nMi >= fMm - 1);
+}
+
 /** Monatszins für eine beliebige Jahr/Monat-Kombination.
- *  Priorität: 1) Manueller UI-Override  2) Z-5-Formel (Restschuld × rate)  3) monthly[] fallback
- *  Formel Z-5: (Restschuld × Zinssatz% / 100) / 360 × Tage im Monat
+ *  Priorität: 1) Manueller UI-Override (Bearbeiten-Modus)
+ *             2) Z-5-F: Betrag × rate / 100 / 12  (flat, ab flatFrom)
+ *             3) monthly[mi] — gespeicherter/manueller Monatsbetrag (Stammdaten)
+ *             4) Z-5-R: Restschuld × rate / 100 / 360 × Tage  (nur wenn monthly[mi] null)
  */
 function calcMonthlyForPeriod(loan, yr, mi) {
   const daysInMo = new Date(parseInt(yr), mi + 1, 0).getDate();
@@ -2139,9 +2157,38 @@ function calcMonthlyForPeriod(loan, yr, mi) {
     }
   }
 
-  // 2) App-Regel Z-5-R: (Restschuld × Zinssatz% / 100) / 360 × Tage im Monat
-  //    Restschuld = Ursprungsbetrag − Rückzahlungen bis Periodenende (yconn_repayments)
-  //    Greift immer wenn amount + rate vorhanden — überschreibt gespeicherte monthly[]-Werte
+  // 2) Z-5-F: Flache Monatsrate – Darlehensbetrag × Zinssatz / 100 / 12
+  //    Gilt ab flatFrom-Datum für Darlehen 011, 014, 015, 045
+  if (usesFlatMonthly(loan, yr, mi)) {
+    const da = startDaysActive();
+    if (loan.amount && loan.rate) {
+      const flat = Math.round(loan.amount * loan.rate / 100 / 12 * 100) / 100;
+      if (da !== -1) return da <= 0 ? 0 : Math.round(flat * da / daysInMo * 100) / 100;
+      return flat;
+    }
+    // Kein Zinssatz → Fallback auf monthly[] (z.B. 014, 015 mit fixen Beträgen)
+    if (loan.monthly && loan.monthly[mi] != null) {
+      const base = loan.monthly[mi];
+      if (da !== -1) return da <= 0 ? 0 : Math.round(base * da / daysInMo * 100) / 100;
+      return base;
+    }
+    return 0;
+  }
+
+  // 3) Gespeicherter Monatsbetrag (monthly[mi]) — hat Vorrang vor Z-5-R-Formel.
+  //    Manuell gesetzte Werte aus Stammdaten-Editor oder LOANS-Array werden direkt verwendet.
+  if (loan.monthly && loan.monthly[mi] != null) {
+    const base = loan.monthly[mi];
+    const da = startDaysActive();
+    if (da !== -1) {
+      if (da <= 0) return 0;
+      return Math.round(base * da / daysInMo * 100) / 100;
+    }
+    return base;
+  }
+
+  // 4) App-Regel Z-5-R: (Restschuld × Zinssatz% / 100) / 360 × Tage im Monat
+  //    Greift nur wenn kein monthly[mi] vorhanden (z.B. neu angelegte Monate ohne fixen Betrag)
   if (loan.amount && loan.rate) {
     const restschuld = getLoanRestschuld(loan, yr, mi);
     const dailyRate  = restschuld * loan.rate / 100 / 360;
@@ -2151,17 +2198,6 @@ function calcMonthlyForPeriod(loan, yr, mi) {
       return Math.round(dailyRate * da * 100) / 100;
     }
     return Math.round(dailyRate * daysInMo * 100) / 100;
-  }
-
-  // 3) Fallback: gespeicherter Monatsbetrag (nur für Darlehen ohne Zinssatz, z.B. 014, 015)
-  if (loan.monthly && loan.monthly[mi] != null) {
-    const base = loan.monthly[mi];
-    const da = startDaysActive();
-    if (da !== -1) {
-      if (da <= 0) return 0;
-      return Math.round(base * da / daysInMo * 100) / 100;
-    }
-    return base;
   }
 
   return 0;
@@ -2414,8 +2450,8 @@ function updateView() {
       const _userSysLbl = getUserSystem();
       const _seqLabel  = _useSeqBtn ? `▶ SEQ` : `▶ Buchen`;
       const _seqTitle  = _useSeqBtn
-        ? `SEQ-Buchung: ${l.cocode}${l.ic&&l.ic.mirror?' + '+l.ic.mirror.cocode:''}`
-        : `IC-Buchung: ${l.cocode}${l.ic&&l.ic.mirror?' + '+l.ic.mirror.cocode:''}`;
+        ? `SEQ-Buchung: ${l.cocode}${l.ic&&l.ic.mirror&&!isVV6DgLoan(l)?' + '+l.ic.mirror.cocode:''}`
+        : `IC-Buchung: ${l.cocode}${l.ic&&l.ic.mirror&&!isVV6DgLoan(l)?' + '+l.ic.mirror.cocode:''}`;
       const pruefBtn = (hasVal && v > 0)
         ? `<button class="btn-row-storno" onclick="pruefSingleLoan('${l.nr}')"
              title="SAP-Übergabe Plausibilitätsprüfung anzeigen"
@@ -2456,41 +2492,67 @@ function updateView() {
       const tdMono    = 'font-size:11px;font-family:monospace';
       const tdTxt     = 'font-size:10px;color:var(--muted);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
 
-      // ── Zeile a) DG ──────────────────────────────────────────────────────
-      rows += `<tr class="ic-row-dg">
-        <td class="td-bold" rowspan="2" style="vertical-align:middle">${l.nr}</td>
-        <td class="${tdMono};font-weight:700">${dgCocode}</td>
-        <td style="${tdStyle}"><span class="badge-dg" style="font-size:9px;background:rgba(59,130,246,.12);color:#3b82f6;border-radius:3px;padding:1px 4px;margin-right:4px">DG</span>${dgCompany}</td>
-        <td style="${tdStyle};color:var(--muted)">${dnCompany}</td>
-        <td style="${tdMono}">${dgAcct}</td>
-        <td style="${tdMono}">${dgGacc}</td>
-        <td style="${tdMono}">${dgPartner}</td>
-        <td style="${tdStyle};color:var(--muted)">${dgKst}</td>
-        <td style="${tdTxt}" title="${dgText}">${dgText}</td>
-        <td style="${tdMono};font-weight:700">${belegtyp}</td>
-        <td style="${tdStyle};color:var(--muted);white-space:nowrap">${periodLbl}</td>
-        <td><span class="curr ${currCls}">${l.curr}</span></td>
-        ${amtCell}
-        <td>${dgBadge}</td>
-        <td style="text-align:center;padding:4px;white-space:nowrap" rowspan="2" style="vertical-align:middle">${bookBtn}</td>
-      </tr>`;
+      // App-Regel Z-6: VV6 als DG → keine DG-Zeile, nur DN-Zeile
+      const _isVV6Dg = isVV6DgLoan(l);
+
+      // ── Zeile a) DG — nur wenn NICHT VV6-DG ─────────────────────────────
+      if (!_isVV6Dg) {
+        rows += `<tr class="ic-row-dg">
+          <td class="td-bold" rowspan="2" style="vertical-align:middle">${l.nr}</td>
+          <td class="${tdMono};font-weight:700">${dgCocode}</td>
+          <td style="${tdStyle}"><span class="badge-dg" style="font-size:9px;background:rgba(59,130,246,.12);color:#3b82f6;border-radius:3px;padding:1px 4px;margin-right:4px">DG</span>${dgCompany}</td>
+          <td style="${tdStyle};color:var(--muted)">${dnCompany}</td>
+          <td style="${tdMono}">${dgAcct}</td>
+          <td style="${tdMono}">${dgGacc}</td>
+          <td style="${tdMono}">${dgPartner}</td>
+          <td style="${tdStyle};color:var(--muted)">${dgKst}</td>
+          <td style="${tdTxt}" title="${dgText}">${dgText}</td>
+          <td style="${tdMono};font-weight:700">${belegtyp}</td>
+          <td style="${tdStyle};color:var(--muted);white-space:nowrap">${periodLbl}</td>
+          <td><span class="curr ${currCls}">${l.curr}</span></td>
+          ${amtCell}
+          <td>${dgBadge}</td>
+          <td style="text-align:center;padding:4px;white-space:nowrap" rowspan="2" style="vertical-align:middle">${bookBtn}</td>
+        </tr>`;
+      }
 
       // ── Zeile b) DN ──────────────────────────────────────────────────────
-      rows += `<tr class="ic-row-dn">
-        <td style="${tdMono};font-weight:700">${dnCocode}</td>
-        <td style="${tdStyle};color:var(--muted)">${dgCompany}</td>
-        <td style="${tdStyle}"><span class="badge-dn" style="font-size:9px;background:rgba(16,185,129,.12);color:#10b981;border-radius:3px;padding:1px 4px;margin-right:4px">DN</span>${dnCompany}</td>
-        <td style="${tdMono}">${dnAcct}</td>
-        <td style="${tdMono}">${dnGacc}</td>
-        <td style="${tdMono}">${dnPartner}</td>
-        <td style="${tdStyle};color:var(--muted)">${dnKst}</td>
-        <td style="${tdTxt}" title="${dnText}">${dnText}</td>
-        <td style="${tdMono};font-weight:700">${belegtyp}</td>
-        <td style="${tdStyle};color:var(--muted);white-space:nowrap">${periodLbl}</td>
-        <td><span class="curr ${currCls}">${l.curr}</span></td>
-        ${amtCell}
-        <td>${dnBadge}</td>
-      </tr>`;
+      if (_isVV6Dg) {
+        // Z-6: eigenständige Zeile mit eigener Nr-Spalte + Buchen-Button
+        rows += `<tr class="ic-row-dn">
+          <td class="td-bold" style="vertical-align:middle">${l.nr}</td>
+          <td style="${tdMono};font-weight:700">${dnCocode}</td>
+          <td style="${tdStyle}"><span class="badge-dn" style="font-size:9px;background:rgba(16,185,129,.12);color:#10b981;border-radius:3px;padding:1px 4px;margin-right:4px">DN</span>${dnCompany}</td>
+          <td style="${tdStyle};color:var(--muted)" title="DG: ${dgCocode} (Z-6: kein SAP-Beleg)">${dgCompany}</td>
+          <td style="${tdMono}">${dnAcct}</td>
+          <td style="${tdMono}">${dnGacc}</td>
+          <td style="${tdMono}">${dnPartner}</td>
+          <td style="${tdStyle};color:var(--muted)">${dnKst}</td>
+          <td style="${tdTxt}" title="${dnText}">${dnText}</td>
+          <td style="${tdMono};font-weight:700">${belegtyp}</td>
+          <td style="${tdStyle};color:var(--muted);white-space:nowrap">${periodLbl}</td>
+          <td><span class="curr ${currCls}">${l.curr}</span></td>
+          ${amtCell}
+          <td>${dnBadge}</td>
+          <td style="text-align:center;padding:4px;white-space:nowrap">${bookBtn}</td>
+        </tr>`;
+      } else {
+        rows += `<tr class="ic-row-dn">
+          <td style="${tdMono};font-weight:700">${dnCocode}</td>
+          <td style="${tdStyle};color:var(--muted)">${dgCompany}</td>
+          <td style="${tdStyle}"><span class="badge-dn" style="font-size:9px;background:rgba(16,185,129,.12);color:#10b981;border-radius:3px;padding:1px 4px;margin-right:4px">DN</span>${dnCompany}</td>
+          <td style="${tdMono}">${dnAcct}</td>
+          <td style="${tdMono}">${dnGacc}</td>
+          <td style="${tdMono}">${dnPartner}</td>
+          <td style="${tdStyle};color:var(--muted)">${dnKst}</td>
+          <td style="${tdTxt}" title="${dnText}">${dnText}</td>
+          <td style="${tdMono};font-weight:700">${belegtyp}</td>
+          <td style="${tdStyle};color:var(--muted);white-space:nowrap">${periodLbl}</td>
+          <td><span class="curr ${currCls}">${l.curr}</span></td>
+          <td class="num" style="color:var(--muted);font-size:11px;" title="Gegenbuchung – Betrag in DG-Zeile">↑</td>
+          <td>${dnBadge}</td>
+        </tr>`;
+      }
       } catch(e) {
         console.error('[YCONN] Fehler beim Rendern von Darlehen', l.nr, e);
         rows += `<tr><td colspan="15" style="color:var(--err);font-size:11px;padding:4px 8px;">
@@ -2613,6 +2675,7 @@ function updateView() {
 const BUKRS_CFG = {
   '0435': { name:'Catensys Germany GmbH',  system:'SEP600', filter: null },
   'VV9':  { name:'Catensys Holding GmbH',  system:'SEP600', filter: 'VV9' },
+  'VV6':  { name:'Catensys Holding GmbH',  system:'SEP600', filter: 'VV6' },
   '0436': { name:'Catensys China Co. Ltd.', system:'SEP600', filter: '0436' },
   '0438': { name:'Catensys Korea Co. Ltd.', system:'SEQ600', filter: '0438' },
 };
@@ -2625,6 +2688,13 @@ function onBukrsChange() {
   document.getElementById('kpiStatusSub').textContent = '';
   resetTest();
   updateView();
+}
+
+/** App-Regel Z-6: VV6 als DG gehört nicht zum Konsolidierungskreis.
+ *  → IC-Buchung erfolgt ausschließlich auf der DN-Seite (VV9).
+ *  Die DG-Seite (VV6) wird in SAP NICHT gebucht / storniert. */
+function isVV6DgLoan(loan) {
+  return !!(loan.ic && loan.ic.mirror && loan.ic.mirror.cocode === 'VV6');
 }
 
 function getFilteredLoans() {
@@ -2681,7 +2751,10 @@ function exportBuchungslisteXlsx() {
     const dnKst     = l.ic ? (l.ic.costcenter || '') : '';
     const dnText    = `${yr}-${mi + 1} Zinsertr. ${dnPartner} Nr.${l.nr}-${l.curr}`;
 
-    dataRows.push([l.nr,'DG',dgCocode,dgCompany,dgAcct,dgGacc,dgPartner,dgKst,dgText,belegtyp,periodLbl,l.curr,amt,status,docNr]);
+    // App-Regel Z-6: VV6-DG → kein DG-Zeile im Export
+    if (!isVV6DgLoan(l)) {
+      dataRows.push([l.nr,'DG',dgCocode,dgCompany,dgAcct,dgGacc,dgPartner,dgKst,dgText,belegtyp,periodLbl,l.curr,amt,status,docNr]);
+    }
     dataRows.push([l.nr,'DN',dnCocode,dnCompany,dnAcct,dnGacc,dnPartner,dnKst,dnText,belegtyp,periodLbl,l.curr,amt,status,docNr]);
   });
 
@@ -2716,13 +2789,22 @@ function exportBuchungslisteXlsx() {
 }
 
 function loanActiveInPeriod(l, yr, mi) {
-  // true wenn das Darlehen in der gewählten Periode bereits begonnen hat
-  // yr kann String (DOM) oder Number sein → immer als Integer vergleichen
-  if (!l.start) return true;
-  const p   = l.start.split('.');
-  const sYr = parseInt(p[2]), sMi = parseInt(p[1]) - 1;
-  const nYr = parseInt(yr);
-  return sYr < nYr || (sYr === nYr && sMi <= mi);
+  // true wenn das Darlehen in der gewählten Periode aktiv ist (Start ≤ Periode ≤ End)
+  // yr/mi können String oder Number sein → immer als Integer vergleichen
+  const nYr = parseInt(yr), nMi = parseInt(mi);
+  // Startdatum prüfen
+  if (l.start) {
+    const p = l.start.split('.');
+    const sYr = parseInt(p[2]), sMi = parseInt(p[1]) - 1;
+    if (!(sYr < nYr || (sYr === nYr && sMi <= nMi))) return false;
+  }
+  // Enddatum prüfen: Darlehen endete VOR dieser Periode → ausblenden
+  if (l.end) {
+    const ep = l.end.split('.');
+    const eYr = parseInt(ep[2]), eMi = parseInt(ep[1]) - 1;
+    if (eYr < nYr || (eYr === nYr && eMi < nMi)) return false;
+  }
+  return true;
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -2732,6 +2814,7 @@ const CUSTOM_LOANS_KEY = 'yconn_custom_loans';
 
 const COCODE_DEFAULTS = {
   'VV9':  { company:'Catensys Holding GmbH',   account:120000, offset:570200, kst:'VV9-5013',  icAcct:420200, icGacc:759200, mirrorAcct:120000 },
+  'VV6':  { company:'Catensys Holding GmbH',   account:120000, offset:570200, kst:'VV6-5013',  icAcct:420200, icGacc:759200, mirrorAcct:120000 },
   '0435': { company:'Catensys Germany GmbH',   account:420200, offset:759200, kst:'0435-5013', icAcct:420200, icGacc:759200, mirrorAcct:120000 },
   '0436': { company:'Catensys China Co. Ltd.',  account:120000, offset:570200, kst:'0436-5013', icAcct:420200, icGacc:759200, mirrorAcct:120000 },
   '0438': { company:'Catensys Korea Co. Ltd.',  account:420200, offset:759200, kst:'0438-5013', icAcct:420200, icGacc:759200, mirrorAcct:120000 },
@@ -2851,6 +2934,7 @@ function dlClose() {
 const DG_COMPANY = {
   '0435': 'Catensys Germany GmbH',
   'VV9':  'Catensys Holding GmbH',
+  'VV6':  'Catensys Holding GmbH',
   '0436': 'Catensys China Co. Ltd.',
   '0438': 'Catensys Korea Co. Ltd.',
 };
@@ -3055,7 +3139,7 @@ function renderLoanStammdaten() {
     ? v.toLocaleString('de-DE', {minimumFractionDigits:2, maximumFractionDigits:2}) : (v || '–');
 
   const BUKRS_NAME = {
-    '0435':'Catensys Germany GmbH', 'VV9':'Catensys Holding GmbH',
+    '0435':'Catensys Germany GmbH', 'VV9':'Catensys Holding GmbH', 'VV6':'Catensys Holding GmbH',
     '0436':'Catensys China Co. Ltd.', '0438':'Catensys Korea Co. Ltd.'
   };
   const ccName = cc => BUKRS_NAME[cc] || cc;
@@ -3717,7 +3801,7 @@ function openLoginModal(callback, forceSeq) {
   const _saved = _loadSapCreds();
   // Session-Username hat immer Vorrang (verhindert falsche gespeicherte Namen wie 'admi-YCONN-SEP')
   // Passwort kann aus gespeicherten Creds übernommen werden, aber nur wenn Username übereinstimmt
-  const _sessionUser = (() => { try { return JSON.parse(sessionStorage.getItem('yconn_user')||'null')?.sap_username||''; } catch(e){return '';} })();
+  const _sessionUser = getSapLinkedUser(); // App-Regel G-9: über AUTH.user, nicht direkt sessionStorage
   const _usernameMismatch = _sessionUser && _saved && _saved.user !== _sessionUser;
   if (_usernameMismatch) _deleteSapCreds();  // veraltete/falsche Creds verwerfen
   const _validSaved = _usernameMismatch ? null : _saved;
@@ -3755,8 +3839,8 @@ function confirmLogin() {
   _loginCallback = null;
 }
 
-const BRIDGE_URL = 'http://localhost:8765';
-const ORCH_URL   = 'http://localhost:8000';
+const BRIDGE_URL = window.location.origin.replace(':8000',':8765');
+const ORCH_URL = window.location.origin;
 let REAL_MODE = false;
 
 // ── 10W Smart Database: Audit-Hook (fire-and-forget) ──────────────────────────
@@ -4046,8 +4130,11 @@ async function _stornoSingleExec(loan, mi, yr, bukrs, creds, useSeq) {
   const sysLabel  = useSeq ? 'SEQ (Produktion)' : 'SEP (Quality Assurance)';
 
   // Bestätigungsdialog
+  const _vv6Dg = isVV6DgLoan(loan);
   const sideInfo = hasMirror
-    ? `DN (${loan.cocode}): ${docNr}\nDG (${loan.ic.mirror.cocode}): ${docNrM}`
+    ? _vv6Dg
+      ? `DN (${loan.cocode}): ${docNr}\nDG (${loan.ic.mirror.cocode}): – (App-Regel Z-6: kein SAP-Beleg)`
+      : `DN (${loan.cocode}): ${docNr}\nDG (${loan.ic.mirror.cocode}): ${docNrM}`
     : `Belegnr.: ${docNr}`;
   if (!confirm(
     `⟲ Storno: Nr.${loan.nr} – ${loan.company}\n` +
@@ -4057,8 +4144,9 @@ async function _stornoSingleExec(loan, mi, yr, bukrs, creds, useSeq) {
   )) return;
 
   // Payloads via _buildIcPayload (isStorno=true → Vorzeichen umgekehrt)
+  // App-Regel Z-6: VV6-DG → kein Storno auf DG-Seite
   const icMain   = _buildIcPayload(loan, mi, yr, bukrs, creds, true, 'main');
-  const icMirror = hasMirror ? _buildIcPayload(loan, mi, yr, loan.ic.mirror.cocode, creds, true, 'mirror') : null;
+  const icMirror = (hasMirror && !_vv6Dg) ? _buildIcPayload(loan, mi, yr, loan.ic.mirror.cocode, creds, true, 'mirror') : null;
 
   const _conn = () => { const c = SAP_SYSTEMS[useSeq ? 'SEQ' : 'SEP'];
     return { ashost:c.ashost, sysnr:c.sysnr, client:c.client, lang:c.lang||'DE', user:creds.user, passwd:creds.pass }; };
@@ -4339,6 +4427,7 @@ function showZinsUebergabe(loan, mi, yr, bukrs, creds, useSeq, onConfirm) {
   // Null-Schutz: creds können beim Vorschau-Aufruf (Lupe) fehlen
   if (!creds) creds = { user: getSapLinkedUser() || '–', pass: '' };
   const hasMirror = !!(loan.ic && loan.ic.mirror);
+  const _zupVV6Dg = isVV6DgLoan(loan); // App-Regel Z-6: VV6-DG → kein DG-Beleg
   const sysObj  = useSeq ? SAP_SYSTEMS.SEQ : SAP_SYSTEMS.SEP;
   const sysLbl  = useSeq ? '🟢 SEQ – Produktion (172.28.189.11)' : '🔵 SEP – Qualitätssystem (172.28.189.8)';
   const v       = getAmount(loan, mi);
@@ -4347,7 +4436,7 @@ function showZinsUebergabe(loan, mi, yr, bukrs, creds, useSeq, onConfirm) {
 
   // Build payloads
   const icMain   = _buildIcPayload(loan, mi, yr, bukrs, creds, false, 'main');
-  const icMirror = hasMirror ? _buildIcPayload(loan, mi, yr, loan.ic.mirror.cocode, creds, false, 'mirror') : null;
+  const icMirror = (hasMirror && !_zupVV6Dg) ? _buildIcPayload(loan, mi, yr, loan.ic.mirror.cocode, creds, false, 'mirror') : null;
 
   const makeHdr = (icData, user) => ({
     USERNAME:   user,
@@ -4382,17 +4471,18 @@ function showZinsUebergabe(loan, mi, yr, bukrs, creds, useSeq, onConfirm) {
       detail: existing?.status  === 'ok' ? `⚠ Bereits gebucht: ${existing.docNr}`  : 'Offen – OK' },
     { label:'Noch nicht gebucht (DG)',     ok: !existingM || existingM.status !== 'ok',
       detail: existingM?.status === 'ok' ? `⚠ Bereits gebucht: ${existingM.docNr}` : 'Offen – OK',
-      skip: !hasMirror },
+      skip: !hasMirror || _zupVV6Dg },
     { label:'Soll = Haben (DN)',           ok: Math.abs(icMain.CURRENCYAMOUNT.reduce((a,r)=>a+parseFloat(r.AMT_DOCCUR),0)) < 0.005,
       detail: 'Saldo der DN-Seite' },
     { label:'Soll = Haben (DG)',           ok: icMirror ? Math.abs(icMirror.CURRENCYAMOUNT.reduce((a,r)=>a+parseFloat(r.AMT_DOCCUR),0)) < 0.005 : true,
       detail: hasMirror ? 'Saldo der DG-Seite' : 'Nur für IC-Darlehen',
-      skip: !hasMirror },
+      skip: !hasMirror || _zupVV6Dg },
     { label:'IC-Partner definiert (DN)',   ok: !!(loan.ic?.partner),
       detail: loan.ic?.partner || '–', skip: !hasMirror },
     { label:'IC-Partner definiert (DG)',   ok: !!(loan.ic?.mirror?.cocode),
-      detail: loan.ic?.mirror?.cocode || '–', skip: !hasMirror },
-    { label:'Buchungskreis gültig',        ok: ['0435','VV9','0436','0438'].includes(icMain.bukrs),
+      detail: _zupVV6Dg ? `${loan.ic?.mirror?.cocode} (Z-6: kein Beleg)` : (loan.ic?.mirror?.cocode || '–'),
+      skip: !hasMirror },
+    { label:'Buchungskreis gültig',        ok: ['0435','VV9','VV6','0436','0438'].includes(icMain.bukrs),
       detail: icMain.bukrs },
     { label:'SAP-System ausgewählt',       ok: true,
       detail: sysLbl },
@@ -4543,14 +4633,14 @@ async function _bookSingleExec(loan, mi, yr, bukrs, creds, useSeq) {
     const fakeA = 'T' + Date.now().toString().slice(-8);
     const fakeM = 'T' + (Date.now()+1).toString().slice(-8);
     setBsEntry(yr, mi, loan.nr,        { status:'ok', docNr: fakeA, bukrs,                          system:'SEP' });
-    if (hasMirror) setBsEntry(yr, mi, loan.nr+'_M', { status:'ok', docNr: fakeM, bukrs: loan.ic.mirror.cocode, system:'SEP' });
+    if (hasMirror && !isVV6DgLoan(loan)) setBsEntry(yr, mi, loan.nr+'_M', { status:'ok', docNr: fakeM, bukrs: loan.ic.mirror.cocode, system:'SEP' });
     updateView();
     return;
   }
 
   // ── Build payloads für beide IC-Seiten ──────────────────────────────────
   const icMain   = _buildIcPayload(loan, mi, yr, bukrs,          creds, false, 'main');
-  const icMirror = hasMirror ? _buildIcPayload(loan, mi, yr, loan.ic.mirror.cocode, creds, false, 'mirror') : null;
+  const icMirror = (hasMirror && !isVV6DgLoan(loan)) ? _buildIcPayload(loan, mi, yr, loan.ic.mirror.cocode, creds, false, 'mirror') : null;
 
   const makePayload = (icData, crdUser, crdPass) => ({
     DOCUMENTHEADER: {
@@ -4692,7 +4782,7 @@ async function executeBooking() {
       const fakeA = 'T' + Date.now().toString().slice(-8) + String(done).padStart(2,'0');
       const _sysFl = useSeqPrd ? 'SEQ' : 'SEP';
       setBsEntry(yr, mi, loan.nr,       { status:'ok', docNr: fakeA,      bukrs,                          system:_sysFl });
-      if (hasMirror) setBsEntry(yr, mi, loan.nr+'_M',{ status:'ok', docNr: fakeA+'M',  bukrs: loan.ic.mirror.cocode, system:_sysFl });
+      if (hasMirror && !isVV6DgLoan(loan)) setBsEntry(yr, mi, loan.nr+'_M',{ status:'ok', docNr: fakeA+'M',  bukrs: loan.ic.mirror.cocode, system:_sysFl });
       done++;
       if(pi) pi.className = 'post-item done';
       document.getElementById(`stat-${loan.nr}`).innerHTML = `<span class="badge badge-ok">✓ TEST</span>`;
@@ -4702,8 +4792,9 @@ async function executeBooking() {
     }
 
     // ── REAL-MODUS: Payload für beide IC-Seiten ───────────────────────────────
+    // App-Regel Z-6: VV6-DG → kein DG-Payload
     const icMain   = _buildIcPayload(loan, mi, yr, bukrs, creds, _isStorno, 'main');
-    const icMirror = hasMirror ? _buildIcPayload(loan, mi, yr, loan.ic.mirror.cocode, creds, _isStorno, 'mirror') : null;
+    const icMirror = (hasMirror && !isVV6DgLoan(loan)) ? _buildIcPayload(loan, mi, yr, loan.ic.mirror.cocode, creds, _isStorno, 'mirror') : null;
 
     const makeP = (icData) => ({
       DOCUMENTHEADER: {
@@ -4727,7 +4818,8 @@ async function executeBooking() {
 
     try {
       const _sysFl = useSeqPrd ? 'SEQ' : 'SEP';
-      let mainOk = false, mirrorOk = !hasMirror;
+      // App-Regel Z-6: VV6-DG → mirrorOk sofort true (kein DG-Beleg)
+      let mainOk = false, mirrorOk = !hasMirror || isVV6DgLoan(loan);
 
       // Schritt 1: DG-Seite (Buchungskreis 0435 / mirror) zuerst buchen
       if (icMirror) {
@@ -4965,15 +5057,15 @@ async function runTestSimulation() {
 // Nur SAP-Verbindungsdaten (ashost/sysnr/client) und Credentials übernehmen.
 // Buchungskreis-Auswahl bleibt beim Benutzer – nicht automatisch ändern,
 // damit alle Darlehen (VV9, 0436, 0438) in der Übersicht sichtbar bleiben.
-(function _initFromAuthSession() {
+// ── SAP-Verbindung aus Auth-Session initialisieren (App-Regel G-5) ──────────
+// Benutzeranzeige im Header übernimmt AUTH.renderHeader() (auth.js).
+// Hier werden nur SAP_CONN + _sapCreds aus der Session befüllt.
+(function _initSapConnFromSession() {
   try {
-    const session = JSON.parse(sessionStorage.getItem('yconn_user') || 'null');
+    const session = (window.AUTH && AUTH.user) ? AUTH.user : null;
     if (!session) return;
 
-    // ── SAP-Verbindung aus Session ───────────────────────────────────────────
-    // App-Regel G-5: session.sap_system hat IMMER Vorrang vor localStorage-Wert,
-    // auch wenn session.ashost fehlt — verhindert dass ein gespeichertes SEQ-System
-    // beim nächsten SEP-Login weiterverwendet wird.
+    // App-Regel G-5: sap_system hat IMMER Vorrang (verhindert SEQ→SEP-Drift bei neuem Login)
     const _sysKey = (session.sap_system || '').toUpperCase();
     if (SAP_SYSTEMS[_sysKey]) {
       SAP_CONN.system = _sysKey;
@@ -4983,54 +5075,22 @@ async function runTestSimulation() {
       SAP_CONN.sysnr  = session.sysnr  || SAP_CONN.sysnr;
       SAP_CONN.client = session.client || SAP_CONN.client;
       SAP_CONN.lang   = session.lang   || SAP_CONN.lang;
-      // ashost-Fallback: nur wenn sap_system nicht gesetzt war
       if (!SAP_SYSTEMS[_sysKey]) {
         for (const [id, sys] of Object.entries(SAP_SYSTEMS)) {
           if (sys.ashost === session.ashost) { SAP_CONN.system = id; break; }
         }
       }
     }
-    // SAP-Username aus Session in SAP_CONN übernehmen (Vorrang vor localStorage-Default)
     if (session.sap_username) {
       SAP_CONN.user = session.sap_username;
     }
 
-    // ── SAP-Credentials vorbelegen ───────────────────────────────────────────
+    // SAP-Credentials vorbelegen (für automatische Buchungen)
     if (session.sap_username && session.passwd) {
       _sapCreds = { user: session.sap_username, pass: session.passwd };
     }
 
-    // ── Benutzer im Header anzeigen ──────────────────────────────────────────
-    const displayName = session.display_name || session.sap_username || 'Benutzer';
-    const role        = session.role || '';
-    const sysId       = (session.sap_system || SAP_CONN.system || 'SEP').toUpperCase();
-
-    const elUser   = document.getElementById('hdrUser');
-    const elAvatar = document.getElementById('hdrUserAvatar');
-    const elName   = document.getElementById('hdrUserName');
-    const elRole   = document.getElementById('hdrUserRole');
-    const elSys    = document.getElementById('hdrUserSys');
-    const elLogout = document.getElementById('btnLogout');
-    const elCoCode = document.getElementById('hdrCoCode');
-    const elSapInfo= document.getElementById('hdrSapInfo');
-
-    if (elUser)   { elUser.style.display = ''; }
-    if (elAvatar) { elAvatar.textContent = displayName.charAt(0).toUpperCase(); }
-    if (elName)   { elName.textContent   = displayName; }
-    if (elRole)   { elRole.textContent   = ' · ' + role; }
-    if (elSys) {
-      elSys.textContent = sysId;
-      if (sysId === 'SEQ') elSys.classList.add('seq');
-      else elSys.classList.remove('seq');
-    }
-    if (elLogout) { elLogout.style.display = ''; }
-
-    // SAP-Info-Badges dynamisch aktualisieren
-    if (elSapInfo && session.ashost) {
-      elSapInfo.textContent = `SAP: ${session.ashost} · Mdt. ${session.client || '600'}`;
-    }
-
-    // ── bridge_offline-Flag: Bridge-Status vorsetzen ─────────────────────────
+    // bridge_offline-Flag: Bridge-Status vorsetzen
     if (session.bridge_offline) {
       const dot = document.getElementById('bridgeDot');
       const txt = document.getElementById('bridgeText');
@@ -5040,8 +5100,11 @@ async function runTestSimulation() {
         txt.textContent = 'Bridge offline (Offline-Login) – Buchen nicht möglich';
       }
     }
-  } catch (e) { console.warn('_initFromAuthSession:', e); }
+  } catch (e) { console.warn('_initSapConnFromSession:', e); }
 })();
+
+// Header-Chip mit Benutzername, Rolle, System und Abmelden-Button einfügen
+AUTH.renderHeader('headerRight');
 
 // ════════════════════════════════════════════════════════════════
 //  SCHEDULER-BUCHUNGEN → Buchungshistorie synchronisieren
@@ -5577,7 +5640,7 @@ function sdExportCsv(entity) {
   if (!entry || !entry.data.length) { alert('Keine Daten. Bitte zuerst laden.'); return; }
   const cfg  = _SD_COLS[entity];
   const rows = [cfg.heads.join(';')].concat(
-    entry.data.map(r => cfg.fields.map(f => '"' + (r[f]||'').toString().replace(/"/g,'""') + '"').join(';'))
+    entry.data.map(r => cfg.fields.map(f => '"' + (r[f]||''). toString().replace(/"/g,'""') + '"').join(';'))
   );
   const blob = new Blob(['\xef\xbb\xbf' + rows.join('\r\n')], {type:'text/csv;charset=utf-8'});
   const a = document.createElement('a');

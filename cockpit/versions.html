@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<script>
+if (location.protocol === 'file:') {
+  var _fn = (location.pathname.split('/').pop() || location.pathname.split('\').pop());
+  location.replace('http://localhost:8000/cockpit/' + _fn + location.search + location.hash);
+}
+</script>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Modul-Versionen – YCONN Backup</title>
+<style>
+:root {
+  --bg:#0d1117;--bg2:#161b22;--bg3:#21262d;--border:#30363d;
+  --text:#e6edf3;--muted:#8b949e;--acc:#58a6ff;
+  --ok:#3fb950;--warn:#d2a21a;--err:#f85149;--purple:#bc8cff;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:13px;height:100vh;display:flex;flex-direction:column}
+a{color:inherit;text-decoration:none}
+
+/* Header */
+.header{background:var(--bg2);border-bottom:1px solid var(--border);padding:10px 16px;display:flex;align-items:center;gap:12px;flex-shrink:0}
+.header h1{font-size:15px;font-weight:600;flex:1}
+.btn{background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px;white-space:nowrap}
+.btn:hover{background:var(--border)}
+.btn-acc{background:var(--acc);border-color:var(--acc);color:#0d1117;font-weight:600}
+.btn-acc:hover{opacity:.85}
+.btn-ok{background:var(--ok);border-color:var(--ok);color:#0d1117;font-weight:600}
+.btn-err{background:var(--err);border-color:var(--err);color:#fff;font-weight:600}
+
+/* Layout */
+.layout{display:flex;flex:1;overflow:hidden}
+.sidebar{width:320px;border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;flex-shrink:0}
+.sidebar-head{padding:10px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px}
+.sidebar-head span{font-size:12px;color:var(--muted);flex:1}
+.mod-list{flex:1;overflow-y:auto}
+.mod-group{border-bottom:1px solid var(--border)}
+.mod-group-head{padding:8px 12px;font-size:11px;font-weight:700;color:var(--purple);background:var(--bg2);display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none}
+.mod-group-head:hover{background:var(--bg3)}
+.ver-row{padding:7px 12px 7px 24px;display:flex;align-items:center;gap:8px;cursor:pointer;border-bottom:1px solid var(--border)}
+.ver-row:hover{background:var(--bg3)}
+.ver-row.active{background:#1c2d3a;border-left:3px solid var(--acc)}
+.ver-num{font-size:11px;font-weight:700;color:var(--acc);min-width:28px}
+.ver-info{flex:1;min-width:0}
+.ver-ts{font-size:10px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ver-trig{font-size:10px;color:var(--warn);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ver-size{font-size:10px;color:var(--muted);white-space:nowrap}
+.badge-latest{font-size:9px;background:var(--ok);color:#0d1117;padding:1px 5px;border-radius:10px;font-weight:700}
+
+/* Detail */
+.detail{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.detail-head{padding:10px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;flex-shrink:0;min-height:46px}
+.detail-head h2{font-size:14px;font-weight:600;flex:1}
+.detail-meta{display:flex;gap:16px;padding:10px 16px;border-bottom:1px solid var(--border);background:var(--bg2);flex-shrink:0;flex-wrap:wrap}
+.meta-item{display:flex;flex-direction:column;gap:2px}
+.meta-label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+.meta-val{font-size:12px;color:var(--text)}
+.code-wrap{flex:1;overflow:auto;padding:0}
+pre{padding:16px;font-family:'Consolas','Courier New',monospace;font-size:12px;line-height:1.5;white-space:pre;color:#c9d1d9;tab-size:4}
+
+/* Empty */
+.empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:var(--muted)}
+.empty-icon{font-size:48px}
+
+/* Toast */
+.toast{position:fixed;bottom:20px;right:20px;padding:10px 16px;border-radius:8px;font-size:13px;font-weight:600;z-index:9999;animation:fadein .2s}
+@keyframes fadein{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.toast.ok{background:var(--ok);color:#0d1117}
+.toast.err{background:var(--err);color:#fff}
+.toast.warn{background:var(--warn);color:#0d1117}
+
+/* Manual save modal */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:500;display:none}
+.overlay.open{display:flex}
+.modal{background:var(--bg2);border:1px solid var(--border);border-radius:10px;width:480px;padding:20px;display:flex;flex-direction:column;gap:14px}
+.modal h3{font-size:14px;font-weight:600}
+.modal label{font-size:12px;color:var(--muted);display:block;margin-bottom:4px}
+.modal input,.modal select,.modal textarea{width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:7px 10px;border-radius:6px;font-size:12px;font-family:inherit}
+.modal textarea{resize:vertical;height:60px}
+.modal-btns{display:flex;gap:8px;justify-content:flex-end}
+
+/* Confirm modal */
+.confirm-modal{background:var(--bg2);border:1px solid var(--border);border-radius:10px;width:380px;padding:20px;display:flex;flex-direction:column;gap:14px}
+.confirm-modal p{font-size:13px;color:var(--text);line-height:1.5}
+
+/* line numbers */
+.ln{display:inline-block;min-width:40px;color:#4a5568;user-select:none;text-align:right;padding-right:12px;border-right:1px solid var(--border);margin-right:12px}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>📦 Modul-Versionen &amp; Backup</h1>
+  <button class="btn btn-acc" onclick="openManualSave()">+ Manuell sichern</button>
+  <button class="btn" onclick="loadVersions()">↺ Aktualisieren</button>
+  <a class="btn" href="startseite.html">🏠 Startseite</a>
+</div>
+
+<div class="layout">
+  <!-- Sidebar: Modul-Liste -->
+  <div class="sidebar">
+    <div class="sidebar-head">
+      <span id="mod-count">Lade…</span>
+    </div>
+    <div class="mod-list" id="mod-list"></div>
+  </div>
+
+  <!-- Detail: Code-Ansicht -->
+  <div class="detail" id="detail-panel">
+    <div class="empty">
+      <div class="empty-icon">📂</div>
+      <div>Wähle links eine Version aus</div>
+    </div>
+  </div>
+</div>
+
+<!-- Manual Save Modal -->
+<div class="overlay" id="manual-overlay">
+  <div class="modal">
+    <h3>📸 Modul-Snapshot erstellen</h3>
+    <div>
+      <label>Datei</label>
+      <select id="snap-file">
+        <option value="">-- Datei wählen --</option>
+      </select>
+    </div>
+    <div>
+      <label>Beschreibung (optional)</label>
+      <textarea id="snap-desc" placeholder="z.B. 'Vor Refactoring XD02'"></textarea>
+    </div>
+    <div class="modal-btns">
+      <button class="btn" onclick="closeManualSave()">Abbrechen</button>
+      <button class="btn btn-acc" onclick="doManualSave()">Sichern</button>
+    </div>
+  </div>
+</div>
+
+<!-- Confirm Restore Modal -->
+<div class="overlay" id="confirm-overlay">
+  <div class="confirm-modal">
+    <h3>⚠️ Wiederherstellen</h3>
+    <p id="confirm-text"></p>
+    <div class="modal-btns">
+      <button class="btn" onclick="closeConfirm()">Abbrechen</button>
+      <button class="btn btn-err" id="confirm-btn">Wiederherstellen</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const ORCH = window.location.origin;
+let allVersions = [];
+let activeId = null;
+let confirmCallback = null;
+
+// Bekannte Dateipfade für manuelles Sichern (absolute Windows-Pfade)
+const _BASE = 'C:\\WF\\sap-robots';
+const KNOWN_FILES = [
+  // Worker / Backend
+  { label: 'worker/handlers.py',              path: _BASE + '\\worker\\handlers.py' },
+  { label: 'worker/bridge.py',                path: _BASE + '\\worker\\bridge.py' },
+  { label: 'orchestrator/main.py',            path: _BASE + '\\orchestrator\\main.py' },
+  // Cockpit-Module
+  { label: 'cockpit/zinsen.html',             path: _BASE + '\\cockpit\\zinsen.html' },
+  { label: 'cockpit/regeln.html',             path: _BASE + '\\cockpit\\regeln.html' },
+  { label: 'cockpit/rechnung.html',           path: _BASE + '\\cockpit\\rechnung.html' },
+  { label: 'cockpit/payroll.html',            path: _BASE + '\\cockpit\\payroll.html' },
+  { label: 'cockpit/cockpit.html',            path: _BASE + '\\cockpit\\cockpit.html' },
+  { label: 'cockpit/cockpit-v2.html',         path: _BASE + '\\cockpit\\cockpit-v2.html' },
+  { label: 'cockpit/benutzer.html',           path: _BASE + '\\cockpit\\benutzer.html' },
+  { label: 'cockpit/startseite.html',         path: _BASE + '\\cockpit\\startseite.html' },
+  { label: 'cockpit/db-kontrollzentrum.html', path: _BASE + '\\cockpit\\db-kontrollzentrum.html' },
+  { label: 'cockpit/db-admin.html',           path: _BASE + '\\cockpit\\db-admin.html' },
+  { label: 'cockpit/versions.html',           path: _BASE + '\\cockpit\\versions.html' },
+  { label: 'cockpit/auth.js',                 path: _BASE + '\\cockpit\\auth.js' },
+  { label: 'cockpit/brain.html',              path: _BASE + '\\cockpit\\brain.html' },
+  { label: 'cockpit/voice.html',              path: _BASE + '\\cockpit\\voice.html' },
+  { label: 'cockpit/kundenstamm.html',        path: _BASE + '\\cockpit\\kundenstamm.html' },
+  { label: 'cockpit/stammdaten.html',         path: _BASE + '\\cockpit\\stammdaten.html' },
+];
+
+async function loadVersions() {
+  document.getElementById('mod-count').textContent = 'Lade…';
+  try {
+    const r = await fetch(`${ORCH}/module-versions`);
+    allVersions = await r.json();
+    renderSidebar(allVersions);
+  } catch (e) {
+    toast('Fehler: ' + e.message, 'err');
+    document.getElementById('mod-count').textContent = 'Fehler';
+  }
+}
+
+function renderSidebar(versions) {
+  const list = document.getElementById('mod-list');
+  list.innerHTML = '';
+
+  // Gruppieren nach module_name
+  const groups = {};
+  for (const v of versions) {
+    if (!groups[v.module_name]) groups[v.module_name] = [];
+    groups[v.module_name].push(v);
+  }
+
+  const names = Object.keys(groups).sort();
+  document.getElementById('mod-count').textContent =
+    `${names.length} Modul${names.length !== 1 ? 'e' : ''}, ${versions.length} Version${versions.length !== 1 ? 'en' : ''}`;
+
+  for (const name of names) {
+    const vers = groups[name]; // bereits sortiert DESC vom Server
+    const latest = vers[0];
+
+    const group = document.createElement('div');
+    group.className = 'mod-group';
+
+    const head = document.createElement('div');
+    head.className = 'mod-group-head';
+    head.innerHTML = `📄 ${name} <span style="color:var(--muted);font-weight:400">(${vers.length} Version${vers.length !== 1 ? 'en' : ''})</span>`;
+
+    const body = document.createElement('div');
+    for (let i = 0; i < vers.length; i++) {
+      const v = vers[i];
+      const row = document.createElement('div');
+      row.className = 'ver-row' + (v.id === activeId ? ' active' : '');
+      row.dataset.id = v.id;
+      const kb = (v.file_size / 1024).toFixed(1);
+      const ts = v.created_at ? v.created_at.replace('T', ' ').substring(0, 16) : '';
+      row.innerHTML = `
+        <span class="ver-num">v${v.version_number}</span>
+        <span class="ver-info">
+          <span class="ver-ts">${ts}${i === 0 ? ' <span class="badge-latest">LATEST</span>' : ''}</span>
+          <span class="ver-trig">${v.triggered_by || '—'}</span>
+        </span>
+        <span class="ver-size">${kb} KB</span>
+      `;
+      row.onclick = () => selectVersion(v.id);
+      body.appendChild(row);
+    }
+
+    // Toggle body
+    let open = true;
+    head.onclick = () => { open = !open; body.style.display = open ? '' : 'none'; };
+
+    group.appendChild(head);
+    group.appendChild(body);
+    list.appendChild(group);
+  }
+}
+
+async function selectVersion(id) {
+  activeId = id;
+  // Aktiv-Klasse setzen
+  document.querySelectorAll('.ver-row').forEach(r => {
+    r.classList.toggle('active', parseInt(r.dataset.id) === id);
+  });
+
+  const panel = document.getElementById('detail-panel');
+  panel.innerHTML = '<div class="empty"><div class="empty-icon">⏳</div><div>Lade…</div></div>';
+
+  try {
+    const r = await fetch(`${ORCH}/module-versions/${id}/content`);
+    const v = await r.json();
+    const kb = (v.file_size / 1024).toFixed(1);
+    const ts = v.created_at ? v.created_at.replace('T', ' ') : '—';
+
+    panel.innerHTML = `
+      <div class="detail-head">
+        <h2>📄 ${v.module_name} &nbsp;<span style="color:var(--muted);font-weight:400;font-size:12px">v${v.version_number}</span></h2>
+        <button class="btn btn-ok" onclick="confirmRestore(${v.id}, '${v.module_name}', ${v.version_number})">↩ Wiederherstellen</button>
+        <button class="btn" onclick="downloadVersion(${v.id}, '${v.module_name}', ${v.version_number})">⬇ Download</button>
+        <button class="btn btn-err" onclick="confirmDelete(${v.id})">🗑 Löschen</button>
+      </div>
+      <div class="detail-meta">
+        <div class="meta-item"><span class="meta-label">Datei</span><span class="meta-val" style="font-size:11px">${v.file_path}</span></div>
+        <div class="meta-item"><span class="meta-label">Zeitpunkt</span><span class="meta-val">${ts}</span></div>
+        <div class="meta-item"><span class="meta-label">Auslöser</span><span class="meta-val" style="color:var(--warn)">${v.triggered_by || '—'}</span></div>
+        <div class="meta-item"><span class="meta-label">Größe</span><span class="meta-val">${kb} KB</span></div>
+        ${v.description ? `<div class="meta-item"><span class="meta-label">Beschreibung</span><span class="meta-val">${v.description}</span></div>` : ''}
+      </div>
+      <div class="code-wrap"><pre id="code-pre"></pre></div>
+    `;
+
+    // Code mit Zeilennummern rendern
+    const pre = document.getElementById('code-pre');
+    const lines = v.file_content.split('\n');
+    pre.innerHTML = lines.map((line, i) =>
+      `<span class="ln">${i + 1}</span>${escHtml(line)}`
+    ).join('\n');
+
+  } catch (e) {
+    panel.innerHTML = `<div class="empty"><div class="empty-icon">❌</div><div>${e.message}</div></div>`;
+  }
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function downloadVersion(id, name, ver) {
+  const v = allVersions.find(x => x.id === id);
+  if (!v) return;
+  // Inhalt laden und als Datei speichern
+  fetch(`${ORCH}/module-versions/${id}/content`)
+    .then(r => r.json())
+    .then(data => {
+      const blob = new Blob([data.file_content], {type:'text/plain'});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = name.replace('.', `_v${ver}.`);
+      a.click();
+    });
+}
+
+function confirmRestore(id, name, ver) {
+  document.getElementById('confirm-text').textContent =
+    `handlers.py v${ver} wird auf die Festplatte geschrieben und überschreibt die aktuelle Datei. Die aktuelle Version wird als .before_restore Datei gesichert. Fortfahren?`;
+  document.getElementById('confirm-btn').onclick = () => { closeConfirm(); doRestore(id); };
+  document.getElementById('confirm-overlay').classList.add('open');
+}
+
+function confirmDelete(id) {
+  document.getElementById('confirm-text').textContent =
+    `Diese Version wird dauerhaft aus der Datenbank gelöscht. Fortfahren?`;
+  document.getElementById('confirm-btn').textContent = 'Löschen';
+  document.getElementById('confirm-btn').onclick = () => { closeConfirm(); doDelete(id); };
+  document.getElementById('confirm-overlay').classList.add('open');
+}
+
+function closeConfirm() {
+  document.getElementById('confirm-overlay').classList.remove('open');
+  document.getElementById('confirm-btn').textContent = 'Wiederherstellen';
+}
+
+async function doRestore(id) {
+  try {
+    const r = await fetch(`${ORCH}/module-versions/${id}/restore`, {method:'POST'});
+    const data = await r.json();
+    if (r.ok) {
+      toast(`✅ ${data.module_name} v${data.version_number} wiederhergestellt!`, 'ok');
+      // Hinweis: Bridge muss neu gestartet werden
+      setTimeout(() => toast('⚠️ Bridge neu starten, damit der neue Code aktiv wird!', 'warn'), 1500);
+    } else {
+      toast('Fehler: ' + (data.detail || JSON.stringify(data)), 'err');
+    }
+  } catch (e) {
+    toast('Fehler: ' + e.message, 'err');
+  }
+}
+
+async function doDelete(id) {
+  try {
+    const r = await fetch(`${ORCH}/module-versions/${id}`, {method:'DELETE'});
+    if (r.ok) {
+      toast('Version gelöscht', 'ok');
+      activeId = null;
+      document.getElementById('detail-panel').innerHTML =
+        '<div class="empty"><div class="empty-icon">📂</div><div>Wähle links eine Version aus</div></div>';
+      loadVersions();
+    } else {
+      const d = await r.json();
+      toast('Fehler: ' + (d.detail || 'unbekannt'), 'err');
+    }
+  } catch (e) {
+    toast('Fehler: ' + e.message, 'err');
+  }
+}
+
+// Manual Save
+function openManualSave() {
+  const sel = document.getElementById('snap-file');
+  sel.innerHTML = '<option value="">-- Datei wählen --</option>';
+
+  // 1) KNOWN_FILES zuerst (inkl. noch-nicht-gesicherte Dateien)
+  const seenPaths = new Set();
+  for (const kf of KNOWN_FILES) {
+    if (!kf.path) continue;
+    seenPaths.add(kf.path);
+    const inDb = allVersions.find(v => v.file_path === kf.path);
+    const opt  = document.createElement('option');
+    opt.value  = kf.path;
+    opt.textContent = kf.label + (inDb ? ` (v${inDb.version_number})` : ' – neu');
+    sel.appendChild(opt);
+  }
+
+  // 2) Alle weiteren DB-Einträge, die nicht in KNOWN_FILES stehen
+  for (const v of allVersions) {
+    if (seenPaths.has(v.file_path)) continue;
+    seenPaths.add(v.file_path);
+    const opt = document.createElement('option');
+    opt.value = v.file_path;
+    opt.textContent = v.module_name + ` (v${v.version_number})`;
+    sel.appendChild(opt);
+  }
+
+  // zinsen.html vorauswählen falls vorhanden
+  const zinsenPath = _BASE + '\\cockpit\\zinsen.html';
+  if ([...sel.options].some(o => o.value === zinsenPath)) {
+    sel.value = zinsenPath;
+  }
+
+  document.getElementById('snap-desc').value = '';
+  document.getElementById('manual-overlay').classList.add('open');
+}
+
+function closeManualSave() {
+  document.getElementById('manual-overlay').classList.remove('open');
+}
+
+async function doManualSave() {
+  const file_path = document.getElementById('snap-file').value;
+  const description = document.getElementById('snap-desc').value.trim();
+  if (!file_path) { toast('Bitte Datei wählen', 'warn'); return; }
+
+  try {
+    const r = await fetch(`${ORCH}/module-versions/save`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ file_path, triggered_by: 'manuell', description }),
+    });
+    const data = await r.json();
+    closeManualSave();
+    if (data.status === 'saved') {
+      toast(`✅ Version v${data.version_number} gespeichert!`, 'ok');
+      loadVersions();
+    } else if (data.status === 'unchanged') {
+      toast(`ℹ️ Keine Änderung seit v${data.version_number} – kein neuer Snapshot`, 'warn');
+    } else {
+      toast('Unbekannte Antwort: ' + JSON.stringify(data), 'warn');
+    }
+  } catch (e) {
+    toast('Fehler: ' + e.message, 'err');
+  }
+}
+
+function toast(msg, type='ok') {
+  const t = document.createElement('div');
+  t.className = `toast ${type}`;
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 4000);
+}
+
+// Init
+loadVersions();
+</script>
+</body>
+</html>

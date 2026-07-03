@@ -2905,6 +2905,462 @@ def gui_xd02_kzterm_change(task: dict, payload: dict) -> dict:
                 pass
 
 
+
+
+def bapi_vendor_change(task: dict, payload: dict) -> dict:
+    """
+    Aendert Lieferantenstammdaten via BAPI_VENDOR_CHANGE.
+    payload: { lifnr, centralData, centralDataX, companyData, companyDataX,
+               purchasingData, purchasingDataX, _sap_auth }
+    """
+    sap_auth = payload.get("_sap_auth") or {}
+    lifnr    = str(payload.get("lifnr", "")).strip()
+    if not lifnr:
+        return {"status": "error", "message": "lifnr fehlt"}
+
+    conn = _get_rfc_connection(sap_auth)
+    try:
+        result = conn.call(
+            "BAPI_VENDOR_CHANGE",
+            VENDORNO        = lifnr,
+            CENTRALDATA     = payload.get("centralData",     {}) or {},
+            CENTRALDATAX    = payload.get("centralDataX",    {}) or {},
+            COMPANYDATA     = payload.get("companyData",     {}) or {},
+            COMPANYDATAX    = payload.get("companyDataX",    {}) or {},
+            PURCHASINGDATA  = payload.get("purchasingData",  {}) or {},
+            PURCHASINGDATAX = payload.get("purchasingDataX", {}) or {},
+        )
+        messages = result.get("RETURN", [])
+        errors   = [m for m in messages if m.get("TYPE") in ("E", "A")]
+        if errors:
+            return {"status": "error",
+                    "message": "; ".join(m.get("MESSAGE", "") for m in errors),
+                    "messages": messages}
+        conn.call("BAPI_TRANSACTION_COMMIT", WAIT="X")
+        return {"status": "ok", "messages": messages}
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
+def gui_mk02_zterm_change(task: dict, payload: dict) -> dict:
+    """
+    Aendert ZTERM (Zahlungsbedingung) in Lieferantenstammdaten via MK02 (SAP GUI).
+    payload: { vendors: [lifnr, ...], new_zterm: "Z030", ekorg: "0001",
+               bukrs: "0439", background: false, _sap_auth: {...} }
+    """
+    import time as _t
+    sap_auth   = payload.get("_sap_auth") or {}
+    vendors    = payload.get("vendors", [])
+    new_zterm  = str(payload.get("new_zterm", "")).strip()
+    ekorg      = str(payload.get("ekorg", "0001")).strip()
+    background = bool(payload.get("background", False))
+
+    if not vendors:
+        return {"status": "error", "message": "Keine Lieferanten uebergeben"}
+    if not new_zterm:
+        return {"status": "error", "message": "new_zterm fehlt"}
+
+    target_ashost = sap_auth.get("ashost", "")
+    existing_session_hidden = False
+    if sap_auth.get("user") and sap_auth.get("passwd"):
+        connection, session, should_close = _gui_session_with_sap_auth(sap_auth)
+        log.info("MK02-ZTERM: Session fuer User=%s (neu=%s)", sap_auth.get("user"), should_close)
+        if background:
+            _hide_session_window(session)
+            if not should_close:
+                existing_session_hidden = True
+    else:
+        connection, session, should_close = _get_gui_session(target_ashost=target_ashost)
+        log.info("MK02-ZTERM: Laufende SAP GUI Session verwendet")
+        if background:
+            _hide_session_window(session)
+            existing_session_hidden = True
+
+    results = []
+    try:
+        for _pre in range(3):
+            try:
+                session.findById("wnd[1]")
+                _handle_multiple_logon_popup(session)
+                _t.sleep(0.8)
+            except Exception:
+                break
+
+        for lifnr in vendors:
+            lifnr = str(lifnr).strip()
+            if not lifnr:
+                continue
+            step = {"lifnr": lifnr, "status": "ok", "message": "", "zterm_new": new_zterm}
+            try:
+                session.findById("wnd[0]").maximize()
+                session.findById("wnd[0]/tbar[0]/okcd").text = "/nMK02"
+                session.findById("wnd[0]").sendVKey(0)
+                _t.sleep(1.5)
+
+                for _ml in range(3):
+                    try:
+                        session.findById("wnd[1]")
+                        _handle_multiple_logon_popup(session)
+                        _t.sleep(0.8)
+                    except Exception:
+                        break
+
+                log.info("MK02-ZTERM %s: LIFNR=%s EKORG=%s", lifnr, lifnr, ekorg)
+                for fid, val in [
+                    ("wnd[0]/usr/chkRF02K-D0610", True),
+                    ("wnd[0]/usr/ctxtRF02K-LIFNR", lifnr),
+                    ("wnd[0]/usr/ctxtRF02K-EKORG", ekorg),
+                ]:
+                    try:
+                        el = session.findById(fid)
+                        if isinstance(val, bool):
+                            el.selected = val
+                        else:
+                            el.text = val
+                    except Exception as _fe:
+                        log.debug("MK02-ZTERM %s: Feld %s: %s", lifnr, fid, _fe)
+
+                session.findById("wnd[0]").sendVKey(0)
+                _t.sleep(2.0)
+
+                for _ml in range(3):
+                    try:
+                        session.findById("wnd[1]")
+                        if not _handle_multiple_logon_popup(session):
+                            session.findById("wnd[1]").sendVKey(0)
+                        _t.sleep(0.8)
+                    except Exception:
+                        break
+
+                # Statusleiste nach Navigation pruefen (Fehlermeldung sichtbar machen)
+                try:
+                    sbar_nav = (session.findById("wnd[0]/sbar").text or "").strip()
+                    if sbar_nav:
+                        log.info("MK02-ZTERM %s: Statusbar nach Enter: '%s'", lifnr, sbar_nav)
+                except Exception:
+                    pass
+
+                zterm_set = False
+                # Alle bekannten Feldvarianten versuchen (SAP-systemabhaengig)
+                for fid in [
+                    "wnd[0]/usr/ctxtLFM1-ZTERM",   # Standardvariante (ctxt)
+                    "wnd[0]/usr/txtLFM1-ZTERM",    # Text-Feld-Variante
+                    "wnd[0]/usr/cmbLFM1-ZTERM",    # Combo-Box-Variante
+                    "wnd[0]/usr/subSUB:SAPLMGM1:0220/ctxtLFM1-ZTERM",
+                ]:
+                    try:
+                        el = session.findById(fid)
+                        old = (el.text or "").strip()
+                        el.text = new_zterm
+                        step["zterm_old"] = old
+                        zterm_set = True
+                        log.info("MK02-ZTERM %s: Feld '%s' ZTERM '%s' -> '%s'", lifnr, fid, old, new_zterm)
+                        break
+                    except Exception:
+                        pass
+
+                if not zterm_set:
+                    for name in ["LFM1-ZTERM", "ZTERM"]:
+                        try:
+                            fields = session.findAllByName(name)
+                            if fields and fields.count > 0:
+                                old = (fields.elementAt(0).text or "").strip()
+                                fields.elementAt(0).text = new_zterm
+                                step["zterm_old"] = old
+                                zterm_set = True
+                                log.info("MK02-ZTERM %s: findAllByName('%s') ZTERM '%s' -> '%s'", lifnr, name, old, new_zterm)
+                                break
+                        except Exception as _fe2:
+                            log.debug("MK02-ZTERM %s: findAllByName(%s): %s", lifnr, name, _fe2)
+                    if zterm_set:
+                        pass  # found via findAllByName
+
+                if not zterm_set:
+                    log.error("MK02-ZTERM %s: LFM1-ZTERM nicht gefunden. Sbar='%s'",
+                              lifnr, sbar_nav if "sbar_nav" in dir() else "?")
+                    step["status"]  = "error"
+                    step["message"] = "LFM1-ZTERM Feld nicht gefunden"
+                    results.append(step)
+                    try:
+                        session.findById("wnd[0]/tbar[0]/okcd").text = "/n"
+                        session.findById("wnd[0]").sendVKey(0)
+                        _t.sleep(0.5)
+                    except Exception:
+                        pass
+                    continue
+
+                session.findById("wnd[0]/tbar[0]/btn[11]").press()
+                _t.sleep(1.5)
+
+                try:
+                    sbar   = (session.findById("wnd[0]/sbar").text or "").strip()
+                    sbar_l = sbar.lower()
+                    log.info("MK02-ZTERM %s: Statusbar: '%s'", lifnr, sbar)
+                    if any(w in sbar_l for w in ("gesichert", "saved", "geaendert", "changed")):
+                        step["message"] = "ZTERM=" + new_zterm + " gesetzt (" + sbar + ")"
+                    elif any(w in sbar_l for w in ("fehler", "error", "ungueltig", "invalid")):
+                        step["status"]  = "error"
+                        step["message"] = "SAP Fehler: " + sbar
+                    else:
+                        step["status"]  = "warn"
+                        step["message"] = "ZTERM=" + new_zterm + " - Statusbar: '" + sbar + "'"
+                except Exception:
+                    step["message"] = "ZTERM=" + new_zterm + " gesetzt"
+
+            except Exception as e:
+                step["status"]  = "error"
+                step["message"] = str(e)
+                log.exception("MK02-ZTERM Ausnahme fuer Lieferant %s", lifnr)
+            finally:
+                try:
+                    session.findById("wnd[0]/tbar[0]/okcd").text = "/n"
+                    session.findById("wnd[0]").sendVKey(0)
+                    _t.sleep(0.5)
+                except Exception:
+                    pass
+            results.append(step)
+
+        ok   = sum(1 for r in results if r["status"] == "ok")
+        warn = sum(1 for r in results if r["status"] == "warn")
+        err  = sum(1 for r in results if r["status"] == "error")
+        log.info("gui_mk02_zterm_change: %d ok, %d warn, %d err", ok, warn, err)
+        if ok > 0:
+            _save_module_version(
+                triggered_by="gui_mk02_zterm_change",
+                description="MK02 ZTERM-Aenderung (" + new_zterm + "): " + str(ok) + " ok",
+            )
+        return {
+            "status":  "ok" if err == 0 and warn == 0 else "partial",
+            "ok":      ok, "warn": warn, "errors": err, "results": results,
+        }
+    except Exception as e:
+        log.exception("gui_mk02_zterm_change: Unerwarteter Fehler")
+        return {"status": "error", "message": str(e), "results": results}
+    finally:
+        if should_close and connection:
+            try:
+                connection.CloseConnection()
+            except Exception:
+                pass
+        elif existing_session_hidden:
+            try:
+                _show_session_window(session)
+            except Exception:
+                pass
+
+
+def gui_fk02_intad_change(task: dict, payload: dict) -> dict:
+    """
+    Aendert LFB1-INTAD (E-Mail Sachbearbeiter) via FK02 (SAP GUI Scripting).
+
+    Exakt nach VBS-Aufzeichnung:
+      1. maximize + /nFK02 + Enter
+      2. Alle Checkboxen D0110-D0220+D0610 = True
+      3. LIFNR setzen, BUKRS setzen + setFocus + caretPosition=4
+      4. Enter -> Lieferantendaten laden
+      5. 5x tbar[1]/btn[8] + txtLFB1-INTAD .text + setFocus + caretPosition
+      6. btn[11] sichern, btn[12] zurueck
+
+    payload: { vendors_intad: [{lifnr, email, bukrs}, ...],
+               bukrs: "0439",  background: false,  _sap_auth: {...} }
+    """
+    import time as _t
+    sap_auth      = payload.get("_sap_auth") or {}
+    vendors_intad = payload.get("vendors_intad", [])
+    bukrs         = str(payload.get("bukrs", "0439")).strip()
+    background    = bool(payload.get("background", False))
+
+    if not vendors_intad:
+        return {"status": "error", "message": "vendors_intad fehlt"}
+
+    target_ashost = sap_auth.get("ashost", "")
+    existing_session_hidden = False
+    if sap_auth.get("user") and sap_auth.get("passwd"):
+        connection, session, should_close = _gui_session_with_sap_auth(sap_auth)
+        log.info("FK02-INTAD: Session fuer User=%s (neu=%s)", sap_auth.get("user"), should_close)
+        if background:
+            _hide_session_window(session)
+            if not should_close:
+                existing_session_hidden = True
+    else:
+        connection, session, should_close = _get_gui_session(target_ashost=target_ashost)
+        log.info("FK02-INTAD: Laufende SAP GUI Session verwendet")
+        if background:
+            _hide_session_window(session)
+            existing_session_hidden = True
+
+    results = []
+    try:
+        # Pre-loop: Mehrfachanmeldungs-Dialog abaeumen
+        for _pre in range(3):
+            try:
+                session.findById("wnd[1]")
+                _handle_multiple_logon_popup(session)
+                _t.sleep(0.8)
+            except Exception:
+                break
+
+        for entry in vendors_intad:
+            lifnr     = str(entry.get("lifnr", "")).strip()
+            new_email = str(entry.get("email", "")).strip()
+            bukrs_v   = str(entry.get("bukrs", bukrs)).strip() or bukrs
+            step = {"lifnr": lifnr, "status": "ok", "message": "", "email": new_email}
+            if not lifnr:
+                step["status"]  = "error"
+                step["message"] = "LIFNR fehlt"
+                results.append(step)
+                continue
+            try:
+                # Schritt 1: FK02 aufrufen (exakt wie VBS)
+                log.info("FK02-INTAD %s: Navigiere zu /nFK02 ...", lifnr)
+                session.findById("wnd[0]").maximize()
+                session.findById("wnd[0]/tbar[0]/okcd").text = "/nFK02"
+                session.findById("wnd[0]").sendVKey(0)
+                _t.sleep(1.5)
+                try:
+                    cur_tx = session.findById("wnd[0]/tbar[0]/okcd").text or ""
+                    log.info("FK02-INTAD %s: Nach Navigation – tbar tcode='%s'", lifnr, cur_tx.strip())
+                except Exception:
+                    pass
+
+                # Popups nach FK02-Navigation abaeumen
+                for _ml in range(3):
+                    try:
+                        session.findById("wnd[1]")
+                        if _handle_multiple_logon_popup(session):
+                            _t.sleep(0.8)
+                        else:
+                            break
+                    except Exception:
+                        break
+
+                # Schritt 2: Alle Checkboxen setzen (wie VBS)
+                for chk in [
+                    "wnd[0]/usr/chkRF02K-D0110",
+                    "wnd[0]/usr/chkRF02K-D0120",
+                    "wnd[0]/usr/chkRF02K-D0130",
+                    "wnd[0]/usr/chkRF02K-D0210",
+                    "wnd[0]/usr/chkRF02K-D0215",
+                    "wnd[0]/usr/chkRF02K-D0220",
+                    "wnd[0]/usr/chkRF02K-D0610",
+                ]:
+                    try:
+                        session.findById(chk).selected = True
+                    except Exception as _ce:
+                        log.debug("FK02-INTAD %s: Checkbox %s: %s", lifnr, chk, _ce)
+
+                # Schritt 3: LIFNR eingeben
+                session.findById("wnd[0]/usr/ctxtRF02K-LIFNR").text = lifnr
+
+                # Schritt 4: BUKRS + setFocus + caretPosition (wie VBS)
+                bk_fld = session.findById("wnd[0]/usr/ctxtRF02K-BUKRS")
+                bk_fld.text = bukrs_v
+                bk_fld.setFocus()
+                bk_fld.caretPosition = 4
+                log.info("FK02-INTAD %s: LIFNR=%s BUKRS=%s", lifnr, lifnr, bukrs_v)
+
+                # Schritt 5: Enter -> Lieferantendaten laden + 5x tbar[1]/btn[8] (wie VBS)
+                session.findById("wnd[0]").sendVKey(0)
+                _t.sleep(2.0)
+                for _nav in range(5):
+                    try:
+                        session.findById("wnd[0]/tbar[1]/btn[8]").press()
+                        _t.sleep(0.5)
+                    except Exception as _ne:
+                        log.debug("FK02-INTAD %s: btn[8] #%d: %s", lifnr, _nav + 1, _ne)
+                        break
+
+                # Schritt 6: txtLFB1-INTAD .text setzen + setFocus + caretPosition (wie VBS)
+                try:
+                    intad_fld = session.findById("wnd[0]/usr/txtLFB1-INTAD")
+                    intad_old = (intad_fld.text or "").strip()
+                    intad_fld.text = new_email
+                    intad_fld.setFocus()
+                    intad_fld.caretPosition = len(new_email)
+                    log.info("FK02-INTAD %s: INTAD '%s' -> '%s'", lifnr, intad_old, new_email)
+                    step["intad_old"] = intad_old
+                except Exception as _ie:
+                    log.error("FK02-INTAD %s: txtLFB1-INTAD nicht gefunden: %s", lifnr, _ie)
+                    step["status"]  = "error"
+                    step["message"] = "LFB1-INTAD nicht gefunden: " + str(_ie)
+                    results.append(step)
+                    try:
+                        session.findById("wnd[0]/tbar[0]/okcd").text = "/n"
+                        session.findById("wnd[0]").sendVKey(0)
+                        _t.sleep(0.5)
+                    except Exception:
+                        pass
+                    continue
+
+                # Schritt 7: btn[11] sichern, btn[12] zurueck (wie VBS)
+                session.findById("wnd[0]/tbar[0]/btn[11]").press()
+                _t.sleep(1.5)
+                try:
+                    session.findById("wnd[0]/tbar[0]/btn[12]").press()
+                    _t.sleep(0.5)
+                except Exception:
+                    pass
+
+                # Statusleiste pruefen
+                try:
+                    sbar   = (session.findById("wnd[0]/sbar").text or "").strip()
+                    sbar_l = sbar.lower()
+                    log.info("FK02-INTAD %s: Statusbar: '%s'", lifnr, sbar)
+                    if any(w in sbar_l for w in ("gesichert", "saved", "geaendert", "changed")):
+                        step["message"] = "LFB1-INTAD gesetzt (" + sbar + ")"
+                    elif any(w in sbar_l for w in ("fehler", "error", "ungueltig", "invalid")):
+                        step["status"]  = "error"
+                        step["message"] = "SAP Fehler: " + sbar
+                    else:
+                        step["status"]  = "warn"
+                        step["message"] = "LFB1-INTAD gesetzt - Statusbar: '" + sbar + "'"
+                except Exception:
+                    step["message"] = "LFB1-INTAD '" + new_email + "' gesetzt"
+
+            except Exception as e:
+                step["status"]  = "error"
+                step["message"] = str(e)
+                log.exception("FK02-INTAD Ausnahme fuer Lieferant %s", lifnr)
+            finally:
+                try:
+                    session.findById("wnd[0]/tbar[0]/okcd").text = "/n"
+                    session.findById("wnd[0]").sendVKey(0)
+                    _t.sleep(0.5)
+                except Exception:
+                    pass
+            results.append(step)
+
+        ok   = sum(1 for r in results if r["status"] == "ok")
+        warn = sum(1 for r in results if r["status"] == "warn")
+        err  = sum(1 for r in results if r["status"] == "error")
+        log.info("gui_fk02_intad_change: %d ok, %d warn, %d err", ok, warn, err)
+        if ok > 0:
+            _save_module_version(
+                triggered_by="gui_fk02_intad_change",
+                description="FK02 LFB1-INTAD-Aenderung (" + bukrs + "): " + str(ok) + " ok",
+            )
+        return {
+            "status":  "ok" if err == 0 and warn == 0 else "partial",
+            "ok":      ok, "warn": warn, "errors": err, "results": results,
+        }
+    except Exception as e:
+        log.exception("gui_fk02_intad_change: Unerwarteter Fehler")
+        return {"status": "error", "message": str(e), "results": results}
+    finally:
+        if should_close and connection:
+            try:
+                connection.CloseConnection()
+            except Exception:
+                pass
+        elif existing_session_hidden:
+            try:
+                _show_session_window(session)
+            except Exception:
+                pass
+
 HANDLERS: dict[tuple[str, str], callable] = {
     ("BAPI", "BAPI_ACC_DOCUMENT_POST"):  bapi_acc_document_post,
     ("BAPI", "BAPI_ACC_DOCUMENT_REV"):   bapi_acc_document_rev,
@@ -2924,6 +3380,9 @@ HANDLERS: dict[tuple[str, str], callable] = {
     ("GUI",  "F110"):                    gui_f110_payment_run,
     ("GUI",  "VA42_ZTERM"):              gui_va42_zterm_change,
     ("GUI",  "XD02_KZTERM"):             gui_xd02_kzterm_change,
+    ("GUI",  "MK02_ZTERM"):              gui_mk02_zterm_change,
+    ("GUI",  "FK02_INTAD"):              gui_fk02_intad_change,
     ("Batch","AFAB"):                    batch_afab_depreciation,
     ("BAPI", "STAMMDATEN"):              bapi_stammdaten,
+    ("BAPI", "BAPI_VENDOR_CHANGE"):      bapi_vendor_change,
 }

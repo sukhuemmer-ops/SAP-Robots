@@ -42,11 +42,37 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(mess
 log = logging.getLogger("orchestrator")
 
 # ----------------------------------------------------------------------------
-# Datenbank
+# Datenbank — Pfad aus db_config.json oder Umgebungsvariable
 # ----------------------------------------------------------------------------
-_APP_ENV = os.getenv("APP_ENV", "prod")
-DATABASE_URL = f"sqlite:///./{os.getenv('ORCHESTRATOR_DB', 'orchestrator.db')}"
-engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+_APP_ENV    = os.getenv("APP_ENV", "prod")
+_ORC_DIR    = pathlib.Path(__file__).parent
+_CONFIG_FILE = _ORC_DIR / "db_config.json"
+
+import json as _json
+
+def _load_db_path() -> str:
+    """Liest den DB-Pfad aus db_config.json oder ORCHESTRATOR_DB-Env-Variable."""
+    env_override = os.getenv("ORCHESTRATOR_DB", "").strip()
+    if env_override:
+        return env_override
+    if _CONFIG_FILE.exists():
+        try:
+            cfg = _json.loads(_CONFIG_FILE.read_text(encoding="utf-8"))
+            p = cfg.get("db_path", "").strip()
+            if p:
+                log.info("DB-Pfad aus db_config.json: %s", p)
+                return p
+        except Exception as exc:
+            log.warning("db_config.json konnte nicht gelesen werden: %s", exc)
+    default = str(_ORC_DIR / "orchestrator.db")
+    return default
+
+_DB_PATH    = _load_db_path()
+DATABASE_URL = f"sqlite:///{_DB_PATH}"
+engine = create_engine(
+    DATABASE_URL,
+    connect_args={"check_same_thread": False, "timeout": 30},
+)
 
 # Rechnungen-PDF-Ablage (relativ zum Orchestrator-Verzeichnis → ../rechnungen/)
 RECHNUNGEN_DIR = pathlib.Path(__file__).parent.parent / "rechnungen"
@@ -474,6 +500,21 @@ class GovernanceRule(Base):
     priority:    Mapped[int]      = mapped_column(Integer, default=3)  # 1=info … 5=kritisch/sicherheitsrelevant
     active:      Mapped[int]      = mapped_column(Integer, default=1)
     created_at:  Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class ModuleVersion(Base):
+    """Versions-Snapshot ganzer Dateien — automatisch nach erfolgreichem Modul-Lauf."""
+    __tablename__ = "module_versions"
+    id:             Mapped[int]      = mapped_column(primary_key=True)
+    module_name:    Mapped[str]      = mapped_column(String(128))   # z.B. "handlers.py"
+    version_number: Mapped[int]      = mapped_column(Integer)       # Auto-Zähler pro Modul
+    file_path:      Mapped[str]      = mapped_column(String(512))   # absoluter Pfad
+    file_content:   Mapped[str]      = mapped_column(Text)          # kompletter Dateiinhalt
+    file_hash:      Mapped[str]      = mapped_column(String(64))    # SHA-256 — Duplikat-Schutz
+    file_size:      Mapped[int]      = mapped_column(Integer, default=0)
+    triggered_by:   Mapped[str]      = mapped_column(String(128), default="")  # Handler-Name
+    description:    Mapped[str]      = mapped_column(Text, default="")
+    created_at:     Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
 # ----------------------------------------------------------------------------
@@ -2178,6 +2219,129 @@ def toggle_governance_rule(rule_id_str: str, active: int, db: Session = Depends(
 
 
 # ============================================================================
+# MODULE VERSIONS API — Datei-Snapshots / Backup
+# ============================================================================
+
+@app.get("/module-versions", tags=["Versionierung"])
+def list_module_versions(db: Session = Depends(get_db)):
+    """Alle Module mit ihrer letzten Version."""
+    rows = (
+        db.query(ModuleVersion)
+        .order_by(ModuleVersion.module_name, ModuleVersion.version_number.desc())
+        .all()
+    )
+    # Pro Modul die neueste + alle älteren zurückgeben
+    result = []
+    for r in rows:
+        result.append({
+            "id":             r.id,
+            "module_name":    r.module_name,
+            "version_number": r.version_number,
+            "file_path":      r.file_path,
+            "file_size":      r.file_size,
+            "file_hash":      r.file_hash[:12],
+            "triggered_by":   r.triggered_by,
+            "description":    r.description,
+            "created_at":     r.created_at.isoformat() if r.created_at else "",
+        })
+    return result
+
+
+@app.get("/module-versions/{version_id}/content", tags=["Versionierung"])
+def get_module_version_content(version_id: int, db: Session = Depends(get_db)):
+    """Vollständigen Dateiinhalt einer Version zurückgeben."""
+    row = db.query(ModuleVersion).filter(ModuleVersion.id == version_id).first()
+    if not row:
+        raise HTTPException(404, "Version nicht gefunden")
+    return {
+        "id":             row.id,
+        "module_name":    row.module_name,
+        "version_number": row.version_number,
+        "file_path":      row.file_path,
+        "file_content":   row.file_content,
+        "file_size":      row.file_size,
+        "triggered_by":   row.triggered_by,
+        "description":    row.description,
+        "created_at":     row.created_at.isoformat() if row.created_at else "",
+    }
+
+
+@app.post("/module-versions/{version_id}/restore", tags=["Versionierung"])
+def restore_module_version(version_id: int, db: Session = Depends(get_db)):
+    """Datei einer Version wiederherstellen (Backup→Datei schreiben)."""
+    import shutil, os
+    row = db.query(ModuleVersion).filter(ModuleVersion.id == version_id).first()
+    if not row:
+        raise HTTPException(404, "Version nicht gefunden")
+    file_path = row.file_path
+    # Aktuellen Stand als Sicherung daneben speichern
+    if os.path.exists(file_path):
+        backup_path = file_path + ".before_restore"
+        shutil.copy2(file_path, backup_path)
+    try:
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write(row.file_content)
+    except Exception as e:
+        raise HTTPException(500, f"Schreiben fehlgeschlagen: {e}")
+    return {
+        "status":         "restored",
+        "module_name":    row.module_name,
+        "version_number": row.version_number,
+        "file_path":      file_path,
+    }
+
+
+@app.post("/module-versions/save", tags=["Versionierung"], status_code=201)
+def save_module_version_manual(
+    payload: dict,
+    db: Session = Depends(get_db)
+):
+    """Manuellen Snapshot einer Datei speichern.
+    Body: { file_path, triggered_by?, description? }
+    """
+    import hashlib, os
+    file_path    = payload.get("file_path", "")
+    triggered_by = payload.get("triggered_by", "manuell")
+    description  = payload.get("description", "")
+    if not file_path or not os.path.exists(file_path):
+        raise HTTPException(400, f"Datei nicht gefunden: {file_path}")
+    with open(file_path, "r", encoding="utf-8", errors="replace") as f:
+        content = f.read()
+    file_hash   = hashlib.sha256(content.encode()).hexdigest()
+    module_name = os.path.basename(file_path)
+    # Duplikat-Schutz
+    last = (db.query(ModuleVersion)
+              .filter(ModuleVersion.module_name == module_name)
+              .order_by(ModuleVersion.version_number.desc())
+              .first())
+    if last and last.file_hash == file_hash:
+        return {"status": "unchanged", "version_number": last.version_number, "id": last.id}
+    next_ver = (last.version_number + 1) if last else 1
+    row = ModuleVersion(
+        module_name    = module_name,
+        version_number = next_ver,
+        file_path      = file_path,
+        file_content   = content,
+        file_hash      = file_hash,
+        file_size      = len(content.encode()),
+        triggered_by   = triggered_by,
+        description    = description,
+    )
+    db.add(row); db.commit(); db.refresh(row)
+    return {"status": "saved", "version_number": next_ver, "id": row.id}
+
+
+@app.delete("/module-versions/{version_id}", tags=["Versionierung"])
+def delete_module_version(version_id: int, db: Session = Depends(get_db)):
+    """Einzelne Version aus der DB löschen."""
+    row = db.query(ModuleVersion).filter(ModuleVersion.id == version_id).first()
+    if not row:
+        raise HTTPException(404, "Version nicht gefunden")
+    db.delete(row); db.commit()
+    return {"status": "deleted", "id": version_id}
+
+
+# ============================================================================
 # KNOWLEDGE UNIVERSE API -- 13-Schichten-Wissensmodell
 # ============================================================================
 
@@ -2482,3 +2646,186 @@ def decision_feedback(
             db.add(exp); db.commit()
             log.info("Lerneffekt: Decision #%d als Erfahrung gespeichert.", item.id)
     return {"id": item.id, "outcome_correct": item.outcome_correct, "status": item.status}
+
+
+# ============================================================================
+# DB-KONFIGURATION  –  GET /db-config  ·  /test  ·  /set  ·  /migrate
+# ============================================================================
+
+@app.get("/db-config", tags=["DB-Konfiguration"])
+def get_db_config():
+    """Aktuelle DB-Verbindung + Tabellenstatistiken."""
+    import sqlite3 as _sq
+    p = pathlib.Path(_DB_PATH)
+    tables: dict = {}
+    conn_ok = False
+    conn_err = ""
+    try:
+        con = _sq.connect(_DB_PATH, timeout=5)
+        cur = con.cursor()
+        cur.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
+        for (tname,) in cur.fetchall():
+            try:
+                cur.execute(f'SELECT COUNT(*) FROM "{tname}"')
+                tables[tname] = cur.fetchone()[0]
+            except Exception:
+                tables[tname] = -1
+        con.close()
+        conn_ok = True
+    except Exception as exc:
+        conn_err = str(exc)
+
+    cfg_meta: dict = {}
+    if _CONFIG_FILE.exists():
+        try:
+            cfg_meta = _json.loads(_CONFIG_FILE.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+
+    return {
+        "db_path":          _DB_PATH,
+        "db_exists":        p.exists(),
+        "db_size_bytes":    p.stat().st_size if p.exists() else 0,
+        "connection_ok":    conn_ok,
+        "connection_error": conn_err,
+        "table_count":      len(tables),
+        "tables":           tables,
+        "config_file":      str(_CONFIG_FILE),
+        "config_active":    _CONFIG_FILE.exists(),
+        "config_meta":      cfg_meta,
+        "default_target":   "Z:\\DB\\orchestrator.db",
+    }
+
+
+@app.post("/db-config/test", tags=["DB-Konfiguration"])
+def test_db_path(payload: dict):
+    """Testet, ob ein Pfad beschreibbar und als SQLite-DB nutzbar ist."""
+    import sqlite3 as _sq
+    db_path = payload.get("db_path", "").strip()
+    if not db_path:
+        raise HTTPException(400, "db_path fehlt")
+    p = pathlib.Path(db_path)
+    if not p.parent.exists():
+        return {"status": "error",
+                "message": f"Verzeichnis nicht gefunden: {p.parent}"}
+    try:
+        con = _sq.connect(str(p), timeout=5)
+        con.execute("PRAGMA journal_mode=WAL")
+        con.execute("CREATE TABLE IF NOT EXISTS _yconn_probe (id INTEGER PRIMARY KEY)")
+        con.execute("INSERT INTO _yconn_probe VALUES (NULL)")
+        con.execute("DELETE FROM _yconn_probe")
+        con.execute("DROP TABLE _yconn_probe")
+        con.commit()
+        con.close()
+        # Temporäre Testdatei wieder löschen (nur wenn neu angelegt)
+        is_new = p.exists() and p.stat().st_size < 4096
+        exists_before = p.exists()
+        return {
+            "status":       "ok",
+            "message":      "Verbindung und Schreibzugriff OK",
+            "db_path":      str(p),
+            "dir_exists":   True,
+            "file_exists":  exists_before,
+            "size_bytes":   p.stat().st_size if p.exists() else 0,
+        }
+    except Exception as exc:
+        return {"status": "error", "message": str(exc)}
+
+
+@app.post("/db-config/set", tags=["DB-Konfiguration"])
+def set_db_config(payload: dict):
+    """Speichert neuen DB-Pfad in db_config.json. Neustart erforderlich."""
+    db_path    = payload.get("db_path", "").strip()
+    updated_by = payload.get("updated_by", "manuell")
+    if not db_path:
+        raise HTTPException(400, "db_path fehlt")
+    p = pathlib.Path(db_path)
+    if not p.parent.exists():
+        raise HTTPException(400, f"Verzeichnis nicht gefunden: {p.parent}")
+    cfg = {
+        "db_path":       str(p),
+        "db_dir":        str(p.parent),
+        "previous_path": _DB_PATH,
+        "updated_at":    datetime.utcnow().isoformat(),
+        "updated_by":    updated_by,
+    }
+    try:
+        _CONFIG_FILE.write_text(
+            _json.dumps(cfg, indent=2, ensure_ascii=False), encoding="utf-8"
+        )
+        log.info("DB-Konfiguration geändert → %s (durch %s)", db_path, updated_by)
+    except Exception as exc:
+        raise HTTPException(500, f"Config-Datei konnte nicht gespeichert werden: {exc}")
+    return {
+        "status":          "saved",
+        "message":         "Konfiguration gespeichert. Orchestrator jetzt neu starten.",
+        "db_path":         str(p),
+        "restart_required": True,
+    }
+
+
+@app.get("/server-info", tags=["System"])
+def server_info():
+    """Gibt Netzwerk-IP, Hostname und Zugriffs-URL des Servers zurück."""
+    import socket as _sock
+    hostname = _sock.gethostname()
+    # Primäre Netzwerk-IP ermitteln (nicht 127.0.0.1)
+    primary_ip = "127.0.0.1"
+    try:
+        s = _sock.socket(_sock.AF_INET, _sock.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        primary_ip = s.getsockname()[0]
+        s.close()
+    except Exception:
+        pass
+    # Alle Netzwerk-IPs sammeln
+    all_ips = []
+    try:
+        for info in _sock.getaddrinfo(hostname, None, _sock.AF_INET):
+            ip = info[4][0]
+            if ip not in all_ips:
+                all_ips.append(ip)
+    except Exception:
+        all_ips = [primary_ip]
+    port = 8000
+    return {
+        "hostname":    hostname,
+        "primary_ip":  primary_ip,
+        "all_ips":     all_ips,
+        "port":        port,
+        "cockpit_url": f"http://{primary_ip}:{port}/cockpit/startseite.html",
+        "login_url":   f"http://{primary_ip}:{port}/cockpit/login.html",
+        "api_docs":    f"http://{primary_ip}:{port}/docs",
+        "db_path":     _DB_PATH,
+    }
+
+
+@app.post("/db-config/migrate", tags=["DB-Konfiguration"])
+def migrate_db(payload: dict):
+    """Kopiert alle Daten der aktuellen DB in eine neue Zieldatei (SQLite backup API)."""
+    import sqlite3 as _sq
+    target = payload.get("target_path", "").strip()
+    if not target:
+        raise HTTPException(400, "target_path fehlt")
+    tp = pathlib.Path(target)
+    if not tp.parent.exists():
+        raise HTTPException(400, f"Zielverzeichnis nicht gefunden: {tp.parent}")
+    if tp.resolve() == pathlib.Path(_DB_PATH).resolve():
+        raise HTTPException(400, "Quelle und Ziel sind identisch")
+    try:
+        src = _sq.connect(_DB_PATH, timeout=10)
+        dst = _sq.connect(str(tp), timeout=10)
+        src.backup(dst, pages=200)   # pages=-1 = alles auf einmal; 200 = schonend
+        src.close()
+        dst.close()
+        size = tp.stat().st_size
+        log.info("DB-Migration abgeschlossen: %s → %s (%d bytes)", _DB_PATH, target, size)
+        return {
+            "status":           "ok",
+            "message":          f"Migration erfolgreich – {size:,} Bytes kopiert",
+            "source_path":      _DB_PATH,
+            "target_path":      str(tp),
+            "target_size_bytes": size,
+        }
+    except Exception as exc:
+        raise HTTPException(500, f"Migration fehlgeschlagen: {exc}")

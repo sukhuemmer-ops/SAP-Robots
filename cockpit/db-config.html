@@ -1,0 +1,653 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<script>
+if (location.protocol === 'file:') {
+  var _fn = (location.pathname.split('/').pop() || location.pathname.split('\\').pop());
+  location.replace('http://localhost:8000/cockpit/' + _fn + location.search + location.hash);
+}
+</script>
+<title>Datenbank-Konfiguration – YCONN</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<script src="auth.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0d1117;--bg2:#161b22;--bg3:#21262d;--bg4:#2d333b;
+  --border:#30363d;--text:#e6edf3;--muted:#8b949e;
+  --acc:#58a6ff;--ok:#3fb950;--warn:#d2a21a;--err:#f85149;
+  --purple:#bc8cff;--teal:#39d353;
+}
+html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  font-size:13px;background:var(--bg);color:var(--text);}
+a{color:inherit;text-decoration:none;}
+
+/* ── Header ───────────────────────────────────────────────────── */
+.header{background:var(--bg2);border-bottom:1px solid var(--border);
+  padding:10px 20px;display:flex;align-items:center;gap:12px;}
+.header h1{font-size:15px;font-weight:700;flex:1;
+  display:flex;align-items:center;gap:8px;}
+.hdr-icon{font-size:20px}
+.badge{padding:2px 8px;border-radius:999px;font-size:10px;font-weight:700;border:1px solid;}
+.badge-ok{background:rgba(63,185,80,.12);border-color:rgba(63,185,80,.3);color:var(--ok);}
+.badge-err{background:rgba(248,81,73,.12);border-color:rgba(248,81,73,.3);color:var(--err);}
+.badge-warn{background:rgba(210,162,26,.12);border-color:rgba(210,162,26,.3);color:var(--warn);}
+.header-right{display:flex;align-items:center;gap:8px;margin-left:auto}
+.btn-nav{padding:5px 11px;border-radius:6px;background:var(--bg3);
+  border:1px solid var(--border);color:var(--muted);font-size:12px;cursor:pointer;
+  white-space:nowrap;}
+.btn-nav:hover{color:var(--text);border-color:var(--muted);}
+
+/* ── Layout ───────────────────────────────────────────────────── */
+.page{max-width:1080px;margin:0 auto;padding:24px 20px;display:grid;
+  grid-template-columns:1fr 1fr;gap:20px;}
+@media(max-width:720px){.page{grid-template-columns:1fr;}}
+.full{grid-column:1/-1;}
+
+/* ── Cards ────────────────────────────────────────────────────── */
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;
+  overflow:hidden;}
+.card-head{padding:14px 18px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:10px;}
+.card-head h2{font-size:13px;font-weight:700;flex:1;}
+.card-body{padding:18px;}
+
+/* ── Status Banner ────────────────────────────────────────────── */
+.status-banner{display:flex;align-items:center;gap:14px;padding:14px 18px;
+  border-radius:10px;border:1px solid;}
+.status-banner.ok{background:rgba(63,185,80,.06);border-color:rgba(63,185,80,.25);}
+.status-banner.err{background:rgba(248,81,73,.06);border-color:rgba(248,81,73,.25);}
+.status-banner.warn{background:rgba(210,162,26,.06);border-color:rgba(210,162,26,.25);}
+.sb-dot{width:12px;height:12px;border-radius:50%;flex-shrink:0;}
+.sb-dot.ok{background:var(--ok);box-shadow:0 0 8px var(--ok);}
+.sb-dot.err{background:var(--err);box-shadow:0 0 8px var(--err);}
+.sb-dot.warn{background:var(--warn);box-shadow:0 0 8px var(--warn);}
+.sb-label{font-weight:700;font-size:13px;}
+.sb-sub{font-size:11px;color:var(--muted);margin-top:2px;}
+
+/* ── Stat Grid ────────────────────────────────────────────────── */
+.stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:14px;}
+.stat-box{background:var(--bg3);border:1px solid var(--border);border-radius:8px;
+  padding:12px 14px;text-align:center;}
+.stat-val{font-size:22px;font-weight:800;color:var(--acc);}
+.stat-lbl{font-size:10px;color:var(--muted);margin-top:3px;text-transform:uppercase;letter-spacing:.5px;}
+
+/* ── Path display ─────────────────────────────────────────────── */
+.path-display{background:var(--bg3);border:1px solid var(--border);border-radius:8px;
+  padding:10px 14px;font-family:monospace;font-size:12px;color:var(--teal);
+  word-break:break-all;margin-top:14px;}
+.path-label{font-size:10px;color:var(--muted);text-transform:uppercase;
+  letter-spacing:.5px;margin-bottom:4px;}
+
+/* ── Table list ───────────────────────────────────────────────── */
+.tbl-list{margin-top:14px;max-height:280px;overflow-y:auto;
+  border:1px solid var(--border);border-radius:8px;}
+.tbl-row{display:flex;align-items:center;padding:7px 12px;
+  border-bottom:1px solid var(--border);gap:10px;}
+.tbl-row:last-child{border-bottom:none;}
+.tbl-row:nth-child(even){background:rgba(255,255,255,.02);}
+.tbl-name{flex:1;font-family:monospace;font-size:11px;color:var(--acc);}
+.tbl-count{font-size:11px;color:var(--muted);white-space:nowrap;}
+.tbl-badge{font-size:9px;background:rgba(63,185,80,.15);color:var(--ok);
+  border-radius:999px;padding:1px 6px;white-space:nowrap;}
+
+/* ── Form ─────────────────────────────────────────────────────── */
+.form-group{margin-bottom:14px;}
+.form-label{font-size:11px;color:var(--muted);text-transform:uppercase;
+  letter-spacing:.5px;margin-bottom:6px;display:block;}
+.form-input{width:100%;padding:9px 12px;background:var(--bg3);
+  border:1px solid var(--border);border-radius:8px;color:var(--text);
+  font-size:13px;font-family:inherit;outline:none;transition:border-color .15s;}
+.form-input:focus{border-color:var(--acc);}
+.form-hint{font-size:11px;color:var(--muted);margin-top:5px;}
+.form-row{display:flex;gap:8px;}
+.form-row .form-input{flex:1;}
+
+/* ── Buttons ──────────────────────────────────────────────────── */
+.btn{padding:8px 16px;border-radius:8px;border:1px solid;font-size:12px;
+  font-weight:600;cursor:pointer;font-family:inherit;transition:all .15s;
+  white-space:nowrap;display:inline-flex;align-items:center;gap:6px;}
+.btn:disabled{opacity:.45;cursor:not-allowed;}
+.btn-acc{background:var(--acc);border-color:var(--acc);color:#0d1117;}
+.btn-acc:hover:not(:disabled){opacity:.85;}
+.btn-ok{background:rgba(63,185,80,.15);border-color:rgba(63,185,80,.4);color:var(--ok);}
+.btn-ok:hover:not(:disabled){background:rgba(63,185,80,.25);}
+.btn-ghost{background:var(--bg3);border-color:var(--border);color:var(--muted);}
+.btn-ghost:hover:not(:disabled){color:var(--text);border-color:var(--muted);}
+.btn-warn{background:rgba(210,162,26,.15);border-color:rgba(210,162,26,.4);color:var(--warn);}
+.btn-warn:hover:not(:disabled){background:rgba(210,162,26,.25);}
+.btn-err{background:rgba(248,81,73,.15);border-color:rgba(248,81,73,.4);color:var(--err);}
+
+/* ── Restart banner ───────────────────────────────────────────── */
+.restart-box{display:none;background:rgba(210,162,26,.08);
+  border:1px solid rgba(210,162,26,.3);border-radius:10px;
+  padding:14px 18px;margin-top:16px;}
+.restart-box.show{display:block;}
+.restart-box h3{color:var(--warn);font-size:13px;margin-bottom:8px;}
+.restart-box pre{font-size:11px;background:var(--bg3);border-radius:6px;
+  padding:8px 12px;overflow-x:auto;border:1px solid var(--border);
+  color:var(--teal);margin-top:8px;}
+
+/* ── Toast ────────────────────────────────────────────────────── */
+.toast-wrap{position:fixed;bottom:24px;right:24px;display:flex;
+  flex-direction:column;gap:8px;z-index:9999;}
+.toast{padding:10px 16px;border-radius:8px;font-size:12px;font-weight:600;
+  border:1px solid;animation:fadeIn .2s ease;max-width:360px;}
+.toast.ok{background:rgba(63,185,80,.15);border-color:rgba(63,185,80,.4);color:var(--ok);}
+.toast.err{background:rgba(248,81,73,.15);border-color:rgba(248,81,73,.4);color:var(--err);}
+.toast.warn{background:rgba(210,162,26,.15);border-color:rgba(210,162,26,.4);color:var(--warn);}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+
+/* ── Test result inline ───────────────────────────────────────── */
+.test-result{margin-top:10px;padding:10px 14px;border-radius:8px;border:1px solid;
+  font-size:12px;display:none;}
+.test-result.ok{background:rgba(63,185,80,.08);border-color:rgba(63,185,80,.3);color:var(--ok);}
+.test-result.err{background:rgba(248,81,73,.08);border-color:rgba(248,81,73,.3);color:var(--err);}
+
+/* ── Migration steps ──────────────────────────────────────────── */
+.steps{margin-top:14px;display:flex;flex-direction:column;gap:10px;}
+.step{display:flex;gap:12px;align-items:flex-start;}
+.step-num{width:24px;height:24px;border-radius:50%;background:var(--acc);
+  color:#0d1117;font-size:11px;font-weight:800;display:flex;align-items:center;
+  justify-content:center;flex-shrink:0;margin-top:1px;}
+.step-body h4{font-size:12px;font-weight:700;margin-bottom:2px;}
+.step-body p{font-size:11px;color:var(--muted);}
+
+/* ── Progress bar ─────────────────────────────────────────────── */
+.progress{height:6px;background:var(--bg3);border-radius:3px;overflow:hidden;
+  margin-top:10px;display:none;}
+.progress.show{display:block;}
+.progress-bar{height:100%;background:var(--acc);border-radius:3px;
+  transition:width .3s ease;width:0%;}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:.5;}}
+.progress-bar.pulsing{animation:pulse 1.2s ease infinite;}
+
+/* ── Config badge ─────────────────────────────────────────────── */
+.cfg-row{display:flex;align-items:center;justify-content:space-between;
+  padding:7px 0;border-bottom:1px solid var(--border);font-size:12px;}
+.cfg-row:last-child{border-bottom:none;}
+.cfg-key{color:var(--muted);}
+.cfg-val{font-family:monospace;font-size:11px;color:var(--text);
+  max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  text-align:right;}
+
+/* ── Spinner ──────────────────────────────────────────────────── */
+@keyframes spin{to{transform:rotate(360deg)}}
+.spin{display:inline-block;width:12px;height:12px;border:2px solid rgba(255,255,255,.3);
+  border-top-color:currentColor;border-radius:50%;animation:spin .6s linear infinite;
+  vertical-align:middle;}
+</style>
+</head>
+<body>
+
+<!-- ══════════ HEADER ══════════ -->
+<div class="header">
+  <h1><span class="hdr-icon">🗄</span> Datenbank-Konfiguration
+    <span class="badge badge-warn" id="hdrStatus">Lädt…</span>
+  </h1>
+  <div class="header-right" id="headerRight">
+    <a class="btn-nav" href="startseite.html">⌂ Startseite</a>
+    <a class="btn-nav" href="versions.html">📦 Modul-Versionen</a>
+    <a class="btn-nav" href="db-admin.html">3W Details</a>
+  </div>
+</div>
+
+<!-- ══════════ MAIN ══════════ -->
+<div class="page">
+
+  <!-- ── Aktuelle Verbindung ─────────────────────────────────── -->
+  <div class="card full">
+    <div class="card-head">
+      <h2>🔌 Aktuelle Datenbankverbindung</h2>
+      <button class="btn btn-ghost" onclick="loadStatus()" id="btnRefresh">
+        ↻ Aktualisieren
+      </button>
+    </div>
+    <div class="card-body">
+
+      <div id="connBanner" class="status-banner warn">
+        <div class="sb-dot warn"></div>
+        <div>
+          <div class="sb-label">Verbindung wird geprüft…</div>
+          <div class="sb-sub" id="connPath">–</div>
+        </div>
+      </div>
+
+      <div class="stat-grid">
+        <div class="stat-box">
+          <div class="stat-val" id="statTables">–</div>
+          <div class="stat-lbl">Tabellen</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-val" id="statSize">–</div>
+          <div class="stat-lbl">Dateigröße</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-val" id="statRows">–</div>
+          <div class="stat-lbl">Datensätze gesamt</div>
+        </div>
+      </div>
+
+      <div style="margin-top:14px;">
+        <div class="path-label">Datenbankpfad</div>
+        <div class="path-display" id="dbPathDisplay">–</div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── Tabellen-Übersicht ──────────────────────────────────── -->
+  <div class="card">
+    <div class="card-head">
+      <h2>📋 Tabellen &amp; Datensätze</h2>
+    </div>
+    <div class="card-body" style="padding:0;">
+      <div class="tbl-list" id="tableList">
+        <div class="tbl-row"><span class="tbl-name" style="color:var(--muted)">Lade…</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── DB-Konfiguration aktiv ──────────────────────────────── -->
+  <div class="card">
+    <div class="card-head">
+      <h2>⚙️ Konfigurationsdatei</h2>
+      <span class="badge" id="cfgActiveBadge">–</span>
+    </div>
+    <div class="card-body">
+      <div id="cfgMeta" style="font-size:12px;color:var(--muted);">
+        Keine db_config.json – Standardpfad aktiv.
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Verbindung konfigurieren ────────────────────────────── -->
+  <div class="card full">
+    <div class="card-head">
+      <h2>🔧 Datenbankpfad konfigurieren</h2>
+    </div>
+    <div class="card-body">
+
+      <div class="form-group">
+        <label class="form-label">Neuer Datenbankpfad</label>
+        <div class="form-row">
+          <input class="form-input" id="inNewPath" type="text"
+            placeholder="Z:\DB\orchestrator.db"
+            value="Z:\DB\orchestrator.db">
+          <button class="btn btn-ghost" onclick="testPath()" id="btnTest">
+            🔍 Testen
+          </button>
+        </div>
+        <div class="form-hint">
+          Pfad zur SQLite-Datenbankdatei. Das Verzeichnis muss existieren und beschreibbar sein.
+          Empfohlen: Netzlaufwerk <strong>Z:\DB\</strong> für gemeinsame Nutzung.
+        </div>
+      </div>
+
+      <div class="test-result" id="testResult"></div>
+
+      <div style="display:flex;gap:10px;margin-top:16px;flex-wrap:wrap;">
+        <button class="btn btn-ok" onclick="savePath()" id="btnSave" disabled>
+          💾 Konfiguration speichern
+        </button>
+        <button class="btn btn-ghost" onclick="resetPath()">
+          ↩ Auf Standard zurücksetzen
+        </button>
+        <button class="btn btn-ghost" onclick="prefillZDB()">
+          📁 Z:\DB\ vorausfüllen
+        </button>
+      </div>
+
+      <div class="restart-box" id="restartBox">
+        <h3>⚠️ Neustart erforderlich</h3>
+        <p>Die neue Datenbank wird erst nach einem Neustart des Orchestrators aktiv.
+        Bitte starten Sie den Orchestrator neu:</p>
+        <pre id="restartCmd">Orchestrator starten.bat</pre>
+        <p style="margin-top:8px;font-size:11px;color:var(--muted);">
+          Tipp: Führen Sie vorher die <strong>Datenmigration</strong> durch,
+          um alle Daten in die neue Datenbank zu kopieren.
+        </p>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── Datenmigration ─────────────────────────────────────── -->
+  <div class="card full">
+    <div class="card-head">
+      <h2>🚛 Datenmigration</h2>
+      <span class="badge badge-warn">Backup vor Migration empfohlen!</span>
+    </div>
+    <div class="card-body">
+
+      <p style="color:var(--muted);font-size:12px;margin-bottom:16px;">
+        Kopiert alle Daten aus der <strong>aktuellen</strong> Datenbank in eine neue Zieldatei.
+        Die Quelldatenbank bleibt unverändert. Nach der Migration den neuen Pfad oben konfigurieren.
+      </p>
+
+      <div class="steps">
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-body">
+            <h4>Zieldatei festlegen</h4>
+            <p>Pfad der neuen (leeren) Datenbankdatei — Verzeichnis muss existieren.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-body">
+            <h4>Migration starten</h4>
+            <p>Alle Tabellen und Daten werden via SQLite Backup-API übertragen.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-body">
+            <h4>Neuen Pfad oben speichern &amp; Orchestrator neu starten</h4>
+            <p>Danach wird automatisch die neue Datenbank genutzt.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-group" style="margin-top:18px;">
+        <label class="form-label">Zieldatei</label>
+        <div class="form-row">
+          <input class="form-input" id="inMigTarget" type="text"
+            placeholder="Z:\DB\orchestrator.db"
+            value="Z:\DB\orchestrator.db">
+          <button class="btn btn-warn" onclick="startMigration()" id="btnMigrate">
+            🚛 Migration starten
+          </button>
+        </div>
+        <div class="form-hint">
+          Die Datei wird angelegt, falls sie noch nicht existiert.
+          Existierende Daten in der Zieldatei werden überschrieben.
+        </div>
+      </div>
+
+      <div class="progress" id="migProgress">
+        <div class="progress-bar pulsing" id="migBar" style="width:100%"></div>
+      </div>
+
+      <div class="test-result" id="migResult" style="margin-top:10px;"></div>
+
+    </div>
+  </div>
+
+</div><!-- /page -->
+
+<div class="toast-wrap" id="toastWrap"></div>
+
+<script>
+const ORCH = window.location.origin;
+let _currentStatus = null;
+
+// ── Auth ──────────────────────────────────────────────────────
+AUTH.renderHeader('headerRight');
+
+// ── Load status ───────────────────────────────────────────────
+async function loadStatus() {
+  document.getElementById('btnRefresh').innerHTML = '<span class="spin"></span> Lade…';
+  try {
+    const r = await fetch(`${ORCH}/db-config`);
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    _currentStatus = await r.json();
+    renderStatus(_currentStatus);
+  } catch (e) {
+    toast('Orchestrator nicht erreichbar: ' + e.message, 'err');
+    const b = document.getElementById('connBanner');
+    b.className = 'status-banner err';
+    b.innerHTML = '<div class="sb-dot err"></div><div><div class="sb-label">Verbindung fehlgeschlagen</div><div class="sb-sub">' + e.message + '</div></div>';
+    document.getElementById('hdrStatus').textContent = 'Offline';
+    document.getElementById('hdrStatus').className = 'badge badge-err';
+  } finally {
+    document.getElementById('btnRefresh').textContent = '↻ Aktualisieren';
+  }
+}
+
+function renderStatus(s) {
+  // Header badge
+  const hdr = document.getElementById('hdrStatus');
+  if (s.connection_ok) {
+    hdr.textContent = '● Verbunden';
+    hdr.className = 'badge badge-ok';
+  } else {
+    hdr.textContent = '● Fehler';
+    hdr.className = 'badge badge-err';
+  }
+
+  // Connection banner
+  const banner = document.getElementById('connBanner');
+  if (s.connection_ok) {
+    banner.className = 'status-banner ok';
+    banner.innerHTML =
+      '<div class="sb-dot ok"></div>' +
+      '<div><div class="sb-label">Verbindung aktiv</div>' +
+      '<div class="sb-sub" id="connPath">' + escH(s.db_path) + '</div></div>';
+  } else {
+    banner.className = 'status-banner err';
+    banner.innerHTML =
+      '<div class="sb-dot err"></div>' +
+      '<div><div class="sb-label">Verbindungsfehler</div>' +
+      '<div class="sb-sub">' + escH(s.connection_error || 'Unbekannter Fehler') + '</div></div>';
+  }
+
+  // Stats
+  const totalRows = Object.values(s.tables || {})
+    .filter(v => typeof v === 'number').reduce((a, b) => a + b, 0);
+  document.getElementById('statTables').textContent = s.table_count ?? '–';
+  document.getElementById('statSize').textContent   = fmtBytes(s.db_size_bytes || 0);
+  document.getElementById('statRows').textContent   = totalRows.toLocaleString('de');
+
+  // Path
+  document.getElementById('dbPathDisplay').textContent = s.db_path || '–';
+
+  // Table list
+  const list = document.getElementById('tableList');
+  const tables = s.tables || {};
+  const names  = Object.keys(tables).sort();
+  if (names.length === 0) {
+    list.innerHTML = '<div class="tbl-row"><span class="tbl-name" style="color:var(--muted)">Keine Tabellen</span></div>';
+  } else {
+    list.innerHTML = names.map(n => {
+      const cnt = tables[n];
+      return `<div class="tbl-row">
+        <span class="tbl-name">${escH(n)}</span>
+        <span class="tbl-count">${typeof cnt === 'number' ? cnt.toLocaleString('de') + ' Zeilen' : '–'}</span>
+        ${cnt > 0 ? '<span class="tbl-badge">● Daten</span>' : ''}
+      </div>`;
+    }).join('');
+  }
+
+  // Config meta
+  const cfgBadge = document.getElementById('cfgActiveBadge');
+  const cfgMeta  = document.getElementById('cfgMeta');
+  if (s.config_active && s.config_meta && Object.keys(s.config_meta).length) {
+    cfgBadge.textContent = '● Aktiv';
+    cfgBadge.className = 'badge badge-ok';
+    const m = s.config_meta;
+    cfgMeta.innerHTML = [
+      { k: 'DB-Pfad',          v: m.db_path || '–' },
+      { k: 'Geändert am',      v: m.updated_at ? new Date(m.updated_at).toLocaleString('de') : '–' },
+      { k: 'Geändert durch',   v: m.updated_by || '–' },
+      { k: 'Vorheriger Pfad',  v: m.previous_path || '–' },
+    ].map(({ k, v }) =>
+      `<div class="cfg-row"><span class="cfg-key">${k}</span><span class="cfg-val" title="${escH(v)}">${escH(v)}</span></div>`
+    ).join('');
+  } else {
+    cfgBadge.textContent = 'Standard';
+    cfgBadge.className = 'badge badge-warn';
+    cfgMeta.innerHTML = '<p style="color:var(--muted);font-size:12px;">Keine <code>db_config.json</code> – Standardpfad wird verwendet.<br>Konfigurieren Sie unten einen neuen Datenbankpfad, um eine gemeinsame Datenbank einzurichten.</p>';
+  }
+
+  // Pre-fill target with default from server
+  if (s.default_target && !document.getElementById('inMigTarget').dataset.touched) {
+    document.getElementById('inMigTarget').value = s.default_target;
+  }
+}
+
+// ── Test path ─────────────────────────────────────────────────
+async function testPath() {
+  const p = document.getElementById('inNewPath').value.trim();
+  if (!p) { toast('Bitte Pfad eingeben', 'warn'); return; }
+  const btn = document.getElementById('btnTest');
+  btn.innerHTML = '<span class="spin"></span>';
+  btn.disabled = true;
+  try {
+    const r   = await fetch(`${ORCH}/db-config/test`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ db_path: p })
+    });
+    const d = await r.json();
+    const el = document.getElementById('testResult');
+    el.style.display = 'block';
+    if (d.status === 'ok') {
+      el.className = 'test-result ok';
+      el.innerHTML = `✅ ${escH(d.message)} &nbsp;|&nbsp; ${fmtBytes(d.size_bytes || 0)} &nbsp;|&nbsp; ${d.file_exists ? 'Datei vorhanden' : 'Neue Datei wird angelegt'}`;
+      document.getElementById('btnSave').disabled = false;
+    } else {
+      el.className = 'test-result err';
+      el.innerHTML = `❌ ${escH(d.message)}`;
+      document.getElementById('btnSave').disabled = true;
+    }
+  } catch (e) {
+    toast('Fehler: ' + e.message, 'err');
+  } finally {
+    btn.textContent = '🔍 Testen';
+    btn.disabled = false;
+  }
+}
+
+// ── Save path ─────────────────────────────────────────────────
+async function savePath() {
+  const p  = document.getElementById('inNewPath').value.trim();
+  const by = (AUTH.user && AUTH.user.display_name) ? AUTH.user.display_name : 'manuell';
+  if (!p) { toast('Bitte Pfad eingeben', 'warn'); return; }
+  const btn = document.getElementById('btnSave');
+  btn.innerHTML = '<span class="spin"></span> Speichern…';
+  btn.disabled = true;
+  try {
+    const r = await fetch(`${ORCH}/db-config/set`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ db_path: p, updated_by: by })
+    });
+    const d = await r.json();
+    if (r.ok && d.status === 'saved') {
+      toast('✅ Konfiguration gespeichert!', 'ok');
+      document.getElementById('restartBox').classList.add('show');
+      document.getElementById('restartCmd').textContent =
+        'C:\\WF\\sap-robots\\Orchestrator starten.bat\n\n(oder: PROD starten.bat / DEV starten.bat)';
+      loadStatus();
+    } else {
+      toast('Fehler: ' + (d.detail || JSON.stringify(d)), 'err');
+    }
+  } catch (e) {
+    toast('Fehler: ' + e.message, 'err');
+  } finally {
+    btn.textContent = '💾 Konfiguration speichern';
+    btn.disabled = false;
+  }
+}
+
+// ── Reset to default ──────────────────────────────────────────
+async function resetPath() {
+  if (!confirm('Standardpfad wiederherstellen? db_config.json wird zurückgesetzt auf den lokalen Orchestrator-Pfad.')) return;
+  const r = await fetch(`${ORCH}/db-config`);
+  const s = await r.json();
+  // Wir setzen den Pfad auf den aktuell geladenen DB-Pfad (Default)
+  const defaultPath = s.db_path;
+  document.getElementById('inNewPath').value = defaultPath;
+  document.getElementById('testResult').style.display = 'none';
+  document.getElementById('btnSave').disabled = false;
+  await savePath();
+}
+
+function prefillZDB() {
+  const cur = document.getElementById('inNewPath').value.trim();
+  const fname = cur.split('\\').pop() || 'orchestrator.db';
+  document.getElementById('inNewPath').value = 'Z:\\DB\\' + fname;
+  document.getElementById('testResult').style.display = 'none';
+  document.getElementById('btnSave').disabled = true;
+  toast('Pfad vorausgefüllt – bitte mit Testen bestätigen.', 'warn');
+}
+
+// ── Migration ─────────────────────────────────────────────────
+document.getElementById('inMigTarget').addEventListener('input', function() {
+  this.dataset.touched = '1';
+});
+
+async function startMigration() {
+  const target = document.getElementById('inMigTarget').value.trim();
+  if (!target) { toast('Bitte Zieldatei angeben', 'warn'); return; }
+  if (!confirm(`Alle Daten nach\n${target}\nkopieren?\n\nVorhandene Daten in der Zieldatei werden überschrieben.`)) return;
+
+  const btn  = document.getElementById('btnMigrate');
+  const prog = document.getElementById('migProgress');
+  const res  = document.getElementById('migResult');
+  btn.innerHTML = '<span class="spin"></span> Migriere…';
+  btn.disabled  = true;
+  prog.classList.add('show');
+  res.style.display = 'none';
+
+  try {
+    const r = await fetch(`${ORCH}/db-config/migrate`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ target_path: target })
+    });
+    const d = await r.json();
+    prog.classList.remove('show');
+    res.style.display = 'block';
+    if (r.ok && d.status === 'ok') {
+      res.className = 'test-result ok';
+      res.innerHTML = `✅ ${escH(d.message)}<br>
+        <span style="color:var(--muted)">Quelle: ${escH(d.source_path)}</span><br>
+        <span style="color:var(--muted)">Ziel: ${escH(d.target_path)} (${fmtBytes(d.target_size_bytes)})</span><br>
+        <strong style="margin-top:6px;display:block;">→ Neuen Pfad jetzt oben konfigurieren und Orchestrator neu starten.</strong>`;
+      // Konfigurations-Eingabe mit Zielpfad befüllen
+      document.getElementById('inNewPath').value = target;
+      document.getElementById('testResult').style.display = 'none';
+      document.getElementById('btnSave').disabled = false;
+      toast('✅ Migration erfolgreich!', 'ok');
+    } else {
+      res.className = 'test-result err';
+      res.innerHTML = '❌ ' + escH(d.detail || d.message || JSON.stringify(d));
+      toast('Migration fehlgeschlagen', 'err');
+    }
+  } catch (e) {
+    prog.classList.remove('show');
+    toast('Fehler: ' + e.message, 'err');
+  } finally {
+    btn.textContent = '🚛 Migration starten';
+    btn.disabled = false;
+  }
+}
+
+// ── Helpers ───────────────────────────────────────────────────
+function fmtBytes(b) {
+  if (b === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B','KB','MB','GB'];
+  const i = Math.floor(Math.log(b) / Math.log(k));
+  return (b / Math.pow(k, i)).toFixed(1) + ' ' + sizes[i];
+}
+
+function escH(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function toast(msg, type = 'ok') {
+  const w = document.getElementById('toastWrap');
+  const t = document.createElement('div');
+  t.className = 'toast ' + type;
+  t.textContent = msg;
+  w.appendChild(t);
+  setTimeout(() => t.remove(), 4500);
+}
+
+// ── Init ─────────────────────────────────────────────────────
+loadStatus();
+</script>
+</body>
+</html>

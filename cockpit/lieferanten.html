@@ -1,0 +1,1137 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<script>
+if (location.protocol === 'file:') {
+  var _fn = (location.pathname.split('/').pop() || location.pathname.split('\\').pop());
+  location.replace('http://localhost:8000/cockpit/' + _fn + location.search + location.hash);
+}
+</script>
+<title>SAP Lieferantenstammdaten – YCONN</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<script src="auth.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0d1117;--bg2:#161b22;--bg3:#21262d;
+  --border:#30363d;--text:#e6edf3;--muted:#8b949e;
+  --acc:#58a6ff;--ok:#3fb950;--warn:#d2a21a;--err:#f85149;
+  --new:#a371f7;
+}
+html,body{min-height:100vh;background:var(--bg);color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;font-size:13px;}
+a{color:inherit;text-decoration:none;}
+
+/* ─── Header ─────────────────────────────────────── */
+.header{background:var(--bg2);border-bottom:1px solid var(--border);
+  padding:10px 20px;display:flex;align-items:center;gap:12px;}
+.header h1{font-size:15px;font-weight:700;}
+.btn-nav{padding:5px 11px;border-radius:6px;background:var(--bg3);
+  border:1px solid var(--border);color:var(--muted);font-size:12px;cursor:pointer;white-space:nowrap;}
+.btn-nav:hover{color:var(--text);border-color:var(--muted);}
+.header-right{display:flex;align-items:center;gap:8px;margin-left:auto;}
+
+.page{padding:18px 20px;display:flex;flex-direction:column;gap:14px;max-width:1400px;margin:0 auto;}
+
+/* ─── Filter bar ─────────────────────────────────── */
+.filter-bar{background:var(--bg2);border:1px solid var(--border);border-radius:10px;
+  padding:12px 16px;display:flex;flex-wrap:wrap;align-items:center;gap:10px;}
+.filter-bar label{font-size:11px;color:var(--muted);margin-right:2px;}
+.filter-bar select,.filter-bar input[type=text]{
+  background:var(--bg3);border:1px solid var(--border);border-radius:6px;
+  color:var(--text);font-size:12px;padding:4px 8px;outline:none;}
+.filter-bar select:focus,.filter-bar input[type=text]:focus{border-color:var(--acc);}
+.filter-sep{flex:1;}
+.badge-count{font-size:11px;color:var(--muted);white-space:nowrap;}
+.badge-count strong{color:var(--text);}
+
+/* ─── System / Buchungskreis bar ─────────────────── */
+.sysbar{display:flex;gap:10px;flex-wrap:wrap;}
+.sysbox{background:var(--bg2);border:1px solid var(--border);border-radius:8px;
+  padding:8px 14px;display:flex;align-items:center;gap:12px;}
+.sysbox-label{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;
+  letter-spacing:.4px;white-space:nowrap;}
+.sysopt{display:flex;align-items:center;gap:5px;cursor:pointer;font-size:12px;}
+.sysopt input{accent-color:var(--new);}
+.sysopt strong{font-size:12px;}
+.sysopt span{font-size:11px;color:var(--muted);}
+
+/* ─── Import section ─────────────────────────────── */
+.import-card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:16px;}
+.import-card h3{font-size:13px;font-weight:700;margin-bottom:12px;}
+.drop-zone{
+  border:2px dashed var(--border);border-radius:10px;padding:28px 20px;text-align:center;
+  transition:border-color .2s,background .2s;
+  display:flex;flex-direction:column;align-items:center;gap:10px;}
+.drop-zone.drag-over{
+  border-color:var(--acc);background:rgba(88,166,255,.07);border-style:solid;}
+.dz-icon{font-size:38px;line-height:1;pointer-events:none;}
+.dz-text{font-size:13px;font-weight:700;color:var(--text);pointer-events:none;}
+.dz-sub{font-size:11px;color:var(--muted);pointer-events:none;}
+.btn-file-pick{display:inline-flex;align-items:center;gap:6px;position:relative;
+  padding:7px 16px;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;
+  background:var(--bg3);color:var(--text);border:1px solid var(--border);margin-top:4px;}
+.btn-file-pick:hover{border-color:var(--acc);color:var(--acc);}
+.btn-file-pick input[type=file]{
+  position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;}
+.import-status{margin-top:10px;padding:10px 14px;border-radius:7px;font-size:12px;display:none;}
+.import-status.ok{background:rgba(63,185,80,.1);border:1px solid rgba(63,185,80,.3);color:var(--ok);}
+.import-status.err{background:rgba(248,81,73,.1);border:1px solid rgba(248,81,73,.3);color:var(--err);}
+.import-preview{margin-top:12px;background:var(--bg3);border:1px solid var(--border);
+  border-radius:7px;overflow:auto;max-height:200px;display:none;}
+.import-preview table{width:100%;font-size:11px;border-collapse:collapse;}
+.import-preview th{background:var(--bg);color:var(--muted);padding:5px 8px;text-align:left;
+  font-size:10px;text-transform:uppercase;letter-spacing:.3px;border-bottom:1px solid var(--border);
+  position:sticky;top:0;}
+.import-preview td{padding:4px 8px;border-bottom:1px solid rgba(48,54,61,.4);vertical-align:middle;}
+
+/* ─── Action bar ─────────────────────────────────── */
+.action-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:6px 14px;border-radius:7px;
+  font-size:12px;font-weight:700;cursor:pointer;border:1px solid transparent;font-family:inherit;
+  transition:opacity .15s;}
+.btn:hover{opacity:.85;}
+.btn:disabled{opacity:.4;cursor:not-allowed;}
+.btn-ghost{background:var(--bg3);color:var(--text);border-color:var(--border);}
+.btn-purple{background:var(--new);color:#fff;border-color:var(--new);}
+.sel-info{font-size:12px;color:var(--muted);}
+.sel-info strong{color:var(--acc);}
+
+/* ─── Payment terms panel ────────────────────────── */
+.pt-panel{background:var(--bg2);border:1px solid var(--border);border-radius:10px;overflow:hidden;}
+.pt-head{padding:10px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;
+  gap:8px;cursor:pointer;user-select:none;}
+.pt-head h3{font-size:12px;font-weight:700;flex:1;}
+.pt-body{padding:12px 14px;display:flex;flex-wrap:wrap;gap:6px;}
+.pt-chip{background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:11px;}
+.pt-chip code{color:var(--new);font-weight:700;margin-right:5px;}
+
+/* ─── Table ──────────────────────────────────────── */
+.tbl-wrap{background:var(--bg2);border:1px solid var(--border);border-radius:10px;overflow:auto;max-height:60vh;}
+table.main{width:100%;border-collapse:collapse;font-size:12px;}
+table.main th{position:sticky;top:0;background:var(--bg3);color:var(--muted);font-size:11px;font-weight:700;
+  text-transform:uppercase;letter-spacing:.4px;padding:8px 10px;border-bottom:1px solid var(--border);
+  white-space:nowrap;text-align:left;}
+table.main th.sort{cursor:pointer;user-select:none;}
+table.main th.sort:hover{color:var(--text);}
+table.main td{padding:7px 10px;border-bottom:1px solid rgba(48,54,61,.5);vertical-align:middle;}
+table.main tr:last-child td{border-bottom:none;}
+table.main tr:hover td{background:rgba(88,166,255,.04);}
+table.main tr.selected td{background:rgba(88,166,255,.07);}
+.code{font-family:monospace;color:var(--acc);}
+.badge{display:inline-block;font-size:10px;font-weight:700;padding:1px 7px;border-radius:999px;}
+.badge-active{background:rgba(63,185,80,.15);color:var(--ok);border:1px solid rgba(63,185,80,.25);}
+.badge-inactive{background:rgba(248,81,73,.1);color:var(--err);border:1px solid rgba(248,81,73,.2);}
+.badge-dom{background:rgba(88,166,255,.1);color:var(--acc);border:1px solid rgba(88,166,255,.2);}
+.badge-for{background:rgba(210,162,26,.1);color:var(--warn);border:1px solid rgba(210,162,26,.2);}
+.zterm-old{font-family:monospace;color:var(--muted);font-size:11px;}
+.zterm-new{font-family:monospace;color:var(--new);font-weight:700;font-size:11px;}
+.zterm-new.same{color:var(--ok);}
+.zterm-new.none{color:var(--muted);font-style:italic;font-weight:400;}
+.note-cell{max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  color:var(--muted);font-size:11px;cursor:help;}
+
+/* ─── Progress modal ─────────────────────────────── */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:1000;
+  display:none;align-items:center;justify-content:center;}
+.modal-bg.open{display:flex;}
+.modal{background:var(--bg2);border:1px solid var(--border);border-radius:14px;
+  width:620px;max-width:95vw;max-height:82vh;display:flex;flex-direction:column;}
+.modal-head{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;}
+.modal-head h2{font-size:14px;font-weight:700;flex:1;}
+.modal-body{flex:1;overflow-y:auto;padding:16px 20px;}
+.modal-foot{padding:12px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px;}
+.prog-bar-wrap{background:var(--bg3);border-radius:999px;height:6px;overflow:hidden;margin-bottom:14px;}
+.prog-bar{height:100%;background:var(--acc);transition:width .3s;border-radius:999px;}
+.prog-list{display:flex;flex-direction:column;gap:4px;}
+.prog-item{display:flex;align-items:center;gap:10px;padding:5px 8px;border-radius:6px;font-size:12px;}
+.prog-item.ok-row{background:rgba(63,185,80,.08);}
+.prog-item.err-row{background:rgba(248,81,73,.08);}
+.prog-item.run-row{background:rgba(88,166,255,.08);}
+.prog-icon{width:16px;text-align:center;flex-shrink:0;}
+.prog-code{font-family:monospace;font-size:11px;color:var(--acc);width:75px;flex-shrink:0;}
+.prog-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.prog-msg{font-size:11px;color:var(--muted);}
+.summary-box{background:var(--bg3);border:1px solid var(--border);border-radius:8px;
+  padding:12px 16px;margin-bottom:14px;display:grid;grid-template-columns:repeat(3,1fr);gap:12px;text-align:center;}
+.sum-num{font-size:22px;font-weight:800;}
+.sum-lbl{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;}
+
+/* ─── Modul-Tab-Leiste ──────────────────────────────────────────────── */
+.mod-tabs{display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:0;}
+.mod-tab{padding:8px 20px;font-size:12px;font-weight:700;cursor:pointer;border:none;
+  background:transparent;color:var(--muted);border-bottom:2px solid transparent;
+  margin-bottom:-2px;transition:color .15s,border-color .15s;font-family:inherit;}
+.mod-tab:hover{color:var(--text);}
+.mod-tab.active{color:var(--acc);border-bottom-color:var(--acc);}
+
+/* ─── Toast ──────────────────────────────────────── */
+.toast-wrap{position:fixed;bottom:22px;right:22px;z-index:9999;display:flex;flex-direction:column;gap:6px;}
+.toast{padding:9px 16px;border-radius:8px;font-size:12px;font-weight:700;border:1px solid;animation:fadeIn .2s;}
+.toast.ok{background:rgba(63,185,80,.15);border-color:rgba(63,185,80,.4);color:var(--ok);}
+.toast.err{background:rgba(248,81,73,.12);border-color:rgba(248,81,73,.3);color:var(--err);}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@keyframes spin{to{transform:rotate(360deg)}}
+.spin{display:inline-block;width:12px;height:12px;border:2px solid rgba(255,255,255,.2);
+  border-top-color:var(--acc);border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle;}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1 id="pageTitle">🏭 SAP Lieferantenstammdaten</h1>
+  <div class="header-right" id="headerRight">
+    <a class="btn-nav" href="startseite.html">⌂ Startseite</a>
+  </div>
+</div>
+
+<div class="page">
+
+  <!-- ── Buchungskreis + SAP System ──────────────────────────── -->
+  <div class="sysbar">
+    <div class="sysbox">
+      <span class="sysbox-label">Buchungskreis</span>
+      <label class="sysopt">
+        <input type="radio" name="bukrs" value="0435" checked onchange="onSysChange()">
+        <strong>0435</strong> <span>Catensys Germany GmbH</span>
+      </label>
+      <label class="sysopt">
+        <input type="radio" name="bukrs" value="0439" onchange="onSysChange()">
+        <strong>0439</strong> <span>Catensys India Pvt. Ltd.</span>
+      </label>
+    </div>
+    <div class="sysbox">
+      <span class="sysbox-label">SAP-System</span>
+      <label class="sysopt">
+        <input type="radio" name="sapSys" value="SEP" checked>
+        <strong>SEP</strong> <span>Produktion</span>
+      </label>
+      <label class="sysopt">
+        <input type="radio" name="sapSys" value="SEQ">
+        <strong>SEQ</strong> <span>Test</span>
+      </label>
+    </div>
+  </div>
+
+  <!-- ── Modul-Tabs ──────────────────────────────────────────────── -->
+  <div class="mod-tabs">
+    <button class="mod-tab active" id="tabBtnZterm" onclick="switchModTab('zterm')">💳 Zahlungsbedingungen</button>
+    <button class="mod-tab" id="tabBtnIntad"  onclick="switchModTab('intad')">📧 INTAD / E-Mail</button>
+  </div>
+
+  <!-- ── Panel: Zahlungsbedingungen ──────────────────────────── -->
+  <div id="panelZterm">
+
+  <!-- ── Excel Import ─────────────────────────────────────────── -->
+  <div class="import-card">
+    <h3>📂 Excel importieren
+      <span style="font-size:11px;font-weight:400;color:var(--muted);margin-left:6px;">
+        Vendor Master List · Sheet „PVO" · Spalten werden automatisch erkannt
+      </span>
+    </h3>
+
+    <div class="drop-zone" id="dropZone">
+      <div class="dz-icon">📊</div>
+      <div class="dz-text">Excel-Datei hier ablegen</div>
+      <div class="dz-sub">Vendor Master List_Vers_KH.xlsx  ·  .xlsx oder .xls</div>
+      <label class="btn-file-pick">
+        📁 Datei auswählen
+        <input type="file" id="fileInput" accept=".xlsx,.xls">
+      </label>
+    </div>
+
+    <div class="import-status" id="importStatus"></div>
+
+    <div class="import-preview" id="importPreview">
+      <table>
+        <thead><tr>
+          <th>Vendor Code</th><th>Name</th><th>Typ</th><th>Status</th>
+          <th>ZTerm aktuell</th><th>ZTerm neu</th><th>Notiz</th>
+        </tr></thead>
+        <tbody id="previewBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── Filter ───────────────────────────────────────────────── -->
+  <div class="filter-bar">
+    <label>Suche:</label>
+    <input type="text" id="fSearch" placeholder="Code oder Name…"
+           style="width:180px;" oninput="render()">
+
+    <label>Status:</label>
+    <select id="fStatus" onchange="render()">
+      <option value="">Alle</option>
+      <option value="Active">Active</option>
+      <option value="Non-Active">Non-Active</option>
+    </select>
+
+    <label>Typ:</label>
+    <select id="fType" onchange="render()">
+      <option value="">Alle</option>
+      <option value="Domestic Payables">Domestic</option>
+      <option value="Foreign Payables">Foreign</option>
+    </select>
+
+    <label>Neuer ZTerm:</label>
+    <select id="fNewTerm" onchange="render()">
+      <option value="">Alle</option>
+      <option value="yes">Vorhanden</option>
+      <option value="no">Keiner</option>
+    </select>
+
+    <div class="filter-sep"></div>
+    <div class="badge-count" id="countInfo"></div>
+  </div>
+
+  <!-- ── Action bar ───────────────────────────────────────────── -->
+  <div class="action-bar">
+    <button class="btn btn-ghost" onclick="selectAllWithNewTerm()">☑ Alle mit neuem ZTerm</button>
+    <button class="btn btn-ghost" onclick="selectVisible()">☐ Sichtbare wählen</button>
+    <button class="btn btn-ghost" onclick="clearSelection()">✕ Auswahl aufheben</button>
+    <div class="filter-sep"></div>
+    <div class="sel-info" id="selInfo">0 ausgewählt</div>
+    <button class="btn btn-purple" id="btnUpdate" onclick="startUpdate()" disabled>
+      ▶ In SAP aktualisieren
+    </button>
+  </div>
+
+  <!-- ── Payment terms reference ──────────────────────────────── -->
+  <div class="pt-panel">
+    <div class="pt-head" onclick="togglePT()">
+      <h3>💳 Zahlungsbedingungen (17 Codes)</h3>
+      <span id="ptChevron" style="font-size:11px;color:var(--muted);">▼</span>
+    </div>
+    <div class="pt-body" id="ptBody" style="display:none;"></div>
+  </div>
+
+  <!-- ── Vendor table ─────────────────────────────────────────── -->
+  <div class="tbl-wrap">
+    <table class="main">
+      <thead>
+        <tr>
+          <th style="width:36px;">
+            <input type="checkbox" id="chkAll" onchange="toggleAll(this.checked)">
+          </th>
+          <th class="sort" onclick="setSort('code')">Code <span id="s_code"></span></th>
+          <th class="sort" onclick="setSort('name')">Name <span id="s_name"></span></th>
+          <th>Typ</th>
+          <th>Status</th>
+          <th>ZTerm aktuell</th>
+          <th>ZTerm neu</th>
+          <th>Status 25/26</th>
+          <th>Notiz</th>
+        </tr>
+      </thead>
+      <tbody id="tblBody"></tbody>
+    </table>
+  </div>
+
+  </div><!-- /panelZterm -->
+
+  <!-- ── Panel: INTAD / E-Mail ────────────────────────────────── -->
+  <div id="panelIntad" style="display:none;">
+
+    <!-- Import-Karte -->
+    <div class="import-card">
+      <h3>📧 INTAD Import
+        <span style="font-size:11px;font-weight:400;color:var(--muted);margin-left:6px;">
+          E-Mail-Adresse (LFB1-INTAD) für Buchungskreis 0439 · Spalten: Company Code | Vendor Code | Vendor Name | E-Mail
+        </span>
+      </h3>
+      <div class="drop-zone" id="dropZoneIntad">
+        <div class="dz-icon">📊</div>
+        <div class="dz-text">Excel-Datei hier ablegen</div>
+        <div class="dz-sub">Avis_Vendor_E-Mail.xlsx · .xlsx oder .xls</div>
+        <label class="btn-file-pick">
+          📁 Datei auswählen
+          <input type="file" id="fileInputIntad" accept=".xlsx,.xls">
+        </label>
+      </div>
+      <div class="import-status" id="importStatusIntad"></div>
+      <div class="import-preview" id="importPreviewIntad">
+        <table>
+          <thead><tr>
+            <th>Vendor Code</th><th>Vendor Name</th><th>E-Mail (INTAD)</th>
+          </tr></thead>
+          <tbody id="previewBodyIntad"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Action bar -->
+    <div class="action-bar">
+      <button class="btn btn-ghost" onclick="intadSelectAll()">☑ Alle auswählen</button>
+      <button class="btn btn-ghost" onclick="intadClearSel()">✕ Auswahl aufheben</button>
+      <div class="filter-sep"></div>
+      <div class="sel-info" id="intadSelInfo">0 ausgewählt</div>
+      <button class="btn btn-purple" id="btnIntadUpdate" onclick="startIntadUpdate()" disabled>
+        ▶ INTAD in SAP aktualisieren
+      </button>
+      <button class="btn btn-ghost" id="btnIntadExport" onclick="exportIntadExcel()" disabled title="Alle Einträge mit Status als Excel exportieren">
+        ⬇ Export Excel
+      </button>
+    </div>
+
+    <!-- INTAD-Tabelle -->
+    <div class="tbl-wrap">
+      <table class="main">
+        <thead>
+          <tr>
+            <th style="width:36px;">
+              <input type="checkbox" id="chkAllIntad" onchange="intadToggleAll(this.checked)">
+            </th>
+            <th>Vendor Code</th>
+            <th>Vendor Name</th>
+            <th>E-Mail (INTAD)</th>
+            <th style="width:90px;">Status</th>
+            <th>Meldung</th>
+          </tr>
+        </thead>
+        <tbody id="tblBodyIntad"></tbody>
+      </table>
+    </div>
+
+  </div><!-- /panelIntad -->
+
+</div><!-- /.page -->
+
+<!-- ── Progress Modal ───────────────────────────────────────── -->
+<div class="modal-bg" id="modal">
+  <div class="modal">
+    <div class="modal-head">
+      <h2 id="modalTitle">🔄 SAP Aktualisierung</h2>
+      <div id="modalStatus" style="font-size:12px;color:var(--muted);"></div>
+    </div>
+    <div class="modal-body">
+      <div id="summaryBox" class="summary-box" style="display:none;">
+        <div><div class="sum-num" id="sumOk"   style="color:var(--ok);">0</div>
+             <div class="sum-lbl">OK</div></div>
+        <div><div class="sum-num" id="sumWarn" style="color:var(--warn);">0</div>
+             <div class="sum-lbl">Warnung</div></div>
+        <div><div class="sum-num" id="sumErr"  style="color:var(--err);">0</div>
+             <div class="sum-lbl">Fehler</div></div>
+      </div>
+      <div class="prog-bar-wrap">
+        <div class="prog-bar" id="progBar" style="width:0%"></div>
+      </div>
+      <div class="prog-list" id="progList"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" id="btnAbort"  onclick="abortUpdate()">Abbrechen</button>
+      <button class="btn btn-purple" id="btnClose" onclick="closeModal()" style="display:none;">
+        Schließen
+      </button>
+    </div>
+  </div>
+</div>
+
+<div class="toast-wrap" id="toastWrap"></div>
+
+<script>
+AUTH.renderHeader('headerRight');
+var BRIDGE_URL = window.location.origin.replace(':8000',':8765');
+
+const VENDOR_DATA = [{"code": "L10001", "name": "Leadec India Pvt. Ltd.", "type": "Domestic Payables", "status": "Non-Active", "zterm_old": "460", "zterm_old_desc": "within 30 days Due net", "zterm_new": "", "zterm_new_desc": "", "status_2526": "", "note": "-"}, {"code": "L10002", "name": "B J Perfect Works", "type": "Domestic Payables", "status": "Non-Active", "zterm_old": "X023", "zterm_old_desc": "within 45 days Due net", "zterm_new": "", "zterm_new_desc": "", "status_2526": "", "note": "-"}, {"code": "L10003", "name": "Induction Equipment (India) Pvt. Ltd", "type": "Domestic Payables", "status": "Non-Active", "zterm_old": "X023", "zterm_old_desc": "within 45 days Due net", "zterm_new": "", "zterm_new_desc": "", "status_2526": "", "note": "-"}, {"code": "L18595", "name": "Huefra Gmbh & Co.", "type": "Foreign Payables", "status": "Active", "zterm_old": "Z175", "zterm_old_desc": "75 days after month end", "zterm_new": "", "zterm_new_desc": "", "status_2526": "", "note": "-"}, {"code": "L20042", "name": "Schaeffler India Limited-Pune", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z136", "zterm_old_desc": "Advance payment", "zterm_new": "", "zterm_new_desc": "Advance payment", "status_2526": "Active", "note": "Advance payment"}, {"code": "L369762", "name": "M/S Jaya Hind Industries Ltd.", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 days", "zterm_new": "", "zterm_new_desc": "Exist from supplier by  end dec'25.\nNov'25&Dec'25- 15 days", "status_2526": "Not Active", "note": "_"}, {"code": "L291872", "name": "L.G. Balakrishnan & Bros Ltd. Pune", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z175", "zterm_old_desc": "75 Days", "zterm_new": "", "zterm_new_desc": "90 Days", "status_2526": "Active", "note": "New Payment Term of 90 Days – Not Accepted"}, {"code": "L288556", "name": "Sebros Auto Pvt. Ltd.", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z130", "zterm_old_desc": "30 Days", "zterm_new": "Z127", "zterm_new_desc": "60 Days", "status_2526": "Active", "note": "New Payment Term of 60 Days – Not Accepted"}, {"code": "L356395", "name": "Sintercom India Limited", "type": "Domestic Payables", "status": "Active", "zterm_old": "X027", "zterm_old_desc": "60 Days", "zterm_new": "Z175", "zterm_new_desc": "75 days", "status_2526": "Active", "note": "New Payment Term of 75 Days – Not Accepted"}, {"code": "L272207", "name": "Aurangabad Electricals Limited", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z117", "zterm_old_desc": "15 days", "zterm_new": "Z001", "zterm_new_desc": "45 days", "status_2526": "Active", "note": "New Payment Term of 45 Days – Not Accepted"}, {"code": "L277474", "name": "Ifb Industries Limited", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z117", "zterm_old_desc": "15 days", "zterm_new": "Z116", "zterm_new_desc": "30 days", "status_2526": "Active", "note": "New Payment Term of 30 Days – Not Accepted"}, {"code": "L293681", "name": "Trend Technologies India", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L277403", "name": "Deeksha Exports Pvt. Ltd.", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L287668", "name": "Daeyoo Forging", "type": "Foreign Payables", "status": "Active", "zterm_old": "Z127", "zterm_old_desc": "within 60 days Due net", "zterm_new": "", "zterm_new_desc": "", "status_2526": "", "note": ""}, {"code": "L347920", "name": "R.R. Industrial Packaging Pvt. Ltd.", "type": "Domestic Payables", "status": "Active", "zterm_old": "X006", "zterm_old_desc": "15 Days", "zterm_new": "Z001", "zterm_new_desc": "45 days", "status_2526": "Active", "note": "Accepted New Payment Term – 45 Days"}, {"code": "L372908", "name": "Harsha Engineers International Ltd.", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z090", "zterm_old_desc": "90 Days", "zterm_new": "", "zterm_new_desc": "90 days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L271672", "name": "Rohit Spring Forms Pvt. Ltd.", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100374", "name": "Raj Dutta Engineering", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z001", "zterm_old_desc": "Payable immediately Due net", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "Accepted New Payment Term – 45 Days"}, {"code": "L297659", "name": "Shree Guruprasad Industries", "type": "Domestic Payables", "status": "Non-Active", "zterm_old": "Z123", "zterm_old_desc": "within 45 days Due net", "zterm_new": "", "zterm_new_desc": "", "status_2526": "", "note": ""}, {"code": "L299877", "name": "Zetek Castings Private Limited", "type": "Domestic Payables", "status": "Non-Active", "zterm_old": "Z145", "zterm_old_desc": "45 days", "zterm_new": "", "zterm_new_desc": "", "status_2526": "", "note": ""}, {"code": "L100248", "name": "Star Circlips & Engineering Limited", "type": "Domestic Payables", "status": "Active", "zterm_old": "X023", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L268014", "name": "Cascy Forge Products", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L374834", "name": "Cascy Forge India Private Limited", "type": "Domestic Payables", "status": "Active", "zterm_old": "X023", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100244", "name": "Adm Packaging & Polypack", "type": "Domestic Payables", "status": "Active", "zterm_old": "X016", "zterm_old_desc": "30 Days", "zterm_new": "Z001", "zterm_new_desc": "45 days", "status_2526": "Active", "note": "Accepted New Payment Term – 45 Days"}, {"code": "L100157", "name": "Zencast Private Limited", "type": "Domestic Payables", "status": "Active", "zterm_old": "X023", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L340494", "name": "Samarth Enterprises", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L267855", "name": "Stumpp Schuele & Somappa", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z160", "zterm_old_desc": "60 Days", "zterm_new": "Z175", "zterm_new_desc": "75 days", "status_2526": "Active", "note": "New Payment Term of 75 Days – Not Accepted"}, {"code": "L271041", "name": "Neels Enterprises", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L350062", "name": "Shailesh Industries Pvt. Ltd.", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L271180", "name": "Branopac India Pvt. Ltd.", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L372960", "name": "Catensys France S.A.S", "type": "Foreign Payables", "status": "Active", "zterm_old": "Z160", "zterm_old_desc": "60 d end of month,payment on 2. of following month", "zterm_new": "", "zterm_new_desc": "", "status_2526": "", "note": ""}, {"code": "L271372", "name": "Shree Samarth Enterprises", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L373455", "name": "Catensys Chain Drive (Nanjing)", "type": "Foreign Payables", "status": "Active", "zterm_old": "Z175", "zterm_old_desc": "75 days after month end", "zterm_new": "", "zterm_new_desc": "", "status_2526": "", "note": ""}, {"code": "L980490", "name": "Schaeffler India Limited-Chennai", "type": "Domestic Payables", "status": "Non-Active", "zterm_old": "Z136", "zterm_old_desc": "within 75 days Due net", "zterm_new": "", "zterm_new_desc": "", "status_2526": "", "note": ""}, {"code": "L980508", "name": "Schaeffler India Limited-Gurugram", "type": "Domestic Payables", "status": "Non-Active", "zterm_old": "Z136", "zterm_old_desc": "within 75 days Due net", "zterm_new": "", "zterm_new_desc": "", "status_2526": "", "note": ""}, {"code": "L286269", "name": "Hanuman Industrial Suppliers", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100342", "name": "Hi Tech International", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z001", "zterm_old_desc": "45 days", "zterm_new": "Z127", "zterm_new_desc": "60 days", "status_2526": "Not Active", "note": "-"}, {"code": "L346586", "name": "Auto Id Technics", "type": "Domestic Payables", "status": "Active", "zterm_old": "E015", "zterm_old_desc": "15 Days", "zterm_new": "Z001", "zterm_new_desc": "45 days", "status_2526": "Active", "note": "Accepted New Payment Term – 45 Days"}, {"code": "L10010", "name": "Oasis Express Cargo & Logistics Pvt Ltd", "type": "Domestic Payables", "status": "Non-Active", "zterm_old": "X016", "zterm_old_desc": "within 30 days Due net", "zterm_new": "", "zterm_new_desc": "", "status_2526": "", "note": ""}, {"code": "L10012", "name": "Green City Vending", "type": "Domestic Payables", "status": "Non-Active", "zterm_old": "460", "zterm_old_desc": "within 30 days Due net", "zterm_new": "", "zterm_new_desc": "", "status_2526": "", "note": ""}, {"code": "L10016", "name": "Hridat Steel", "type": "Domestic Payables", "status": "Non-Active", "zterm_old": "Z123", "zterm_old_desc": "within 45 days Due net", "zterm_new": "", "zterm_new_desc": "", "status_2526": "", "note": ""}, {"code": "L275549", "name": "Yash Packaging", "type": "Domestic Payables", "status": "Active", "zterm_old": "X023", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100338", "name": "Sscw India Pvt Ltd", "type": "Domestic Payables", "status": "Active", "zterm_old": "X023", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L279242", "name": "Vaishnavi Enterprises", "type": "Domestic Payables", "status": "Active", "zterm_old": "0001", "zterm_old_desc": "45 Days", "zterm_new": "", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L293808", "name": "Ficus Pax Pvt. Ltd.", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L344713", "name": "Day N Day Services Pvt. Ltd.", "type": "Domestic Payables", "status": "Active", "zterm_old": "X023", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L350536", "name": "Gk Engineers & Traders", "type": "Domestic Payables", "status": "Active", "zterm_old": "E015", "zterm_old_desc": "45 Days", "zterm_new": "", "zterm_new_desc": "60 Days", "status_2526": "Active", "note": "Accepted New Payment Term – 60 Days"}, {"code": "L358255", "name": "Yashwantrao Technical And Training", "type": "Domestic Payables", "status": "Active", "zterm_old": "0001", "zterm_old_desc": "Payable immediately Due net", "zterm_new": "Z127", "zterm_new_desc": "60 days", "status_2526": "Active", "note": "-"}, {"code": "L372965", "name": "Catensys India Pvt. Ltd.", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z186", "zterm_old_desc": "15 Days", "zterm_new": "", "zterm_new_desc": "", "status_2526": "-", "note": "-"}, {"code": "L10004", "name": "Accurate Laboratory Services", "type": "Domestic Payables", "status": "Active", "zterm_old": "X006", "zterm_old_desc": "15 Days", "zterm_new": "Z001", "zterm_new_desc": "45 days", "status_2526": "Active", "note": "Accepted New Payment Term – 45 Days"}, {"code": "L278106", "name": "Baumann Springs Shanghai", "type": "Foreign Payables", "status": "Active", "zterm_old": "Z090", "zterm_old_desc": "90 d end of month,payment on 2. of following month", "zterm_new": "", "zterm_new_desc": "", "status_2526": "", "note": ""}, {"code": "L10006", "name": "Krushna Enterprises", "type": "Domestic Payables", "status": "Active", "zterm_old": "X016", "zterm_old_desc": "30 Days", "zterm_new": "Z001", "zterm_new_desc": "45 days", "status_2526": "Active", "note": "Accepted New Payment Term – 45 Days"}, {"code": "L344868", "name": "Schenker India Pvt. Ltd.", "type": "Domestic Payables", "status": "Non-Active", "zterm_old": "E045", "zterm_old_desc": "Before 15 in 2 months Due net", "zterm_new": "", "zterm_new_desc": "", "status_2526": "", "note": ""}, {"code": "L10008", "name": "Sadhana Ndt Services", "type": "Domestic Payables", "status": "Active", "zterm_old": "X006", "zterm_old_desc": "15 Days", "zterm_new": "Z001", "zterm_new_desc": "45 days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L10017", "name": "Shree Ganesh Enggineering Works", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L3589", "name": "Scherdel Gmbh", "type": "Foreign Payables", "status": "Active", "zterm_old": "Z138", "zterm_old_desc": "within 90 days Due net", "zterm_new": "", "zterm_new_desc": "", "status_2526": "", "note": ""}, {"code": "L10018", "name": "Travel Elect India Pvt Ltd", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z106", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 days", "status_2526": "Not Active", "note": "No Change Same as old  Payment term"}, {"code": "L270438", "name": "Nikhil Equipments Pvt. Ltd.", "type": "Domestic Payables", "status": "Active", "zterm_old": "E015", "zterm_old_desc": "15 Days", "zterm_new": "Z001", "zterm_new_desc": "45 days", "status_2526": "Not Active", "note": "No Change Same as old  Payment term"}, {"code": "L980331", "name": "Schaeffler Technologies Ag & Co. Kg-Ingolstadt", "type": "Foreign Payables", "status": "Active", "zterm_old": "X040", "zterm_old_desc": "within 120 days Due net", "zterm_new": "", "zterm_new_desc": "", "status_2526": "", "note": ""}, {"code": "L990003", "name": "Schaeffler Technologies Ag & Co. Kg-Homburg", "type": "Foreign Payables", "status": "Active", "zterm_old": "X040", "zterm_old_desc": "within 120 days Due net", "zterm_new": "", "zterm_new_desc": "", "status_2526": "", "note": ""}, {"code": "L271141", "name": "Gayatri Enterprises", "type": "Domestic Payables", "status": "Active", "zterm_old": "E045", "zterm_old_desc": "15 Days", "zterm_new": "Z001", "zterm_new_desc": "45 days", "status_2526": "Not Active", "note": "No Change Same as old  Payment term"}, {"code": "L271165", "name": "Sagar Constructions", "type": "Domestic Payables", "status": "Active", "zterm_old": "X023", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L271626", "name": "Nilkantheshwar Industrial Service", "type": "Domestic Payables", "status": "Active", "zterm_old": "0001", "zterm_old_desc": "Payable immediately Due net", "zterm_new": "Z127", "zterm_new_desc": "60 days", "status_2526": "Not Active", "note": "-"}, {"code": "L277258", "name": "Discovery Logistics Pvt. Ltd.", "type": "Domestic Payables", "status": "Active", "zterm_old": "X006", "zterm_old_desc": "15 Days", "zterm_new": "Z001", "zterm_new_desc": "45 days", "status_2526": "Active", "note": "Accepted New Payment Term – 45 Days"}, {"code": "L283558", "name": "Om Sairam Logistics", "type": "Domestic Payables", "status": "Active", "zterm_old": "X023", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L345827", "name": "Salvation Outsourcing Solution Pvt. Ltd.", "type": "Domestic Payables", "status": "Active", "zterm_old": "X006", "zterm_old_desc": "15 Days", "zterm_new": "Z001", "zterm_new_desc": "45 days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L351918", "name": "Capricorn Logistics Pvt. Ltd.-Mumbai", "type": "Domestic Payables", "status": "Active", "zterm_old": "X023", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 days", "status_2526": "Active", "note": "Accepted New Payment Term – 45 Days"}, {"code": "L363604", "name": "Sampark India Logistics Private Limited", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 days", "status_2526": "Not Active", "note": "No Change Same as old  Payment term"}, {"code": "L365635", "name": "New Gen Packpool Pvt. Ltd.", "type": "Domestic Payables", "status": "Active", "zterm_old": "X006", "zterm_old_desc": "15 Days", "zterm_new": "Z001", "zterm_new_desc": "45 days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L372426", "name": "Spectrum Talent Management Pvt. Ltd.", "type": "Domestic Payables", "status": "Active", "zterm_old": "E045", "zterm_old_desc": "15 Days", "zterm_new": "Z001", "zterm_new_desc": "45 days", "status_2526": "Not Active", "note": "-"}, {"code": "L350567", "name": "Daewon Steel", "type": "Foreign Payables", "status": "Active", "zterm_old": "Z145", "zterm_old_desc": "45 days", "zterm_new": "", "zterm_new_desc": "", "status_2526": "", "note": ""}, {"code": "L10009", "name": "Eureka Forbes Limited", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 days", "status_2526": "Not Active", "note": "No Change Same as old  Payment term"}, {"code": "L10011", "name": "The Supreme Industries Ltd", "type": "Domestic Payables", "status": "Active", "zterm_old": "0001", "zterm_old_desc": "Payable immediately Due net", "zterm_new": "Z127", "zterm_new_desc": "60 days", "status_2526": "Not Active", "note": "No Change Same as old  Payment term"}, {"code": "L10020", "name": "Rightways Air Logistics Private Limited", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z127", "zterm_old_desc": "60 Days", "zterm_new": "Z127", "zterm_new_desc": "60 days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L372174", "name": "Sivagami Metal Industries", "type": "Domestic Payables", "status": "Non-Active", "zterm_old": "0001", "zterm_old_desc": "Payable immediately Due net", "zterm_new": "", "zterm_new_desc": "", "status_2526": "", "note": ""}, {"code": "L980194", "name": "Schaeffler India Limited-Mumbai", "type": "Domestic Payables", "status": "Non-Active", "zterm_old": "Z136", "zterm_old_desc": "within 75 days Due net", "zterm_new": "", "zterm_new_desc": "", "status_2526": "", "note": ""}, {"code": "L270993", "name": "Haresh Machine Tools Co.", "type": "Domestic Payables", "status": "Active", "zterm_old": "X023", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L272111", "name": "Poonam Dresses And Tailoring Firm", "type": "Domestic Payables", "status": "Active", "zterm_old": "X023", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L277906", "name": "Tata Teleservices Maharashtra Ltd.", "type": "Domestic Payables", "status": "Active", "zterm_old": "0001", "zterm_old_desc": "Payable immediately Due net", "zterm_new": "", "zterm_new_desc": "Payable immediately Due net", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L278534", "name": "Hitech Rolling Balls Pvt. Ltd.", "type": "Domestic Payables", "status": "Active", "zterm_old": "X023", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 days", "status_2526": "Active", "note": "Accepted New Payment Term – 45 Days"}, {"code": "L280585", "name": "Tanvi Travels", "type": "Domestic Payables", "status": "Active", "zterm_old": "E015", "zterm_old_desc": "15 Days", "zterm_new": "Z001", "zterm_new_desc": "45 days", "status_2526": "Active", "note": "Accepted New Payment Term – 45 Days"}, {"code": "L296226", "name": "Sgs India Pvt. Ltd.", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L352932", "name": "Parallel Learning", "type": "Domestic Payables", "status": "Active", "zterm_old": "X023", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L355131", "name": "Arvind Polymers", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L367289", "name": "Adaequare Info Private Limited", "type": "Domestic Payables", "status": "Active", "zterm_old": "X023", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L282758", "name": "Printing International", "type": "Foreign Payables", "status": "Active", "zterm_old": "0001", "zterm_old_desc": "Payable immediately Due net", "zterm_new": "", "zterm_new_desc": "", "status_2526": "", "note": ""}, {"code": "L372961", "name": "Catensys Germany Gmbh", "type": "Foreign Payables", "status": "Active", "zterm_old": "ZI02", "zterm_old_desc": "Before 15 in 3 months Due net", "zterm_new": "", "zterm_new_desc": "", "status_2526": "", "note": ""}, {"code": "L10013", "name": "Dsv Solutions Private Limited", "type": "Domestic Payables", "status": "Non-Active", "zterm_old": "X027", "zterm_old_desc": "within 60 days Due net", "zterm_new": "", "zterm_new_desc": "", "status_2526": "", "note": ""}, {"code": "L10014", "name": "Aviruddha Productivity Private Limi", "type": "Domestic Payables", "status": "Active", "zterm_old": "0001", "zterm_old_desc": "Payable immediately Due net", "zterm_new": "Z127", "zterm_new_desc": "60 days", "status_2526": "", "note": ""}, {"code": "L10021", "name": "Nexdigm Private Limited", "type": "Domestic Payables", "status": "Active", "zterm_old": "X016", "zterm_old_desc": "30 Days", "zterm_new": "Z001", "zterm_new_desc": "45 days", "status_2526": "", "note": ""}, {"code": "L10032", "name": "Schenker India Private Limited", "type": "Domestic Payables", "status": "Non-Active", "zterm_old": "X023", "zterm_old_desc": "within 45 days Due net", "zterm_new": "", "zterm_new_desc": "", "status_2526": "", "note": ""}, {"code": "L10022", "name": "Siddhivinayak Green Power", "type": "Domestic Payables", "status": "Active", "zterm_old": "0001", "zterm_old_desc": "Payable immediately Due net", "zterm_new": "Z127", "zterm_new_desc": "60 days", "status_2526": "", "note": ""}, {"code": "L10024", "name": "Dhl Logistics Private Limited", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z116", "zterm_old_desc": "30 Days", "zterm_new": "Z116", "zterm_new_desc": "30 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L269229", "name": "Dachser India Pvt. Ltd.", "type": "Domestic Payables", "status": "Active", "zterm_old": "E045", "zterm_old_desc": "15 Days", "zterm_new": "Z001", "zterm_new_desc": "45 days", "status_2526": "Active", "note": "Accepted New Payment Term – 45 Days"}, {"code": "L10023", "name": "R S Enterprises", "type": "Domestic Payables", "status": "Active", "zterm_old": "0001", "zterm_old_desc": "Payable immediately Due net", "zterm_new": "Z127", "zterm_new_desc": "60 days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L10026", "name": "Sudit K.Parekh & Co.Llp", "type": "Domestic Payables", "status": "Active", "zterm_old": "X023", "zterm_old_desc": "45 Days", "zterm_new": "Z127", "zterm_new_desc": "60 days", "status_2526": "", "note": ""}, {"code": "L10029", "name": "Capricorn Logistics Private-Chennai", "type": "Domestic Payables", "status": "Active", "zterm_old": "X023", "zterm_old_desc": "45 Days", "zterm_new": "Z127", "zterm_new_desc": "60 days", "status_2526": "Active", "note": "New Payment Term of 60 Days – Not Accepted"}, {"code": "L295333", "name": "Tamanna Transport Service", "type": "Domestic Payables", "status": "Non-Active", "zterm_old": "E045", "zterm_old_desc": "Before 15 in 2 months Due net", "zterm_new": "", "zterm_new_desc": "", "status_2526": "", "note": ""}, {"code": "L271087", "name": "Elca Quality Systems & Cal Pvt. Ltd", "type": "Domestic Payables", "status": "Active", "zterm_old": "X023", "zterm_old_desc": "45 Days", "zterm_new": "Z127", "zterm_new_desc": "60 days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L353859", "name": "Ak Solutions", "type": "Domestic Payables", "status": "Active", "zterm_old": "X023", "zterm_old_desc": "45 Days", "zterm_new": "Z127", "zterm_new_desc": "60 days", "status_2526": "", "note": ""}, {"code": "L10025", "name": "Ranadey Professional Services Pvt. Ltd.", "type": "Domestic Payables", "status": "Active", "zterm_old": "X016", "zterm_old_desc": "30 Days", "zterm_new": "Z001", "zterm_new_desc": "45 days", "status_2526": "", "note": ""}, {"code": "L100024", "name": "Neeyamo Inc", "type": "Foreign Payables", "status": "Active", "zterm_old": "0001", "zterm_old_desc": "Payable immediately Due net", "zterm_new": "", "zterm_new_desc": "", "status_2526": "", "note": ""}, {"code": "L10035", "name": "Dhl Express India Private Limited", "type": "Domestic Payables", "status": "Active", "zterm_old": "X023", "zterm_old_desc": "45 Days", "zterm_new": "Z127", "zterm_new_desc": "60 days", "status_2526": "Active", "note": "New Payment Term of 60 Days – Not Accepted"}, {"code": "L10027", "name": "Trinity Material Handling Solutions Pvt.", "type": "Domestic Payables", "status": "Active", "zterm_old": "X006", "zterm_old_desc": "15 Days", "zterm_new": "Z001", "zterm_new_desc": "45 days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L10028", "name": "Mahi Consultancy Services", "type": "Domestic Payables", "status": "Active", "zterm_old": "0001", "zterm_old_desc": "Payable immediately Due net", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "", "note": ""}, {"code": "L10031", "name": "Veritas Legal", "type": "Domestic Payables", "status": "Active", "zterm_old": "X016", "zterm_old_desc": "30 Days", "zterm_new": "Z001", "zterm_new_desc": "45 days", "status_2526": "", "note": ""}, {"code": "L34399", "name": "M.S. Ambrogio S.P.A.", "type": "Foreign Payables", "status": "Active", "zterm_old": "Z175", "zterm_old_desc": "75 days after month end", "zterm_new": "", "zterm_new_desc": "", "status_2526": "", "note": ""}, {"code": "L353146", "name": "Viraj Enterprise", "type": "Domestic Payables", "status": "Non-Active", "zterm_old": "X023", "zterm_old_desc": "within 45 days Due net", "zterm_new": "", "zterm_new_desc": "", "status_2526": "", "note": ""}, {"code": "L10033", "name": "Talensetu Services Private Limited", "type": "Domestic Payables", "status": "Active", "zterm_old": "0001", "zterm_old_desc": "Payable immediately Due net", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "", "note": ""}, {"code": "L30010", "name": "Ift-Whitecell Engineering Gmbh", "type": "Foreign Payables", "status": "Active", "zterm_old": "X016", "zterm_old_desc": "within 30 days Due net", "zterm_new": "", "zterm_new_desc": "", "status_2526": "", "note": ""}, {"code": "L364683", "name": "Raagoma Tech Pvt. Ltd.", "type": "Domestic Payables", "status": "Non-Active", "zterm_old": "X023", "zterm_old_desc": "within 45 days Due net", "zterm_new": "", "zterm_new_desc": "", "status_2526": "", "note": ""}, {"code": "L10034", "name": "3T Industrial Solutions Pvt.Lid.", "type": "Domestic Payables", "status": "Active", "zterm_old": "X023", "zterm_old_desc": "45 Days", "zterm_new": "Z127", "zterm_new_desc": "60 days", "status_2526": "", "note": ""}, {"code": "L353984", "name": "Sharp Business Systems (India) Pvt. Ltd.", "type": "Domestic Payables", "status": "Active", "zterm_old": "E045", "zterm_old_desc": "15 Days", "zterm_new": "Z001", "zterm_new_desc": "45 days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L355077", "name": "Nilkamal Ltd.", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z145", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L365119", "name": "Jeevanathan Polymer Unit-Ii", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z104", "zterm_old_desc": "8 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "Accepted New Payment Term – 45 Days"}, {"code": "L10036", "name": "Strongholds System & Technology Pvt.Ltd.", "type": "Domestic Payables", "status": "Active", "zterm_old": "X016", "zterm_old_desc": "30 Days", "zterm_new": "Z001", "zterm_new_desc": "45 days", "status_2526": "", "note": ""}, {"code": "L10037", "name": "Anita Exim Corporation", "type": "Domestic Payables", "status": "Active", "zterm_old": "0001", "zterm_old_desc": "Payable immediately Due net", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "", "note": ""}, {"code": "L980231", "name": "Schaeffler Technologies Ag & Co. Kg", "type": "Foreign Payables", "status": "Active", "zterm_old": "0001", "zterm_old_desc": "Payable immediately Due net", "zterm_new": "", "zterm_new_desc": "", "status_2526": "", "note": ""}, {"code": "L10038", "name": "Cubix Automation Pvt Ltd", "type": "Domestic Payables", "status": "Active", "zterm_old": "0001", "zterm_old_desc": "Payable immediately Due net", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L271420", "name": "Moraya Printers", "type": "Domestic Payables", "status": "Active", "zterm_old": "X023", "zterm_old_desc": "45 Days", "zterm_new": "Z127", "zterm_new_desc": "60 days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100185", "name": "Adhik Resort India Private Limited", "type": "Domestic Payables", "status": "Non-Active", "zterm_old": "Z001", "zterm_old_desc": "Payable immediately Due net", "zterm_new": "", "zterm_new_desc": "", "status_2526": "", "note": ""}, {"code": "L271420", "name": "Moraya Printers", "type": "Domestic Payables", "status": "Non-Active", "zterm_old": "X023", "zterm_old_desc": "within 45 days Due net", "zterm_new": "", "zterm_new_desc": "", "status_2526": "", "note": ""}, {"code": "L100153", "name": "Bajaj Allianz General Insurance", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z001", "zterm_old_desc": "Payable immediately Due net", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "Accepted New Payment Term – 45 Days"}, {"code": "L10039", "name": "Dutech India Laboratories", "type": "Domestic Payables", "status": "Active", "zterm_old": "X016", "zterm_old_desc": "30 Days", "zterm_new": "Z001", "zterm_new_desc": "45 days", "status_2526": "Active", "note": "Accepted New Payment Term – 45 Days"}, {"code": "L10040", "name": "Vaibhavi Enterprises", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L10030", "name": "Vintech Electronic Systems Pvt. Ltd", "type": "Domestic Payables", "status": "Active", "zterm_old": "X016", "zterm_old_desc": "30 Days", "zterm_new": "Z001", "zterm_new_desc": "45 days", "status_2526": "Active", "note": "Accepted New Payment Term – 45 Days"}, {"code": "L100156", "name": "Magma Hdi General Insurance", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z001", "zterm_old_desc": "Payable immediately Due net", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "", "note": ""}, {"code": "L100162", "name": "Sai Industries", "type": "Domestic Payables", "status": "Active", "zterm_old": "X016", "zterm_old_desc": "30 Days", "zterm_new": "Z001", "zterm_new_desc": "45 days", "status_2526": "Active", "note": "Accepted New Payment Term – 45 Days"}, {"code": "L20724", "name": "Rubix Gmbh", "type": "Foreign Payables", "status": "Active", "zterm_old": "Z127", "zterm_old_desc": "within 60 days Due net", "zterm_new": "", "zterm_new_desc": "", "status_2526": "", "note": ""}, {"code": "L100166", "name": "Allied Resource Management Services Ind", "type": "Domestic Payables", "status": "Active", "zterm_old": "0001", "zterm_old_desc": "Payable immediately Due net", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "", "note": "-"}, {"code": "L100165", "name": "Innova Am Tech Private Limited", "type": "Domestic Payables", "status": "Active", "zterm_old": "X023", "zterm_old_desc": "45 Days", "zterm_new": "Z127", "zterm_new_desc": "60 days", "status_2526": "", "note": ""}, {"code": "L100163", "name": "Essae Teraoka Private Limited", "type": "Domestic Payables", "status": "Active", "zterm_old": "X023", "zterm_old_desc": "45 Days", "zterm_new": "Z127", "zterm_new_desc": "60 days", "status_2526": "Active", "note": "New Payment Term of 60 Days – Not Accepted"}, {"code": "L10041", "name": "Shrisha Ndt Services", "type": "Domestic Payables", "status": "Active", "zterm_old": "X016", "zterm_old_desc": "30 Days", "zterm_new": "Z001", "zterm_new_desc": "45 days", "status_2526": "", "note": ""}, {"code": "L20724", "name": "Rubix Gmbh", "type": "Foreign Payables", "status": "Active", "zterm_old": "Z127", "zterm_old_desc": "within 60 days Due net", "zterm_new": "", "zterm_new_desc": "", "status_2526": "", "note": ""}, {"code": "L100155", "name": "The New India Assurance Company Limited", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z001", "zterm_old_desc": "Payable immediately Due net", "zterm_new": "", "zterm_new_desc": "Payable immediately Due net", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100190", "name": "Icici Prudential Life Insurance Company", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z001", "zterm_old_desc": "Payable immediately Due net", "zterm_new": "", "zterm_new_desc": "Payable immediately Due net", "status_2526": "", "note": ""}, {"code": "L100164", "name": "Smart Infocom Private Limited", "type": "Domestic Payables", "status": "Active", "zterm_old": "X023", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L373458", "name": "Catensys Japan K.K.", "type": "Foreign Payables", "status": "Active", "zterm_old": "ZI03", "zterm_old_desc": "Before 15 in 2 months Due net", "zterm_new": "", "zterm_new_desc": "", "status_2526": "", "note": ""}, {"code": "L100189", "name": "Success  Calibration Laboratory", "type": "Domestic Payables", "status": "Active", "zterm_old": "X023", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Not Active", "note": "No Change Same as old  Payment term"}, {"code": "L100193", "name": "Aaa Engineeering Services", "type": "Domestic Payables", "status": "Active", "zterm_old": "X023", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Not Active", "note": "No Change Same as old  Payment term"}, {"code": "L100196", "name": "Bothe Enterprises", "type": "Domestic Payables", "status": "Active", "zterm_old": "X023", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100211", "name": "Mayur Graphics", "type": "Domestic Payables", "status": "Active", "zterm_old": "X016", "zterm_old_desc": "30 Days", "zterm_new": "Z001", "zterm_new_desc": "45 days", "status_2526": "Active", "note": "Accepted New Payment Term – 45 Days"}, {"code": "L100221", "name": "Psap Advisors", "type": "Domestic Payables", "status": "Active", "zterm_old": "X004", "zterm_old_desc": "8 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "", "note": ""}, {"code": "L100209", "name": "Caretek Calibration Laboratory", "type": "Domestic Payables", "status": "Active", "zterm_old": "X023", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100227", "name": "Fedex Express Transportation", "type": "Domestic Payables", "status": "Active", "zterm_old": "X016", "zterm_old_desc": "30 Days", "zterm_new": "Z001", "zterm_new_desc": "45 days", "status_2526": "", "note": ""}, {"code": "L100225", "name": "Unitech Engineering Works", "type": "Domestic Payables", "status": "Active", "zterm_old": "X016", "zterm_old_desc": "30 Days", "zterm_new": "Z001", "zterm_new_desc": "45 days", "status_2526": "Active", "note": "Accepted New Payment Term – 45 Days"}, {"code": "L269134", "name": "Universal Sales Corporation Pune", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z116", "zterm_old_desc": "30 Days", "zterm_new": "Z001", "zterm_new_desc": "45 days", "status_2526": "Active", "note": "Accepted New Payment Term – 45 Days"}, {"code": "L100232", "name": "Hasti Enterprises", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z116", "zterm_old_desc": "30 Days", "zterm_new": "Z001", "zterm_new_desc": "45 days", "status_2526": "", "note": ""}, {"code": "L100161", "name": "Prostarm Info Systems Limited", "type": "Domestic Payables", "status": "Active", "zterm_old": "X023", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L271611", "name": "Unity Guages & Tools Co. Pvt. Ltd.", "type": "Domestic Payables", "status": "Active", "zterm_old": "X006", "zterm_old_desc": "15 Days", "zterm_new": "Z001", "zterm_new_desc": "45 days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100233", "name": "Omega Qms Pvt Ltd", "type": "Domestic Payables", "status": "Active", "zterm_old": "X016", "zterm_old_desc": "30 Days", "zterm_new": "Z001", "zterm_new_desc": "45 days", "status_2526": "", "note": ""}, {"code": "L100242", "name": "Mak Technosys", "type": "Domestic Payables", "status": "Active", "zterm_old": "X016", "zterm_old_desc": "30 Days", "zterm_new": "Z001", "zterm_new_desc": "45 days", "status_2526": "Active", "note": "Accepted New Payment Term – 45 Days"}, {"code": "L100238", "name": "Ayaan Forklift", "type": "Domestic Payables", "status": "Active", "zterm_old": "X023", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100228", "name": "Magnus Industrial Solutions", "type": "Domestic Payables", "status": "Active", "zterm_old": "X016", "zterm_old_desc": "30 Days", "zterm_new": "Z001", "zterm_new_desc": "45 days", "status_2526": "Active", "note": "Accepted New Payment Term – 45 Days"}, {"code": "L100243", "name": "Conation Technologies Pvt. Ltd.", "type": "Domestic Payables", "status": "Active", "zterm_old": "X023", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100263", "name": "Avn Control Systems", "type": "Domestic Payables", "status": "Active", "zterm_old": "X016", "zterm_old_desc": "30 Days", "zterm_new": "Z001", "zterm_new_desc": "45 days", "status_2526": "Active", "note": "Accepted New Payment Term – 45 Days"}, {"code": "L100256", "name": "Shivshakti Enterprises", "type": "Domestic Payables", "status": "Active", "zterm_old": "X023", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100292", "name": "Sri Anu Engineering", "type": "Domestic Payables", "status": "Active", "zterm_old": "X006", "zterm_old_desc": "15 Days", "zterm_new": "Z001", "zterm_new_desc": "45 days", "status_2526": "", "note": ""}, {"code": "L100290", "name": "Karma Ndt Services Pvt Ltd", "type": "Domestic Payables", "status": "Active", "zterm_old": "X006", "zterm_old_desc": "15 Days", "zterm_new": "Z001", "zterm_new_desc": "45 days", "status_2526": "", "note": ""}, {"code": "L100281", "name": "K K India Machine Tools Enterprises", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z001", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100289", "name": "Trimurti Industries", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z001", "zterm_old_desc": "Payable immediately Due net", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100304", "name": "Leonard Logistics Private Limited", "type": "Domestic Payables", "status": "Active", "zterm_old": "X016", "zterm_old_desc": "30 Days", "zterm_new": "Z001", "zterm_new_desc": "45 days", "status_2526": "Active", "note": "Accepted New Payment Term – 45 Days"}, {"code": "L343150", "name": "Korea Sintered Metal Co., Ltd.", "type": "Foreign Payables", "status": "Active", "zterm_old": "Z116", "zterm_old_desc": "within 30 days Due net", "zterm_new": "", "zterm_new_desc": "", "status_2526": "", "note": ""}, {"code": "L100257", "name": "Hitro Logistics Private Limited", "type": "Domestic Payables", "status": "Active", "zterm_old": "X023", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100286", "name": "Techbean Systems Pvt Ltd", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z001", "zterm_old_desc": "Payable immediately Due net", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "", "note": ""}, {"code": "L100295", "name": "Suba Plastics Private Limited", "type": "Domestic Payables", "status": "Active", "zterm_old": "X023", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100223", "name": "Bunty Enterprises", "type": "Domestic Payables", "status": "Active", "zterm_old": "X016", "zterm_old_desc": "30 Days", "zterm_new": "Z001", "zterm_new_desc": "45 days", "status_2526": "", "note": ""}, {"code": "L100265", "name": "Springs Unlimited", "type": "Domestic Payables", "status": "Active", "zterm_old": "X023", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100314", "name": "Dhl Express (India) Private Limited", "type": "Domestic Payables", "status": "Active", "zterm_old": "X016", "zterm_old_desc": "30 Days", "zterm_new": "Z116", "zterm_new_desc": "30 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100284", "name": "Diksha Engineering & Solutions", "type": "Domestic Payables", "status": "Active", "zterm_old": "0001", "zterm_old_desc": "Payable immediately Due net", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "Accepted New Payment Term – 45 Days"}, {"code": "L100333", "name": "New Ppc Stationery And Printing Hub", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z001", "zterm_old_desc": "Payable immediately Due net", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "Accepted New Payment Term – 45 Days"}, {"code": "L100331", "name": "Polytest Laboratories Limited", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z001", "zterm_old_desc": "Payable immediately Due net", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "Accepted New Payment Term – 45 Days"}, {"code": "L100332", "name": "Shivsai Enterprises", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z001", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "active", "note": "No Change Same as old  Payment term"}, {"code": "L100329", "name": "Reco Storage Systems Pvt. Ltd", "type": "Domestic Payables", "status": "Active", "zterm_old": "X023", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100328", "name": "S.S.Enterprises", "type": "Domestic Payables", "status": "Active", "zterm_old": "X016", "zterm_old_desc": "30 Days", "zterm_new": "Z001", "zterm_new_desc": "45 days", "status_2526": "Active", "note": "Accepted New Payment Term – 45 Days"}, {"code": "L346965", "name": "Forbo Siegling Movement Systems", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100339", "name": "Sachin Gogave & Co Llp", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z001", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100313", "name": "Mahr Metrology India", "type": "Domestic Payables", "status": "Active", "zterm_old": "X016", "zterm_old_desc": "30 Days", "zterm_new": "Z001", "zterm_new_desc": "45 days", "status_2526": "Active", "note": "Accepted New Payment Term – 45 Days"}, {"code": "L100354", "name": "Tox Pressotechnik (India) Pvt. Ltd", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z001", "zterm_old_desc": "Payable immediately Due net", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "", "note": ""}, {"code": "L100261", "name": "Excellent Packaging Solutions", "type": "Domestic Payables", "status": "Active", "zterm_old": "X023", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "Accepted New Payment Term – 45 Days"}, {"code": "L10037", "name": "Anita Exim Corporation", "type": "Domestic Payables", "status": "Active", "zterm_old": "0001", "zterm_old_desc": "Payable immediately Due net", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "", "note": ""}, {"code": "L100351", "name": "Tulsi Environmental", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z001", "zterm_old_desc": "Payable immediately Due net", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "", "note": ""}, {"code": "L100368", "name": "Ayush Enterprises", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z001", "zterm_old_desc": "Payable immediately Due net", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "Accepted New Payment Term – 45 Days"}, {"code": "L100349", "name": "Viram Enterprises", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z001", "zterm_old_desc": "Payable immediately Due net", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "Accepted New Payment Term – 45 Days"}, {"code": "L100364", "name": "Focus Controls Pvt. Ltd.", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z001", "zterm_old_desc": "Payable immediately Due net", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "Accepted New Payment Term – 45 Days"}, {"code": "L100365", "name": "Stark Automation", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z001", "zterm_old_desc": "Payable immediately Due net", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "Accepted New Payment Term – 45 Days"}, {"code": "L100367", "name": "Saif Hydraulic & Pneumatics Company", "type": "Domestic Payables", "status": "Active", "zterm_old": "X016", "zterm_old_desc": "30 Days", "zterm_new": "Z001", "zterm_new_desc": "45 days", "status_2526": "Active", "note": "Accepted New Payment Term – 45 Days"}, {"code": "L100363", "name": "Bhagyashree Infotech", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z001", "zterm_old_desc": "Payable immediately Due net", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "", "note": ""}, {"code": "L100310", "name": "Mindful Momentum Llp", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z001", "zterm_old_desc": "Payable immediately Due net", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "", "note": ""}, {"code": "L100356", "name": "Ajey Diagnostics Pvt.Ltd.", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z001", "zterm_old_desc": "Payable immediately Due net", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100377", "name": "Ecoclean Machines Private Limited", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z001", "zterm_old_desc": "Payable immediately Due net", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100388", "name": "Samiksha Tours & Travels", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z001", "zterm_old_desc": "Payable immediately Due net", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100389", "name": "Om Sairam Logistics", "type": "Domestic Payables", "status": "Active", "zterm_old": "X016", "zterm_old_desc": "30 Days", "zterm_new": "Z001", "zterm_new_desc": "45 days", "status_2526": "Active", "note": "Accepted New Payment Term – 45 Days"}, {"code": "L100370", "name": "Excellent Engineering", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z001", "zterm_old_desc": "Payable immediately Due net", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "Accepted New Payment Term – 45 Days"}, {"code": "L100353", "name": "Rpk India Pvt Ltd", "type": "Domestic Payables", "status": "Active", "zterm_old": "X023", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "Accepted New Payment Term – 45 Days"}, {"code": "L100372", "name": "Ideal And Company", "type": "Domestic Payables", "status": "Active", "zterm_old": "X016", "zterm_old_desc": "30 Days", "zterm_new": "Z001", "zterm_new_desc": "45 days", "status_2526": "Active", "note": "Accepted New Payment Term – 45 Days"}, {"code": "L100382", "name": "Icon Labs Private Limited", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z001", "zterm_old_desc": "Payable immediately Due net", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "", "note": ""}, {"code": "L100417", "name": "Sumant Technotrade", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z001", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L277600", "name": "Nitin Enterprises", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100407", "name": "Asian & Media Magix", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z001", "zterm_old_desc": "Payable immediately Due net", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "", "note": "No transaction From 2024"}, {"code": "L100413", "name": "Maharashtra State Electricity", "type": "Domestic Payables", "status": "Active", "zterm_old": "0001", "zterm_old_desc": "Payable immediately Due net", "zterm_new": "", "zterm_new_desc": "Govt.", "status_2526": "Govt.", "note": "Govt."}, {"code": "L100521", "name": "Acme Rollers", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L297754", "name": "Krishana Enterprises", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100336", "name": "Neelson Indoplast", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L272123", "name": "Everest Traders", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100386", "name": "OBSC Private Limited", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100556", "name": "Gokala Associate", "type": "Domestic Payables", "status": "Active", "zterm_old": "X016", "zterm_old_desc": "30 Days", "zterm_new": "Z116", "zterm_new_desc": "30 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100557", "name": "Keyence India", "type": "Domestic Payables", "status": "Active", "zterm_old": "0001", "zterm_old_desc": "30 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "New Payment Term of 45 Days – Not Accepted"}, {"code": "L100437", "name": "Shree Sales Service & TraCing", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L272029", "name": "Cotmac Eletronics", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100538", "name": "Sriya Engineerig", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100562", "name": "Square Autopack And Controls", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100537", "name": "IMOSYS  Polymers", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L270712", "name": "ShreeJi Mateking & Corporataion", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100575", "name": "National Securities Depository Ltd", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100206", "name": "BIPO SERVICE INDIA PRIVATE LIMITED", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "", "note": ""}, {"code": "L100490", "name": "BUREAU VERITAS INDUSTRIAL SERVICES (INDIA) PRIVATE LIMITED", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "", "note": ""}, {"code": "L100464", "name": "MORAYA ENTERPRISES", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "", "note": ""}, {"code": "L350370", "name": "L.G. Balakrishnan & Bros. Ltd.- Chennai", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z175", "zterm_old_desc": "75 days after month end", "zterm_new": "", "zterm_new_desc": "75 days after month end", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100507", "name": "Hitro Logistics Private Limited", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100385", "name": "SNA INDUSTRIE", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100467", "name": "Qualitek labs Limited", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100222", "name": "3T INDUSTRIAL SOLUTIONS", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100463", "name": "Optiscale Automation LLP", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "", "note": ""}, {"code": "L100465", "name": "DNYANADA PETROLEUM", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z116", "zterm_old_desc": "30 Days", "zterm_new": "", "zterm_new_desc": "30 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100481", "name": "GO ONE SOLUTIONS AND SERVICES", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100462", "name": "Rentokil Initial Hygiene India Pvt. Ltd", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100459", "name": "KAKADE ENTERPRISES", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L363758", "name": "Hitro Logistics Private Limited", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100167", "name": "SHARP BUSINESS SYSTEMS", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z116", "zterm_old_desc": "30 Days", "zterm_new": "", "zterm_new_desc": "30 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100427", "name": "Kazi Mandap Decorators", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100444", "name": "Maxwells Hospitality Services", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z116", "zterm_old_desc": "30 Days", "zterm_new": "", "zterm_new_desc": "30 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100177", "name": "SHARP BUSINESS SYSTEMS", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z116", "zterm_old_desc": "30 Days", "zterm_new": "", "zterm_new_desc": "30 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100235", "name": "AHS TRADE & SERVICES PVT. LTD.", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100434", "name": "NEXAEDGE INDIA PRIVATE LIMITED", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100448", "name": "R K PETROLEUM", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z116", "zterm_old_desc": "30 Days", "zterm_new": "", "zterm_new_desc": "30 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100220", "name": "Sayaji Hotels (Pune) Limited", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z116", "zterm_old_desc": "30 Days", "zterm_new": "", "zterm_new_desc": "30 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100441", "name": "Suyog Autocast Pvt Ltd.", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100216", "name": "VODAFONE IDEA", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100224", "name": "MAPOL BUSINESS SOLUTIONS PRIVATE LIMITE", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100492", "name": "MATRIX TESTING AND TECHNOLOGIES PVT LTD", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100425", "name": "MYWELLBEING SOFT SKILLS LLP", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100452", "name": "Norville Maintenance Private Limited", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100217", "name": "SAYALI TRANSLINK INDIA", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100499", "name": "UNIVERSAL CALIBRATION SERVICES PRIVATE LIMITED", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100435", "name": "Accurate Powertech India Pvt Ltd", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z116", "zterm_old_desc": "30 days", "zterm_new": "Z116", "zterm_new_desc": "30 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100436", "name": "Verify360 Background Screening Services LLP", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z116", "zterm_old_desc": "30 days", "zterm_new": "Z116", "zterm_new_desc": "30 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100461", "name": "CHECKMATE SECURITY SOLUTIONS", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z116", "zterm_old_desc": "30 days", "zterm_new": "Z116", "zterm_new_desc": "30 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100433", "name": "ADVANCE MEASURING SOLUTIONS", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100454", "name": "Avanti Tech Solutions", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100460", "name": "FFServices Pvt Ltd", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z116", "zterm_old_desc": "30 days", "zterm_new": "Z116", "zterm_new_desc": "30 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100301", "name": "Apt Samriddhi Consultants Pvt. Ltd.", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z116", "zterm_old_desc": "30 days", "zterm_new": "Z116", "zterm_new_desc": "30 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100489", "name": "Mignited Technologies and Solutions", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100311", "name": "RANDSTAD INDIA PRIVATE LIMITED", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100466", "name": "RMK INFRASTRUCTURE PRIVATE LIMITED", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "S373858", "name": "CATENSYS India Pvt. Ltd.", "type": "Domestic Payables", "status": "Active", "zterm_old": "", "zterm_old_desc": "", "zterm_new": "", "zterm_new_desc": "", "status_2526": "", "note": ""}, {"code": "L100474", "name": "NIMISH ENTERPRISES", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100520", "name": "RELIANCE RETAIL LIMITED", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z001", "zterm_old_desc": "Payable immediately Due net", "zterm_new": "", "zterm_new_desc": "0 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100491", "name": "GBRN PROJECTS INDIA PRIVATE LIMITED", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100536", "name": "UPS EXPRESS PRIVATE LIMITED", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100531", "name": "RAMSON HEATERS PVT LTD", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100590", "name": "Hyundai Motor India Limited", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z001", "zterm_old_desc": "Payable immediately Due net", "zterm_new": "", "zterm_new_desc": "0 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L270712", "name": "Shreeji Marketing Corporation", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100505", "name": "ADS TECHNOLOGIES", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100538", "name": "SRIYA ENGINEERING WORKS", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100540", "name": "RS Enterprises", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100549", "name": "PREMIER SALES CORPORATION", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100551", "name": "DNX Cargo India Pvt. Ltd.", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z116", "zterm_old_desc": "30 Days", "zterm_new": "Z116", "zterm_new_desc": "30 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100572", "name": "AQUA WATER ENGINEERING", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z116", "zterm_old_desc": "30 Days", "zterm_new": "Z116", "zterm_new_desc": "30 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100542", "name": "UNIVERSAL ENGINEERING", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100546", "name": "Earth Sustain India Pvt Ltd", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100560", "name": "MAARG TECHNOLOGIES RVI-NDT PVT. LTD.", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100564", "name": "SUPER FACILITY SERVICES", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100576", "name": "EMITEC TECHNOLOGIES INDIA PVT LTD", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100473", "name": "Siddhi Enterprises & Services", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100543", "name": "Praj Consultants and Engineers", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z116", "zterm_old_desc": "30 Days", "zterm_new": "Z116", "zterm_new_desc": "30 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100550", "name": "Shodh Placement And Management", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100525", "name": "Shravani Enterprises", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100580", "name": "Attharva Accident Hospital", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z116", "zterm_old_desc": "30 Days", "zterm_new": "Z116", "zterm_new_desc": "30 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100588", "name": "Vardhan Works Pvt. Ltd.", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z116", "zterm_old_desc": "30 Days", "zterm_new": "Z116", "zterm_new_desc": "30 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100625", "name": "ZURICH KOTAK GENER", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z001", "zterm_old_desc": "Payable immediately Due net", "zterm_new": "", "zterm_new_desc": "Payable immediately Due net", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100623", "name": "INTEGRAL ENGINEE", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100622", "name": "RAJDEEP ELECTRICAL", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100619", "name": "VOLTRIC ENGINEERING SOLUTIONS LLP", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100618", "name": "Concorde Oceanlinks Pvt Ltd", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100614", "name": "Athang Power Corporation", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100613", "name": "TEJAS INDUSTRIES", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100630", "name": "INNOVA TECH GLOBAL SOLUTIONS", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100605", "name": "HARSHA ENGINEERS ADVANTEK LIMITED", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100634", "name": "SHREE OM SALES CORPORATION", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100636", "name": "Micrograph Technologies", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z123", "zterm_old_desc": "45 Days", "zterm_new": "Z001", "zterm_new_desc": "45 Days", "status_2526": "Active", "note": "No Change Same as old  Payment term"}, {"code": "L100646", "name": "Digitech Computers", "type": "Domestic Payables", "status": "Active", "zterm_old": "Z116", "zterm_old_desc": "30 Days", "zterm_new": "Z116", "zterm_new_desc": "30 Days", "status_2526": "Active", "note": "30 Days Payment term"}];
+const PAYMENT_TERMS = [
+  {"code":"Z001","desc":"45 Days"},
+  {"code":"Z090","desc":"90 d end of month"},
+  {"code":"Z104","desc":"8 Days"},
+  {"code":"Z106","desc":"45 Days"},
+  {"code":"Z116","desc":"30 Days"},
+  {"code":"Z117","desc":"15 Days"},
+  {"code":"Z123","desc":"45 Days"},
+  {"code":"Z127","desc":"60 Days"},
+  {"code":"Z130","desc":"30 Days"},
+  {"code":"Z136","desc":"Advance payment"},
+  {"code":"Z138","desc":"within 90 days Due net"},
+  {"code":"Z145","desc":"45 Days"},
+  {"code":"Z160","desc":"60 d end of month"},
+  {"code":"Z175","desc":"75 Days"},
+  {"code":"Z186","desc":"15 Days"},
+  {"code":"ZI02","desc":"Before 15 in 3 months Due net"},
+  {"code":"ZI03","desc":"Before 15 in 2 months Due net"}
+];
+
+// ─── State ───────────────────────────────────────────────────
+var selected = new Set();
+var visible  = [];
+var sortCol  = 'code';
+var sortDir  = 1;
+var _abort   = false;
+
+// ─── System helpers ──────────────────────────────────────────
+function getBukrs(){ var r=document.querySelector('input[name="bukrs"]:checked'); return r?r.value:'0435'; }
+function getSapSys(){ var r=document.querySelector('input[name="sapSys"]:checked'); return r?r.value:'SEP'; }
+function getEkorg(){ return '0001'; }
+
+function onSysChange(){
+  var bk = getBukrs();
+  document.getElementById('pageTitle').textContent =
+    bk==='0439' ? '🏭 SAP Lieferantenstammdaten · 🇮🇳 India (0439)'
+                : '🏭 SAP Lieferantenstammdaten · 🇩🇪 Germany (0435)';
+  selected.clear();
+  render();
+}
+
+// ─── Payment terms ───────────────────────────────────────────
+function renderPT(){
+  document.getElementById('ptBody').innerHTML =
+    PAYMENT_TERMS.map(function(t){
+      return '<div class="pt-chip"><code>'+esc(t.code)+'</code>'+esc(t.desc)+'</div>';
+    }).join('');
+}
+function togglePT(){
+  var b=document.getElementById('ptBody'), c=document.getElementById('ptChevron');
+  if(b.style.display==='none'){ b.style.display='flex'; c.textContent='▲'; }
+  else { b.style.display='none'; c.textContent='▼'; }
+}
+
+// ─── Excel Import ────────────────────────────────────────────
+(function wireImport(){
+  var dz = document.getElementById('dropZone');
+  var fi = document.getElementById('fileInput');
+
+  // Block browser default for all drag events on body
+  ['dragenter','dragover','dragleave','drop'].forEach(function(ev){
+    document.body.addEventListener(ev, function(e){ e.preventDefault(); e.stopPropagation(); }, false);
+  });
+
+  dz.addEventListener('dragenter', function(e){ e.preventDefault(); dz.classList.add('drag-over'); });
+  dz.addEventListener('dragover',  function(e){ e.preventDefault(); dz.classList.add('drag-over'); });
+  dz.addEventListener('dragleave', function(e){
+    if(!dz.contains(e.relatedTarget)) dz.classList.remove('drag-over');
+  });
+  dz.addEventListener('drop', function(e){
+    e.preventDefault();
+    dz.classList.remove('drag-over');
+    var files = e.dataTransfer.files;
+    if(files && files.length) handleFile(files[0]);
+  });
+
+  if(fi) fi.addEventListener('change', function(){
+    if(this.files && this.files[0]) handleFile(this.files[0]);
+    this.value = '';  // allow re-selecting same file
+  });
+})();
+
+function handleFile(file){
+  if(!file) return;
+  if(!file.name.match(/\.xlsx?$/i)){
+    showImportStatus('err', 'Nur .xlsx / .xls Dateien (gewählt: ' + file.name + ')');
+    return;
+  }
+  showImportStatus('ok', '<span class="spin"></span>  Lese ' + esc(file.name) + ' …');
+  var reader = new FileReader();
+  reader.onerror = function(){ showImportStatus('err','Datei konnte nicht gelesen werden.'); };
+  reader.onload  = function(e){ parseExcel(e.target.result, file.name); };
+  reader.readAsArrayBuffer(file);
+}
+
+/* PVO sheet column mapping (0-based, row 0 = header):
+   0  Vendor Code      1  Vendor Name      3  Vendor Type
+   4  Status           8  Payment Terms (current ZTERM — 2nd occurrence)
+   9  Current Payment Disc Old             10 New Payment Terms
+   11 New Proposed Payment Term plan       21 Status for 2025-26
+   23 New Payment Terms In Days (note)                              */
+function parseExcel(buffer, fname){
+  try {
+    if(typeof XLSX === 'undefined'){
+      showImportStatus('err','SheetJS-Bibliothek nicht geladen. Bitte online sein und Seite neu laden.');
+      return;
+    }
+    var wb   = XLSX.read(new Uint8Array(buffer), {type:'array'});
+    var sn   = wb.SheetNames.includes('PVO') ? 'PVO' : wb.SheetNames[0];
+    var rows = XLSX.utils.sheet_to_json(wb.Sheets[sn], {header:1, defval:'', raw:false});
+
+    if(rows.length < 2){
+      showImportStatus('err', 'Sheet „'+sn+'" enthält keine Datenzeilen.'); return;
+    }
+
+    var parsed = [];
+    for(var i=1; i<rows.length; i++){
+      var r = rows[i];
+      var code = String(r[0]||'').trim();
+      if(!code || !code.match(/^L\d/)) continue;
+      parsed.push({
+        code:           code,
+        name:           String(r[1] ||'').trim(),
+        type:           String(r[3] ||'').trim() || 'Domestic Payables',
+        status:         String(r[4] ||'').trim(),
+        zterm_old:      String(r[8] ||'').trim(),
+        zterm_old_desc: String(r[9] ||'').trim(),
+        zterm_new:      String(r[10]||'').trim(),
+        zterm_new_desc: String(r[11]||'').trim(),
+        status_2526:    String(r[21]||'').trim(),
+        note:           String(r[23]||'').trim()
+      });
+    }
+
+    if(!parsed.length){
+      showImportStatus('err',
+        'Keine Lieferanten in Sheet „'+sn+'" gefunden. '+
+        'Erwartet: Spalte A = Vendor Code, beginnt mit „L".');
+      return;
+    }
+
+    VENDOR_DATA.length = 0;
+    parsed.forEach(function(v){ VENDOR_DATA.push(v); });
+    selected.clear();
+
+    var withNew = parsed.filter(function(v){ return !!v.zterm_new; }).length;
+    showImportStatus('ok',
+      '✓  <strong>'+parsed.length+' Lieferanten</strong> geladen · '+
+      '<strong>'+withNew+'</strong> mit neuem ZTerm · '+
+      'Sheet: „'+sn+'" · '+esc(fname));
+
+    // Preview: prefer rows with new ZTerm
+    var prev = parsed.filter(function(v){ return !!v.zterm_new; }).slice(0,10);
+    if(!prev.length) prev = parsed.slice(0,10);
+    document.getElementById('previewBody').innerHTML = prev.map(function(v){
+      return '<tr>'+
+        '<td style="font-family:monospace;color:var(--acc);">'+esc(v.code)+'</td>'+
+        '<td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+esc(v.name)+'</td>'+
+        '<td><span class="badge '+(v.type==='Domestic Payables'?'badge-dom':'badge-for')+'">'+
+          (v.type==='Domestic Payables'?'Dom':'For')+'</span></td>'+
+        '<td><span class="badge '+(v.status==='Active'?'badge-active':'badge-inactive')+'">'+esc(v.status)+'</span></td>'+
+        '<td style="font-family:monospace;color:var(--muted);">'+esc(v.zterm_old)+'</td>'+
+        '<td style="font-family:monospace;color:var(--new);font-weight:700;">'+(v.zterm_new||'–')+'</td>'+
+        '<td class="note-cell" title="'+esc(v.note)+'">'+esc(v.note)+'</td>'+
+        '</tr>';
+    }).join('');
+    document.getElementById('importPreview').style.display = 'block';
+
+    render();
+    toast('ok', parsed.length+' Lieferanten importiert ('+withNew+' mit neuem ZTerm)');
+  } catch(ex){
+    showImportStatus('err','Fehler beim Parsen: '+ex.message);
+    console.error(ex);
+  }
+}
+
+function showImportStatus(type, msg){
+  var el = document.getElementById('importStatus');
+  el.className = 'import-status '+type;
+  el.innerHTML = msg;
+  el.style.display = 'block';
+}
+
+// ─── Render table ────────────────────────────────────────────
+function getFiltered(){
+  var q  = document.getElementById('fSearch').value.trim().toLowerCase();
+  var fs = document.getElementById('fStatus').value;
+  var ft = document.getElementById('fType').value;
+  var fn = document.getElementById('fNewTerm').value;
+  return VENDOR_DATA.filter(function(v){
+    if(q && !v.code.toLowerCase().includes(q) && !v.name.toLowerCase().includes(q)) return false;
+    if(fs && v.status !== fs) return false;
+    if(ft && v.type   !== ft) return false;
+    if(fn==='yes' && !v.zterm_new) return false;
+    if(fn==='no'  &&  v.zterm_new) return false;
+    return true;
+  });
+}
+
+function render(){
+  var data = getFiltered();
+  data.sort(function(a,b){
+    var av=a[sortCol]||'', bv=b[sortCol]||'';
+    return av<bv ? -sortDir : av>bv ? sortDir : 0;
+  });
+  visible = data;
+
+  var withNew = VENDOR_DATA.filter(function(v){ return !!v.zterm_new; }).length;
+  document.getElementById('countInfo').innerHTML =
+    '<strong>'+data.length+'</strong> von <strong>'+VENDOR_DATA.length+
+    '</strong> · <strong>'+withNew+'</strong> mit neuem ZTerm';
+
+  document.getElementById('tblBody').innerHTML = data.map(function(v){
+    var chk    = selected.has(v.code) ? ' checked' : '';
+    var newCls = !v.zterm_new ? 'none' : (v.zterm_new===v.zterm_old ? 'same' : '');
+    var newTxt = v.zterm_new || '–';
+    var newDesc= v.zterm_new ?
+      ' <span style="color:var(--muted);font-size:10px;">'+esc(v.zterm_new_desc)+'</span>' : '';
+    return '<tr class="'+(selected.has(v.code)?'selected':'')+
+      '" onclick="rowClick(event,\''+v.code.replace(/'/g,"\\'")+'\')">' +
+      '<td onclick="event.stopPropagation()">'+
+        '<input type="checkbox" data-code="'+esc(v.code)+'"'+chk+' onchange="selChange(this)"></td>'+
+      '<td class="code">'+esc(v.code)+'</td>'+
+      '<td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+esc(v.name)+'</td>'+
+      '<td><span class="badge '+(v.type==='Domestic Payables'?'badge-dom':'badge-for')+'">'+
+        (v.type==='Domestic Payables'?'Domestic':'Foreign')+'</span></td>'+
+      '<td><span class="badge '+(v.status==='Active'?'badge-active':'badge-inactive')+'">'+esc(v.status)+'</span></td>'+
+      '<td><span class="zterm-old" title="'+esc(v.zterm_old_desc)+'">'+esc(v.zterm_old)+'</span>'+
+        ' <span style="color:var(--muted);font-size:10px;">'+esc(v.zterm_old_desc)+'</span></td>'+
+      '<td><span class="zterm-new '+newCls+'" title="'+esc(v.zterm_new_desc)+'">'+esc(newTxt)+'</span>'+newDesc+'</td>'+
+      '<td style="font-size:11px;color:var(--muted);">'+esc(v.status_2526||'')+'</td>'+
+      '<td class="note-cell" title="'+esc(v.note||'')+'">'+esc(v.note||'')+'</td>'+
+      '</tr>';
+  }).join('') || '<tr><td colspan="9" style="text-align:center;padding:24px;color:var(--muted);">Keine Einträge</td></tr>';
+
+  updateSelInfo();
+}
+
+function setSort(col){
+  sortDir = sortCol===col ? -sortDir : 1;
+  sortCol = col;
+  ['code','name'].forEach(function(c){
+    document.getElementById('s_'+c).textContent = sortCol===c ? (sortDir===1?' ▲':' ▼') : '';
+  });
+  render();
+}
+
+// ─── Selection ───────────────────────────────────────────────
+function selChange(el){
+  var code = el.dataset.code;
+  if(el.checked) selected.add(code); else selected.delete(code);
+  updateSelInfo();
+  var tr = el.closest('tr');
+  if(tr) tr.classList.toggle('selected', el.checked);
+}
+function rowClick(e, code){
+  if(e.target.tagName==='INPUT') return;
+  if(selected.has(code)) selected.delete(code); else selected.add(code);
+  updateSelInfo(); render();
+}
+function toggleAll(chk){
+  visible.forEach(function(v){ if(chk) selected.add(v.code); else selected.delete(v.code); });
+  render();
+}
+function selectAllWithNewTerm(){
+  VENDOR_DATA.forEach(function(v){ if(v.zterm_new) selected.add(v.code); }); render();
+}
+function selectVisible(){ visible.forEach(function(v){ selected.add(v.code); }); render(); }
+function clearSelection(){ selected.clear(); render(); }
+function updateSelInfo(){
+  var n = selected.size;
+  document.getElementById('selInfo').innerHTML = '<strong>'+n+'</strong> ausgewählt';
+  document.getElementById('btnUpdate').disabled = n===0;
+}
+
+// ─── SAP Update ──────────────────────────────────────────────
+var _tot=0, _done=0, _ok=0, _warn=0, _err=0;
+
+function startUpdate(){
+  var bukrs  = getBukrs();
+  var sapSys = getSapSys();
+  var toUpdate = [];
+  selected.forEach(function(code){
+    var v = VENDOR_DATA.find(function(x){ return x.code===code; });
+    if(v && v.zterm_new) toUpdate.push(v);
+  });
+  if(!toUpdate.length){
+    toast('err','Keine der gewählten Lieferanten hat einen neuen ZTerm.');
+    return;
+  }
+  _abort=false; _tot=toUpdate.length; _done=_ok=_warn=_err=0;
+  document.getElementById('progList').innerHTML='';
+  document.getElementById('summaryBox').style.display='none';
+  document.getElementById('progBar').style.width='0%';
+  document.getElementById('progBar').style.background='var(--acc)';
+  document.getElementById('modalStatus').textContent='0 / '+_tot;
+  document.getElementById('modalTitle').textContent=
+    '🔄 SAP Aktualisierung — '+bukrs+' · '+sapSys;
+  document.getElementById('btnAbort').style.display='';
+  document.getElementById('btnClose').style.display='none';
+  document.getElementById('modal').classList.add('open');
+
+  var byTerm={};
+  toUpdate.forEach(function(v){
+    if(!byTerm[v.zterm_new]) byTerm[v.zterm_new]=[];
+    byTerm[v.zterm_new].push(v);
+  });
+  runGroups(byTerm, bukrs, sapSys);
+}
+
+async function runGroups(byTerm, bukrs, sapSys){
+  var terms = Object.keys(byTerm);
+  for(var i=0; i<terms.length; i++){
+    if(_abort) break;
+    var term    = terms[i];
+    var vendors = byTerm[term];
+    vendors.forEach(function(v){ addProgItem(v); });
+    vendors.forEach(function(v){ setProgItem(v.code,'run','⏳','Wird aktualisiert…'); });
+    try {
+      var res = await fetch(BRIDGE_URL+'/run',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({method:'GUI',tcode:'MK02_ZTERM',payload:{
+          vendors:   vendors.map(function(v){ return v.code; }),
+          new_zterm: term,
+          bukrs:     bukrs,
+          ekorg:     getEkorg(),
+          background:false,
+          _sap_auth: {system:sapSys}
+        }}),
+        signal: AbortSignal.timeout(120000)
+      });
+      var data = await res.json();
+      if(data.results && data.results.length){
+        data.results.forEach(function(r){
+          var st=r.status||'err', msg=r.message||'';
+          if(st==='ok')  { _ok++;   _done++; setProgItem(r.lifnr,'ok','✓',msg||'OK'); }
+          else if(st==='warn'){ _warn++; _done++; setProgItem(r.lifnr,'warn','⚠',msg); }
+          else           { _err++;  _done++; setProgItem(r.lifnr,'err','✗',msg||'Fehler'); }
+        });
+        // vendors not in results
+        vendors.forEach(function(v){
+          if(!data.results.find(function(r){ return r.lifnr===v.code; })){
+            _done++;
+            if(data.status==='ok'){ _ok++; setProgItem(v.code,'ok','✓','OK'); }
+            else { _err++; setProgItem(v.code,'err','✗','Keine Rückmeldung'); }
+          }
+        });
+      } else {
+        var ok=data.status==='ok';
+        vendors.forEach(function(v){
+          _done++; if(ok){ _ok++; setProgItem(v.code,'ok','✓','OK'); }
+          else { _err++; setProgItem(v.code,'err','✗',data.message||'Fehler'); }
+        });
+      }
+    } catch(ex){
+      vendors.forEach(function(v){
+        _done++; _err++;
+        setProgItem(v.code,'err','✗','Verbindungsfehler: '+ex.message);
+      });
+    }
+    document.getElementById('progBar').style.width=Math.round(100*_done/_tot)+'%';
+    document.getElementById('modalStatus').textContent=_done+' / '+_tot;
+  }
+  document.getElementById('progBar').style.width='100%';
+  document.getElementById('progBar').style.background=_err>0?'var(--err)':'var(--ok)';
+  document.getElementById('summaryBox').style.display='grid';
+  document.getElementById('sumOk').textContent   = _ok;
+  document.getElementById('sumWarn').textContent  = _warn;
+  document.getElementById('sumErr').textContent   = _err;
+  document.getElementById('btnAbort').style.display='none';
+  document.getElementById('btnClose').style.display='';
+  document.getElementById('modalStatus').textContent=_abort?'Abgebrochen':'Abgeschlossen';
+  if(!_abort) toast(_err===0?'ok':'err',
+    'Fertig: '+_ok+' OK, '+_warn+' Warnungen, '+_err+' Fehler');
+}
+
+function addProgItem(v){
+  var el=document.createElement('div');
+  el.className='prog-item'; el.id='pi_'+v.code;
+  el.innerHTML='<div class="prog-icon" id="pi_'+v.code+'_i">○</div>'+
+    '<div class="prog-code">'+esc(v.code)+'</div>'+
+    '<div class="prog-name">'+esc(v.name)+'</div>'+
+    '<div class="prog-msg" id="pi_'+v.code+'_m"></div>';
+  document.getElementById('progList').appendChild(el);
+}
+function setProgItem(code,state,icon,msg){
+  var el=document.getElementById('pi_'+code);
+  if(!el) return;
+  el.className='prog-item '+(state==='ok'?'ok-row':state==='err'?'err-row':'run-row');
+  var i=document.getElementById('pi_'+code+'_i');
+  var m=document.getElementById('pi_'+code+'_m');
+  if(i) i.textContent=icon;
+  if(m) m.textContent=msg;
+}
+function abortUpdate(){ _abort=true; document.getElementById('modalStatus').textContent='Wird abgebrochen…'; }
+function closeModal(){ document.getElementById('modal').classList.remove('open'); render(); }
+
+// ─── Utils ───────────────────────────────────────────────────
+function esc(s){
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function toast(type,msg){
+  var el=document.createElement('div');
+  el.className='toast '+type; el.textContent=msg;
+  document.getElementById('toastWrap').appendChild(el);
+  setTimeout(function(){ el.remove(); },5000);
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Modul-Tab-Switching
+// ─────────────────────────────────────────────────────────────────────────────
+function switchModTab(tab){
+  document.getElementById('panelZterm').style.display  = tab==='zterm' ? '' : 'none';
+  document.getElementById('panelIntad').style.display  = tab==='intad' ? '' : 'none';
+  document.getElementById('tabBtnZterm').classList.toggle('active', tab==='zterm');
+  document.getElementById('tabBtnIntad').classList.toggle('active', tab==='intad');
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// INTAD-Tab – Daten + State
+// ─────────────────────────────────────────────────────────────────────────────
+var INTAD_DATA    = [];   // [{code, name, email, bukrs, status:'', statusMsg:'', statusTime:''}]
+var intadSelected = new Set();
+
+// ─── Drop-Zone wiring ───────────────────────────────────────────────────────
+(function wireImportIntad(){
+  var dz = document.getElementById('dropZoneIntad');
+  var fi = document.getElementById('fileInputIntad');
+  if(!dz) return;
+  dz.addEventListener('dragenter', function(e){ e.preventDefault(); e.stopPropagation(); dz.classList.add('drag-over'); });
+  dz.addEventListener('dragover',  function(e){ e.preventDefault(); e.stopPropagation(); dz.classList.add('drag-over'); });
+  dz.addEventListener('dragleave', function(e){
+    if(!dz.contains(e.relatedTarget)) dz.classList.remove('drag-over');
+  });
+  dz.addEventListener('drop', function(e){
+    e.preventDefault();
+    e.stopPropagation();
+    dz.classList.remove('drag-over');
+    var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if(f) handleFileIntad(f);
+  });
+  if(fi) fi.addEventListener('change', function(){
+    if(fi.files && fi.files[0]) handleFileIntad(fi.files[0]);
+    this.value = '';
+  });
+})();
+
+function handleFileIntad(file){
+  if(!file) return;
+  if(!file.name.match(/\.xlsx?$/i)){
+    showImportStatusIntad('err', 'Nur .xlsx / .xls Dateien (gewählt: ' + file.name + ')');
+    return;
+  }
+  showImportStatusIntad('ok', '<span class="spin"></span> Lese ' + esc(file.name) + ' …');
+  var reader = new FileReader();
+  reader.onerror = function(){ showImportStatusIntad('err','Datei konnte nicht gelesen werden.'); };
+  reader.onload  = function(e){ parseExcelIntad(e.target.result, file.name); };
+  reader.readAsArrayBuffer(file);
+}
+
+function parseExcelIntad(buffer, fname){
+  try {
+    var wb  = XLSX.read(buffer, {type:'array'});
+    // Erstes Sheet lesen
+    var ws  = wb.Sheets[wb.SheetNames[0]];
+    var rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:''});
+
+    var parsed = [];
+    // Kopfzeile überspringen (erste Zeile)
+    for(var i=1; i<rows.length; i++){
+      var r = rows[i];
+      var bukrsRow = String(r[0]||'').trim(); // Spalte A: Buchungskreis
+      var code  = String(r[1]||'').trim();   // Spalte B: Vendor Code
+      var name  = String(r[2]||'').trim();   // Spalte C: Vendor Name
+      var email = String(r[3]||'').trim();   // Spalte D: E-Mail (INTAD)
+      if(!code || !email) continue;
+      parsed.push({code:code, name:name, email:email, bukrs:bukrsRow||'0439',
+                   status:'', statusMsg:'', statusTime:''});
+    }
+
+    if(!parsed.length){
+      showImportStatusIntad('err','Keine gültigen Zeilen gefunden (Vendor Code + E-Mail erforderlich).');
+      return;
+    }
+
+    INTAD_DATA = parsed;
+    intadSelected.clear();
+    document.getElementById('btnIntadExport').disabled = false;
+    showImportStatusIntad('ok', parsed.length + ' Lieferanten importiert aus "' + fname + '"');
+
+    // Preview (erste 10)
+    var prev = parsed.slice(0,10);
+    document.getElementById('previewBodyIntad').innerHTML = prev.map(function(v){
+      return '<tr><td class="code">'+esc(v.code)+'</td><td>'+esc(v.name)+'</td>'
+           + '<td style="font-family:monospace;font-size:11px;color:var(--muted);">'+esc(v.email)+'</td></tr>';
+    }).join('');
+    document.getElementById('importPreviewIntad').style.display='';
+
+    renderIntad();
+    toast('ok', parsed.length + ' Lieferanten importiert');
+  } catch(ex){
+    showImportStatusIntad('err','Parse-Fehler: '+ex.message);
+    console.error(ex);
+  }
+}
+
+function showImportStatusIntad(type, msg){
+  var el = document.getElementById('importStatusIntad');
+  el.textContent = msg;
+  el.className   = 'import-status' + (type ? ' '+type : '');
+  el.style.display = msg ? '' : 'none';
+}
+
+// ─── Tabelle ────────────────────────────────────────────────────────────────
+function renderIntad(){
+  var rows = INTAD_DATA.map(function(v){
+    var chk = intadSelected.has(v.code);
+    var codeAttr = 'data-code="' + esc(v.code) + '"';
+    var stIcon='', stColor='var(--muted)', stLabel='-';
+    if(v.status==='ok')   { stIcon='✓'; stColor='var(--ok)';   stLabel='OK'; }
+    if(v.status==='warn') { stIcon='⚠'; stColor='var(--warn)'; stLabel='Warnung'; }
+    if(v.status==='error'){ stIcon='✗'; stColor='var(--err)';  stLabel='Fehler'; }
+    var stCell = '<td style="text-align:center;color:'+stColor+';font-weight:700;" title="'+esc(v.statusTime)+'">'+stIcon+'</td>';
+    var msgCell = '<td style="font-size:11px;color:var(--muted);">'+esc(v.statusMsg)+'</td>';
+    return '<tr ' + codeAttr + ' onclick="intadRowClickEl(this,event)" class="' + (chk ? 'selected' : '') + '">'
+      + '<td><input type="checkbox" ' + codeAttr + ' ' + (chk ? 'checked' : '')
+      +     ' onclick="event.stopPropagation();intadSelChangeEl(this)"></td>'
+      + '<td class="code">' + esc(v.code) + '</td>'
+      + '<td>' + esc(v.name) + '</td>'
+      + '<td style="font-family:monospace;font-size:11px;">' + esc(v.email) + '</td>'
+      + stCell + msgCell
+      + '</tr>';
+  }).join('');
+  document.getElementById('tblBodyIntad').innerHTML = rows || '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:18px;">Keine Daten – bitte Excel importieren</td></tr>';
+  updateIntadSelInfo();
+}
+
+function intadSelChangeEl(el){
+  var code = el.getAttribute('data-code');
+  if(el.checked) intadSelected.add(code); else intadSelected.delete(code);
+  updateIntadSelInfo();
+}
+function intadRowClickEl(tr, e){
+  if(e.target.type==='checkbox') return;
+  var code = tr.getAttribute('data-code');
+  if(intadSelected.has(code)) intadSelected.delete(code); else intadSelected.add(code);
+  renderIntad();
+}
+function intadToggleAll(chk){
+  INTAD_DATA.forEach(function(v){ if(chk) intadSelected.add(v.code); else intadSelected.delete(v.code); });
+  renderIntad();
+}
+function intadSelectAll(){ INTAD_DATA.forEach(function(v){ intadSelected.add(v.code); }); renderIntad(); }
+function intadClearSel(){ intadSelected.clear(); renderIntad(); }
+function updateIntadSelInfo(){
+  var n = intadSelected.size;
+  document.getElementById('intadSelInfo').innerHTML = '<strong style="color:var(--acc);">'+n+'</strong> ausgewählt';
+  document.getElementById('btnIntadUpdate').disabled = n===0;
+  var ca = document.getElementById('chkAllIntad');
+  if(ca) ca.indeterminate = n>0 && n<INTAD_DATA.length;
+  if(ca) ca.checked = n>0 && n===INTAD_DATA.length;
+}
+
+// ─── SAP-Aktualisierung ─────────────────────────────────────────────────────
+var _iAbort=false, _iTot=0, _iDone=0, _iOk=0, _iWarn=0, _iErr=0;
+
+function startIntadUpdate(){
+  if(!intadSelected.size){ toast('err','Keine Lieferanten ausgewählt.'); return; }
+  var toUpdate = INTAD_DATA.filter(function(v){ return intadSelected.has(v.code); });
+  if(!toUpdate.length){ toast('err','Keine gültigen Einträge.'); return; }
+
+  var bukrs  = getBukrs();
+  var sapSys = getSapSys();
+
+  _iAbort=false; _iTot=toUpdate.length; _iDone=_iOk=_iWarn=_iErr=0;
+  document.getElementById('modalTitle').textContent  = '📧 INTAD Aktualisierung';
+  document.getElementById('modalStatus').textContent = '0 / '+_iTot;
+  document.getElementById('progBar').style.width     = '0%';
+  document.getElementById('progBar').style.background= 'var(--acc)';
+  document.getElementById('summaryBox').style.display= 'none';
+  document.getElementById('progList').innerHTML      = '';
+  document.getElementById('btnAbort').style.display  = '';
+  document.getElementById('btnClose').style.display  = 'none';
+  document.getElementById('modal').classList.add('open');
+
+  toUpdate.forEach(function(v){ addProgItem(v); });
+  toUpdate.forEach(function(v){ setProgItem(v.code,'run','⏳','Wird aktualisiert…'); });
+
+  runIntadBatch(toUpdate, bukrs, sapSys);
+}
+
+async function runIntadBatch(vendors, bukrs, sapSys){
+  if(_iAbort){ finishIntad(); return; }
+  vendors.forEach(function(v){ setProgItem(v.code,'run','⏳','Wird aktualisiert…'); });
+  try {
+    var res = await fetch(BRIDGE_URL+'/run',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({method:'GUI',tcode:'FK02_INTAD',payload:{
+        vendors_intad: vendors.map(function(v){ return {lifnr:v.code, email:v.email, bukrs:v.bukrs||'0439'}; }),
+        bukrs:         '0439',
+        background:    false,
+        _sap_auth:     {system:sapSys}
+      }}),
+      signal: AbortSignal.timeout(300000)
+    });
+    var data = await res.json();
+    var ts = new Date().toLocaleTimeString('de-DE');
+    if(data.results && data.results.length){
+      data.results.forEach(function(r){
+        var st=r.status||'err', msg=r.message||'';
+        if(st==='ok')        { _iOk++;   _iDone++; setProgItem(r.lifnr,'ok','✓',msg||'OK'); }
+        else if(st==='warn') { _iWarn++; _iDone++; setProgItem(r.lifnr,'warn','⚠',msg); }
+        else                 { _iErr++;  _iDone++; setProgItem(r.lifnr,'err','✗',msg||'Fehler'); }
+        // Status in INTAD_DATA zurückschreiben
+        var entry = INTAD_DATA.find(function(d){ return d.code===r.lifnr; });
+        if(entry){ entry.status=st; entry.statusMsg=msg||(st==='ok'?'OK':'Fehler'); entry.statusTime=ts; }
+      });
+      vendors.forEach(function(v){
+        if(!data.results.find(function(r){ return r.lifnr===v.code; })){
+          _iDone++;
+          var fallSt=data.status==='ok'?'ok':'error';
+          var fallMsg=data.status==='ok'?'OK':'Keine Rückmeldung';
+          if(data.status==='ok'){ _iOk++; setProgItem(v.code,'ok','✓','OK'); }
+          else { _iErr++; setProgItem(v.code,'err','✗','Keine Rückmeldung'); }
+          var entry = INTAD_DATA.find(function(d){ return d.code===v.code; });
+          if(entry){ entry.status=fallSt; entry.statusMsg=fallMsg; entry.statusTime=ts; }
+        }
+      });
+    } else {
+      var ok=data.status==='ok';
+      vendors.forEach(function(v){
+        _iDone++; if(ok){ _iOk++; setProgItem(v.code,'ok','✓','OK'); }
+        else { _iErr++; setProgItem(v.code,'err','✗',data.message||'Fehler'); }
+        var entry = INTAD_DATA.find(function(d){ return d.code===v.code; });
+        if(entry){ entry.status=ok?'ok':'error'; entry.statusMsg=ok?'OK':(data.message||'Fehler'); entry.statusTime=ts; }
+      });
+    }
+  } catch(ex){
+    vendors.forEach(function(v){
+      _iDone++; _iErr++;
+      setProgItem(v.code,'err','✗','Verbindungsfehler: '+ex.message);
+    });
+  }
+  document.getElementById('progBar').style.width=Math.round(100*_iDone/_iTot)+'%';
+  document.getElementById('modalStatus').textContent=_iDone+' / '+_iTot;
+  finishIntad();
+}
+
+function finishIntad(){
+  document.getElementById('progBar').style.width='100%';
+  document.getElementById('progBar').style.background=_iErr>0?'var(--err)':'var(--ok)';
+  document.getElementById('summaryBox').style.display='grid';
+  document.getElementById('sumOk').textContent   = _iOk;
+  document.getElementById('sumWarn').textContent  = _iWarn;
+  document.getElementById('sumErr').textContent   = _iErr;
+  document.getElementById('btnAbort').style.display='none';
+  document.getElementById('btnClose').style.display='';
+  document.getElementById('modalStatus').textContent=_iAbort?'Abgebrochen':'Abgeschlossen';
+  if(!_iAbort) toast(_iErr===0?'ok':'err',
+    'Fertig: '+_iOk+' OK, '+_iWarn+' Warnungen, '+_iErr+' Fehler');
+  // Tabelle mit Status-Ergebnissen aktualisieren
+  renderIntad();
+}
+
+// ─── INTAD Excel-Export ───────────────────────────────────────────────────────────────────────────
+function exportIntadExcel(){
+  if(!INTAD_DATA.length){ toast('err','Keine Daten zum Export.'); return; }
+  var now   = new Date();
+  var datePad = function(n){ return String(n).padStart(2,'0'); };
+  var stamp = now.getFullYear()+'-'+datePad(now.getMonth()+1)+'-'+datePad(now.getDate())
+            + '_'+datePad(now.getHours())+datePad(now.getMinutes());
+
+  var header = ['Company Code','Vendor Code','Vendor Name','E-Mail (INTAD)','Status','Meldung','Zeitstempel'];
+  var rows = INTAD_DATA.map(function(v){
+    var stLabel = v.status==='ok' ? 'OK' : v.status==='warn' ? 'Warnung' : v.status==='error' ? 'Fehler' : '';
+    return [v.bukrs||'0439', v.code, v.name, v.email, stLabel, v.statusMsg||'', v.statusTime||''];
+  });
+
+  var wb = XLSX.utils.book_new();
+  var ws = XLSX.utils.aoa_to_sheet([header].concat(rows));
+
+  // Spaltenbreiten
+  ws['!cols'] = [
+    {wch:14},{wch:14},{wch:36},{wch:44},{wch:10},{wch:48},{wch:12}
+  ];
+
+  XLSX.utils.book_append_sheet(wb, ws, 'INTAD');
+  XLSX.writeFile(wb, 'INTAD_Export_' + stamp + '.xlsx');
+  toast('ok', 'Excel exportiert (' + INTAD_DATA.length + ' Einträge)');
+}
+
+// ─── Init ────────────────────────────────────────────
+renderPT();
+render();
+</script>
+</body>
+</html>
