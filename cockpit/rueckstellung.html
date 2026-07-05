@@ -1,0 +1,1535 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>YCONN — Rückstellungsbuchungen</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<script>
+if (location.protocol === 'file:') {
+  var _fn = (location.pathname.split('/').pop() || location.pathname.split('\\').pop());
+  location.replace('http://localhost:8000/cockpit/' + _fn + location.search + location.hash);
+}
+</script>
+<script src="auth.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg:      #0d1117; --bg2: #161b22; --bg3: #21262d;
+  --border:  #30363d; --text: #e6edf3; --muted: #8b949e;
+  --accent:  #1f6feb; --ok: #10b981; --warn: #f59e0b; --err: #ef4444;
+  --rk:      #fb7185; --rk-dark: #e11d48; --rk-bg: rgba(251,113,133,.08);
+}
+html,body { background: var(--bg); color: var(--text);
+  font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  font-size:14px; min-height:100vh; }
+a { color: inherit; text-decoration:none; }
+.wrap { max-width:1100px; margin:0 auto; padding:16px 20px 40px; }
+
+/* Header */
+.page-header { display:flex; align-items:center; gap:16px; padding:12px 0 20px;
+  border-bottom:1px solid var(--border); margin-bottom:24px; }
+.page-header .logo { font-size:22px; font-weight:700; color:var(--rk); }
+.header-right { margin-left:auto; display:flex; align-items:center; gap:8px; }
+.btn-nav { background:var(--bg3); border:1px solid var(--border); color:var(--text);
+  padding:7px 14px; border-radius:6px; cursor:pointer; font-size:13px;
+  text-decoration:none; display:inline-flex; align-items:center; gap:6px; transition:.15s; }
+.btn-nav:hover { border-color:#555; background:#2d333b; }
+.btn-nav.primary { background:var(--rk-dark); border-color:var(--rk); color:#fff; }
+.btn-nav.primary:hover { background:#be1035; }
+.btn-nav.green { background:rgba(16,185,129,.15); border-color:var(--ok); color:var(--ok); }
+.btn-nav.green:hover { background:rgba(16,185,129,.25); }
+.btn-nav.warn-btn { background:rgba(245,158,11,.15); border-color:var(--warn); color:var(--warn); }
+.btn-nav.warn-btn:hover { background:rgba(245,158,11,.25); }
+.btn-nav:disabled { opacity:.4; cursor:not-allowed; }
+
+/* Tabs */
+.tabs { display:flex; gap:4px; border-bottom:1px solid var(--border); margin-bottom:24px; }
+.tab-btn { padding:10px 18px; background:none; border:none; color:var(--muted);
+  cursor:pointer; font-size:13px; border-bottom:2px solid transparent; transition:.15s; }
+.tab-btn:hover { color:var(--text); }
+.tab-btn.active { color:var(--rk); border-bottom-color:var(--rk); }
+.tab-pane { display:none; }
+.tab-pane.active { display:block; }
+
+/* Workflow selector */
+.workflow-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:24px; }
+.wf-card { border:2px solid var(--border); border-radius:10px; padding:20px;
+  cursor:pointer; transition:.2s; background:var(--bg2); position:relative; }
+.wf-card:hover { border-color:#555; }
+.wf-card.selected { border-color:var(--rk); background:rgba(251,113,133,.06); }
+.wf-card.selected::after { content:"✓"; position:absolute; top:10px; right:14px;
+  color:var(--rk); font-weight:700; font-size:16px; }
+.wf-icon { font-size:28px; margin-bottom:8px; }
+.wf-title { font-weight:600; font-size:15px; margin-bottom:4px; }
+.wf-desc { color:var(--muted); font-size:12px; line-height:1.5; }
+.wf-badge { display:inline-block; margin-top:8px; padding:3px 8px; border-radius:4px;
+  font-size:11px; background:rgba(251,113,133,.15); color:var(--rk); }
+
+/* Approval banner */
+.approval-banner { background:rgba(245,158,11,.12); border:1px solid rgba(245,158,11,.4);
+  border-radius:8px; padding:12px 16px; margin-bottom:16px; display:none;
+  align-items:center; gap:10px; font-size:13px; }
+.approval-banner.show { display:flex; }
+.approval-banner .icon { font-size:18px; }
+
+/* Form */
+.form-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.form-grid.thirds { grid-template-columns:1fr 1fr 1fr; }
+.form-group { display:flex; flex-direction:column; gap:6px; }
+.form-group.full { grid-column:1/-1; }
+label { font-size:12px; color:var(--muted); font-weight:500; }
+label .req { color:var(--rk); }
+input, select, textarea { background:var(--bg3); border:1px solid var(--border);
+  color:var(--text); border-radius:6px; padding:8px 10px; font-size:13px; width:100%;
+  outline:none; transition:.15s; font-family:inherit; }
+input:focus, select:focus, textarea:focus { border-color:var(--rk); }
+textarea { resize:vertical; min-height:70px; }
+input[type=checkbox] { width:auto; }
+
+/* Bukrs multi-select */
+.bukrs-grid { display:flex; flex-wrap:wrap; gap:8px; }
+.bukrs-chip { display:flex; align-items:center; gap:6px; padding:6px 10px;
+  border:1px solid var(--border); border-radius:6px; cursor:pointer;
+  background:var(--bg3); transition:.15s; font-size:12px; user-select:none; }
+.bukrs-chip:hover { border-color:#555; }
+.bukrs-chip.selected { border-color:var(--rk); background:rgba(251,113,133,.1); color:var(--rk); }
+.bukrs-chip input { display:none; }
+
+/* Kontenplan info */
+.konto-info { background:var(--bg3); border:1px solid var(--border); border-radius:6px;
+  padding:10px 12px; font-size:12px; color:var(--muted); margin-top:4px; display:none; }
+.konto-info.show { display:block; }
+.konto-info .konto-row { display:flex; gap:16px; margin-top:4px; }
+.konto-info .konto-row span { color:var(--text); font-family:monospace; }
+
+/* Cards / info */
+.info-card { background:var(--bg2); border:1px solid var(--border);
+  border-radius:10px; padding:20px; margin-bottom:20px; }
+.info-card h3 { font-size:14px; font-weight:600; margin-bottom:16px;
+  display:flex; align-items:center; gap:8px; }
+.section-title { font-size:12px; font-weight:600; text-transform:uppercase;
+  letter-spacing:.06em; color:var(--muted); margin-bottom:12px; margin-top:24px; }
+
+/* Table */
+table { width:100%; border-collapse:collapse; font-size:13px; }
+th { text-align:left; padding:8px 12px; color:var(--muted); font-size:11px;
+  font-weight:600; border-bottom:1px solid var(--border); text-transform:uppercase; letter-spacing:.05em; }
+td { padding:10px 12px; border-bottom:1px solid rgba(48,54,61,.5); vertical-align:middle; }
+tr:last-child td { border-bottom:none; }
+tr:hover td { background:rgba(255,255,255,.02); }
+.empty-row td { text-align:center; color:var(--muted); padding:28px; }
+
+/* Status badges */
+.badge { display:inline-block; padding:3px 9px; border-radius:12px;
+  font-size:11px; font-weight:600; white-space:nowrap; }
+.badge-offen      { background:rgba(139,92,246,.15); color:#a78bfa; }
+.badge-ausstehend { background:rgba(245,158,11,.15); color:var(--warn); }
+.badge-genehmigt  { background:rgba(16,185,129,.15); color:var(--ok); }
+.badge-abgelehnt  { background:rgba(239,68,68,.15);  color:var(--err); }
+.badge-gebucht    { background:rgba(59,130,246,.15);  color:#60a5fa; }
+.badge-storniert  { background:rgba(139,148,158,.15); color:var(--muted); }
+
+/* Approval log timeline */
+.timeline { display:flex; flex-direction:column; gap:8px; }
+.tl-item { display:flex; gap:12px; align-items:flex-start; }
+.tl-dot { width:10px; height:10px; border-radius:50%; margin-top:4px; flex-shrink:0;
+  background:var(--muted); }
+.tl-dot.submitted { background:#a78bfa; }
+.tl-dot.approved  { background:var(--ok); }
+.tl-dot.rejected  { background:var(--err); }
+.tl-dot.booked    { background:#60a5fa; }
+.tl-dot.cancelled { background:var(--muted); }
+.tl-body { font-size:12px; line-height:1.5; }
+.tl-body strong { color:var(--text); }
+.tl-body .tl-ts  { color:var(--muted); font-size:11px; }
+
+/* Actions */
+.actions { display:flex; gap:6px; }
+.btn-sm { padding:4px 10px; font-size:12px; border-radius:5px;
+  border:1px solid var(--border); background:var(--bg3); color:var(--text);
+  cursor:pointer; transition:.15s; }
+.btn-sm:hover { border-color:#555; }
+.btn-sm.danger { border-color:rgba(239,68,68,.4); color:var(--err); }
+.btn-sm.danger:hover { background:rgba(239,68,68,.1); }
+.btn-sm.ok { border-color:rgba(16,185,129,.4); color:var(--ok); }
+.btn-sm.ok:hover { background:rgba(16,185,129,.1); }
+.btn-sm.warn { border-color:rgba(245,158,11,.4); color:var(--warn); }
+
+/* Stats bar */
+.stats-bar { display:grid; grid-template-columns:repeat(5,1fr); gap:12px; margin-bottom:24px; }
+.stat-card { background:var(--bg2); border:1px solid var(--border); border-radius:8px;
+  padding:14px 16px; text-align:center; }
+.stat-val { font-size:22px; font-weight:700; }
+.stat-lbl { font-size:11px; color:var(--muted); margin-top:2px; }
+
+/* Modal */
+.modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.7);
+  z-index:1000; align-items:center; justify-content:center; }
+.modal-overlay.open { display:flex; }
+.modal-panel { background:var(--bg2); border:1px solid var(--border); border-radius:12px;
+  padding:28px; width:480px; max-width:95vw; max-height:90vh; overflow-y:auto; }
+.modal-title { font-size:16px; font-weight:700; margin-bottom:20px; }
+.modal-row { display:flex; gap:10px; justify-content:flex-end; margin-top:20px; }
+
+/* Toast */
+#toast { position:fixed; bottom:24px; right:24px; padding:12px 20px;
+  border-radius:8px; font-size:13px; font-weight:500; z-index:9999;
+  transform:translateY(20px); opacity:0; transition:.3s; pointer-events:none; }
+#toast.show { transform:translateY(0); opacity:1; }
+#toast.ok  { background:#0f4c2a; border:1px solid var(--ok); color:#6ee7b7; }
+#toast.err { background:#4c0f0f; border:1px solid var(--err); color:#fca5a5; }
+#toast.info { background:#1c2a4c; border:1px solid var(--accent); color:#93c5fd; }
+#toast.warn { background:#4c3a0f; border:1px solid var(--warn); color:#fcd34d; }
+
+/* Spinner */
+.spin { display:inline-block; width:14px; height:14px; border:2px solid rgba(255,255,255,.3);
+  border-top-color:#fff; border-radius:50%; animation:spin .7s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+@media(max-width:700px) {
+  .workflow-grid { grid-template-columns:1fr; }
+  .form-grid, .form-grid.thirds { grid-template-columns:1fr; }
+  .stats-bar { grid-template-columns:repeat(3,1fr); }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- Header -->
+  <header class="page-header">
+    <div class="logo">📌 Rückstellungsbuchungen</div>
+    <div class="header-right">
+      <a href="startseite.html" class="btn-nav">← Startseite</a>
+      <div id="headerRight"></div>
+    </div>
+  </header>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('buchen')">📝 Neue Buchung</button>
+    <button class="tab-btn" onclick="switchTab('antraege')">📋 Meine Anträge</button>
+    <button class="tab-btn" id="tabFreigabe" onclick="switchTab('freigabe')" style="display:none">
+      ✅ Freigabe <span id="pendingBadge" style="display:none;background:var(--warn);color:#000;border-radius:10px;padding:1px 7px;font-size:11px;margin-left:4px;">0</span>
+    </button>
+    <button class="tab-btn" onclick="switchTab('history')">📜 Verlauf</button>
+    <button class="tab-btn" id="tabKontenplan" onclick="switchTab('kontenplan')" style="display:none">
+      ⚙️ Kontenplan
+    </button>
+  </div>
+
+  <!-- ═══ TAB: NEUE BUCHUNG ═══════════════════════════════════════════ -->
+  <div class="tab-pane active" id="tabBuchen">
+
+    <!-- Workflow-Auswahl -->
+    <div class="section-title">Workflow wählen</div>
+    <div class="workflow-grid">
+      <div class="wf-card selected" id="wfDirekt" onclick="selectWorkflow('direkt')">
+        <div class="wf-icon">⚡</div>
+        <div class="wf-title">Direkter Workflow</div>
+        <div class="wf-desc">Buchung für einen einzelnen Buchungskreis.<br>Sofort in SAP gebucht — keine Freigabe erforderlich.</div>
+        <div class="wf-badge">Sofort-Buchung</div>
+      </div>
+      <div class="wf-card" id="wfIndirekt" onclick="selectWorkflow('indirekt')">
+        <div class="wf-icon">🏢</div>
+        <div class="wf-title">Indirekter Workflow — Konzern</div>
+        <div class="wf-desc">Jede Gesellschaft reicht ihren eigenen Antrag ein.<br>
+          Anträge werden gebündelt und zentral überwacht.<br>
+          <strong style="color:var(--warn)">Beträge &gt; 50.000 EUR</strong> erfordern Freigabe durch FCO/CEO.</div>
+        <div class="wf-badge" style="background:rgba(245,158,11,.15);color:var(--warn)">Konzern-Workflow · je Entity</div>
+      </div>
+    </div>
+
+    <!-- Freigabe-Hinweis -->
+    <div class="approval-banner" id="approvalBanner">
+      <span class="icon">⚠️</span>
+      <div>
+        <strong>Freigabe erforderlich (Grenzwert &gt; 50.000 EUR):</strong>
+        Der Antrag wird nach dem Einreichen in die Freigabe-Warteschlange gestellt.
+        FCO/CEO (Approver) muss genehmigen, bevor die SAP-Buchung ausgeführt werden kann.
+      </div>
+    </div>
+
+    <!-- Formular -->
+    <div class="info-card">
+      <h3>📋 Buchungsdetails</h3>
+
+      <div class="form-grid" style="gap:16px">
+
+        <!-- Kategorie -->
+        <div class="form-group">
+          <label>Kategorie <span class="req">*</span></label>
+          <select id="fKategorie" onchange="onKategorieChange()">
+            <option value="">— wird geladen … —</option>
+          </select>
+          <div class="konto-info" id="kontoInfo">
+            <div>Voreingestellte Konten:</div>
+            <div class="konto-row">
+              Soll: <span id="kiSoll">—</span> &nbsp;|&nbsp;
+              Haben: <span id="kiHaben">—</span> &nbsp;|&nbsp;
+              Belegart: <span id="kiBlart">SA</span> &nbsp;|&nbsp;
+              Kostenstelle: <span id="kiKst">—</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Import-Vorlage (Indirekt, nach BKR+Kategorie-Auswahl) -->
+        <div class="form-group full" id="importSection" style="display:none">
+          <div id="dropZone"
+               style="border:2px dashed rgba(245,158,11,.35);border-radius:10px;padding:20px 16px;
+                      background:rgba(245,158,11,.04);text-align:center;transition:border-color .2s"
+               ondragover="event.preventDefault();this.style.borderColor='var(--warn)'"
+               ondragleave="this.style.borderColor='rgba(245,158,11,.35)'"
+               ondrop="handleFileDrop(event)">
+            <div style="font-size:26px;margin-bottom:6px">📥</div>
+            <div style="font-weight:600;color:var(--text);margin-bottom:4px">Excel-Vorlage importieren</div>
+            <div id="importColHint" style="font-size:12px;color:var(--muted);margin-bottom:12px">
+              Buchungskreis und Kategorie wählen, um Vorlage zu laden …
+            </div>
+            <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+              <button class="btn-nav" onclick="downloadTemplate()" id="btnDownloadTpl" style="display:none">
+                ⬇️ Leere Vorlage herunterladen
+              </button>
+              <label class="btn-nav" style="cursor:pointer;display:inline-flex;align-items:center;gap:4px">
+                📂 Datei auswählen
+                <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" style="display:none"
+                       onchange="handleFileSelect(this.files[0])">
+              </label>
+            </div>
+          </div>
+          <!-- Vorschau nach Import -->
+          <div id="importPreview" style="display:none;margin-top:10px;background:rgba(255,255,255,.03);
+               border:1px solid var(--border);border-radius:8px;padding:12px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+              <span style="font-size:12px;font-weight:600;color:var(--muted)">Importierte Daten (Vorschau)</span>
+              <button class="btn-nav primary" style="padding:4px 14px;font-size:12px" onclick="applyImportData()">
+                ✓ Erste Zeile in Formular übernehmen
+              </button>
+            </div>
+            <div id="importPreviewTable" style="overflow-x:auto"></div>
+          </div>
+        </div>
+
+        <!-- Beschreibung -->
+        <div class="form-group">
+          <label>Buchungstext <span class="req">*</span></label>
+          <input type="text" id="fBeschreibung" placeholder="z. B. Urlaubsrückstellung Q3 2026" maxlength="100">
+        </div>
+
+        <!-- Betrag + Währung -->
+        <div class="form-group">
+          <label>Betrag <span class="req">*</span></label>
+          <input type="number" id="fBetrag" placeholder="0.00" step="0.01" min="0.01"
+            oninput="onBetragChange()">
+        </div>
+        <div class="form-group">
+          <label>Währung</label>
+          <select id="fWaehrung">
+            <option value="EUR" selected>EUR</option>
+            <option value="USD">USD</option>
+            <option value="GBP">GBP</option>
+            <option value="CHF">CHF</option>
+          </select>
+        </div>
+
+        <!-- GL-Konten -->
+        <div class="form-group">
+          <label>Konto Soll <span class="req">*</span></label>
+          <input type="text" id="fKontoSoll" placeholder="z. B. 6310000" maxlength="10">
+        </div>
+        <div class="form-group">
+          <label>Konto Haben <span class="req">*</span></label>
+          <input type="text" id="fKontoHaben" placeholder="z. B. 3750000" maxlength="10">
+        </div>
+
+        <!-- Kostenstelle -->
+        <div class="form-group">
+          <label>Kostenstelle</label>
+          <input type="text" id="fKostenstelle" placeholder="z. B. 1000" maxlength="10">
+        </div>
+        <!-- Belegart -->
+        <div class="form-group">
+          <label>Belegart</label>
+          <select id="fBlart">
+            <option value="SA">SA — Sachkontenbuchung</option>
+            <option value="AB">AB — Abgrenzungsbuchung</option>
+            <option value="UE">UE — Umlagenbuchung</option>
+          </select>
+        </div>
+
+        <!-- Buchungskreis (einzelne Entity, beide Workflows) -->
+        <div class="form-group full" id="bukrsGroup">
+          <label id="bukrsLabel">Buchungskreis / Entity <span class="req">*</span></label>
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <select id="fBukrs" style="max-width:340px">
+              <option value="VV9">VV9  — Catensys Holding</option>
+              <option value="0334">0334 — Catensys France</option>
+              <option value="0435">0435 — Catensys Germany</option>
+              <option value="0436">0436 — Catensys China</option>
+              <option value="0437">0437 — Catensys Slovakia</option>
+              <option value="0438">0438 — Catensys Korea</option>
+              <option value="0439">0439 — Catensys India</option>
+              <option value="0440">0440 — Catensys US</option>
+              <option value="0441">0441 — Catensys Japan</option>
+            </select>
+            <div id="entityHint" style="display:none;font-size:12px;color:var(--muted);
+              background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.25);
+              border-radius:6px;padding:6px 10px;max-width:340px">
+              💡 Jede Gesellschaft reicht ihren eigenen Antrag ein.<br>
+              Andere Entities nutzen dasselbe Formular mit ihrer Buchungskreis-Auswahl.
+            </div>
+          </div>
+        </div>
+
+        <!-- Periode + Buchungsdatum -->
+        <div class="form-group">
+          <label>Periode <span class="req">*</span></label>
+          <input type="text" id="fPeriode" placeholder="MM/YYYY z. B. 07/2026" maxlength="7">
+        </div>
+        <div class="form-group">
+          <label>Buchungsdatum <span class="req">*</span></label>
+          <input type="date" id="fBuchungsdatum">
+        </div>
+
+        <!-- SAP-System -->
+        <div class="form-group">
+          <label>SAP-System</label>
+          <select id="fSapSystem">
+            <option value="SEQ">SEQ — Test (172.28.189.11)</option>
+            <option value="SEP">SEP — Produktiv (172.28.189.8)</option>
+          </select>
+        </div>
+
+        <!-- Referenz -->
+        <div class="form-group">
+          <label>Referenz / Belegnummer</label>
+          <input type="text" id="fReferenz" placeholder="z. B. PROJ-2026-07" maxlength="64">
+        </div>
+
+      </div><!-- /form-grid -->
+
+      <div class="modal-row" style="margin-top:20px;justify-content:flex-start;flex-wrap:wrap;gap:8px">
+        <!-- Direkt: sofort in SAP -->
+        <button class="btn-nav primary" id="btnBuchen" onclick="submitForm('direkt')" style="display:none">
+          ⚡ Sofort in SAP buchen
+        </button>
+        <!-- Indirekt ≤ 50k: einreichen (sofort buchbar) -->
+        <button class="btn-nav primary" id="btnEinreichen" onclick="submitForm('einreichen')" style="display:none">
+          📤 Antrag einreichen
+        </button>
+        <!-- Indirekt > 50k: Freigabe anfordern -->
+        <button class="btn-nav warn-btn" id="btnFreigabe" onclick="submitForm('freigabe')" style="display:none">
+          🔐 Zur Freigabe einreichen (FCO/CEO)
+        </button>
+        <button class="btn-nav" onclick="resetForm()">↺ Zurücksetzen</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ TAB: MEINE ANTRÄGE ════════════════════════════════════════ -->
+  <div class="tab-pane" id="tabAntraege">
+    <div class="info-card">
+      <h3>📋 Meine Anträge
+        <button class="btn-sm" onclick="loadMyRequests()" style="margin-left:auto">↺ Laden</button>
+      </h3>
+      <table>
+        <thead>
+          <tr>
+            <th>#</th><th>Kategorie</th><th>Beschreibung</th>
+            <th>Betrag</th><th>Workflow</th><th>Periode</th>
+            <th>Status</th><th>Beleg</th><th>Aktion</th>
+          </tr>
+        </thead>
+        <tbody id="myRequestsTbody">
+          <tr class="empty-row"><td colspan="9">Wird geladen…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ═══ TAB: FREIGABE (Admin / Approver) ═════════════════════════ -->
+  <div class="tab-pane" id="tabFreigabePanel">
+
+    <div class="stats-bar" id="approvalStats">
+      <div class="stat-card">
+        <div class="stat-val" id="stAusstehend" style="color:var(--warn)">0</div>
+        <div class="stat-lbl">Ausstehend</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-val" id="stGenehmigt" style="color:var(--ok)">0</div>
+        <div class="stat-lbl">Genehmigt</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-val" id="stGebucht" style="color:#60a5fa">0</div>
+        <div class="stat-lbl">Gebucht</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-val" id="stAbgelehnt" style="color:var(--err)">0</div>
+        <div class="stat-lbl">Abgelehnt</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-val" id="stGesamt">0</div>
+        <div class="stat-lbl">Gesamt</div>
+      </div>
+    </div>
+
+    <div class="info-card">
+      <h3>✅ Freigabe-Warteschlange
+        <button class="btn-sm" onclick="loadApprovalQueue()" style="margin-left:auto">↺ Laden</button>
+      </h3>
+      <table>
+        <thead>
+          <tr>
+            <th>#</th><th>Eingereicht von</th><th>Kategorie</th>
+            <th>Beschreibung</th><th>Betrag</th><th>Buchungskreise</th>
+            <th>Periode</th><th>Status</th><th>Freigabe</th>
+          </tr>
+        </thead>
+        <tbody id="approvalTbody">
+          <tr class="empty-row"><td colspan="9">Wird geladen…</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="info-card">
+      <h3>📜 Alle Anträge (Übersicht)</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>#</th><th>Von</th><th>Kategorie</th><th>Betrag</th>
+            <th>Workflow</th><th>Status</th><th>Genehmigt von</th><th>Beleg</th><th>Aktion</th>
+          </tr>
+        </thead>
+        <tbody id="allRequestsTbody">
+          <tr class="empty-row"><td colspan="9">Wird geladen…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ═══ TAB: VERLAUF ══════════════════════════════════════════════ -->
+  <div class="tab-pane" id="tabHistory">
+    <div class="info-card" id="historyPanel">
+      <h3>📜 Buchungsverlauf — alle Rückstellungsanträge</h3>
+      <p style="color:var(--muted);font-size:13px">Antrag aus der Liste wählen, um den Freigabe-Verlauf anzuzeigen.</p>
+      <div id="historyList" style="margin-top:16px"></div>
+    </div>
+  </div>
+
+  <!-- ── Kontenplan-Admin-Tab ───────────────────────────────────────────── -->
+  <div class="tab-pane" id="tabKontenplanPanel">
+    <div class="info-card">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:18px">
+        <h3 style="margin:0">⚙️ Kontenplan-Verwaltung</h3>
+        <div style="font-size:12px;color:var(--muted)">Nur für Administratoren · Änderungen sofort wirksam</div>
+        <button class="btn-nav primary" onclick="openKpModal()">+ Neue Kategorie</button>
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead>
+          <tr style="border-bottom:1px solid var(--border);color:var(--muted);text-align:left">
+            <th style="padding:8px 10px">Kategorie</th>
+            <th style="padding:8px 10px">Konto Soll</th>
+            <th style="padding:8px 10px">Konto Haben</th>
+            <th style="padding:8px 10px">Kostenstelle</th>
+            <th style="padding:8px 10px">Belegart</th>
+            <th style="padding:8px 10px">Aktiv</th>
+            <th style="padding:8px 10px"></th>
+          </tr>
+        </thead>
+        <tbody id="kpTableBody">
+          <tr><td colspan="7" style="padding:20px;text-align:center;color:var(--muted)">Wird geladen …</td></tr>
+        </tbody>
+      </table>
+
+      <!-- Import-Vorlagen ───────────────────────────────────────────────── -->
+      <div style="display:flex;align-items:center;justify-content:space-between;
+                  flex-wrap:wrap;gap:10px;margin:28px 0 14px">
+        <h3 style="margin:0">📥 Import-Vorlagen <span style="font-size:12px;color:var(--muted);font-weight:400">(Indirekt-Workflow)</span></h3>
+        <button class="btn-nav primary" onclick="openTplModal()">+ Neue Vorlage</button>
+      </div>
+      <p style="font-size:12px;color:var(--muted);margin:0 0 14px">
+        Vorlagen definieren die Spalten einer importierbaren Excel-Datei je Buchungskreis und Kategorie.
+        Leeres Buchungskreis-/Kategorie-Feld = Vorlage gilt für alle.
+      </p>
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead>
+          <tr style="border-bottom:1px solid var(--border);color:var(--muted);text-align:left">
+            <th style="padding:8px 10px">Name</th>
+            <th style="padding:8px 10px">Buchungskreis</th>
+            <th style="padding:8px 10px">Kategorie</th>
+            <th style="padding:8px 10px">Spalten</th>
+            <th style="padding:8px 10px">Aktiv</th>
+            <th style="padding:8px 10px"></th>
+          </tr>
+        </thead>
+        <tbody id="tplTableBody">
+          <tr><td colspan="6" style="padding:20px;text-align:center;color:var(--muted)">Wird geladen …</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div><!-- /wrap -->
+
+<!-- ═══ MODAL: Kontenplan bearbeiten ══════════════════════════════ -->
+<div class="modal-overlay" id="kpModal">
+  <div class="modal-panel" style="max-width:480px">
+    <div class="modal-title" id="kpModalTitle">Kontenplan-Eintrag</div>
+    <input type="hidden" id="kpId">
+    <div class="form-group">
+      <label>Kategorie <span class="req">*</span></label>
+      <input type="text" id="kpKategorie" placeholder="z. B. Urlaubsrückstellung" maxlength="64">
+    </div>
+    <div class="form-group">
+      <label>Konto Soll <span class="req">*</span></label>
+      <input type="text" id="kpSoll" placeholder="z. B. 6310000" maxlength="16">
+    </div>
+    <div class="form-group">
+      <label>Konto Haben <span class="req">*</span></label>
+      <input type="text" id="kpHaben" placeholder="z. B. 3750000" maxlength="16">
+    </div>
+    <div class="form-group">
+      <label>Kostenstelle <em style="font-weight:400;color:var(--muted)">(optional)</em></label>
+      <input type="text" id="kpKst" placeholder="z. B. 1000" maxlength="16">
+    </div>
+    <div class="form-group">
+      <label>Belegart</label>
+      <select id="kpBlart">
+        <option value="SA">SA — Sachkontenbeleg</option>
+        <option value="AB">AB — Abgrenzungsbeleg</option>
+        <option value="DR">DR — Debitorenrechnung</option>
+        <option value="KR">KR — Kreditorenrechnung</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+        <input type="checkbox" id="kpAktiv" checked style="accent-color:var(--rk)">
+        Aktiv (erscheint in Kategorie-Auswahl)
+      </label>
+    </div>
+    <div class="modal-row" style="margin-top:8px">
+      <button class="btn-nav" onclick="closeModal()">Abbrechen</button>
+      <button class="btn-nav primary" onclick="saveKpEntry()">💾 Speichern</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MODAL: Import-Vorlage bearbeiten ════════════════════════════ -->
+<div class="modal-overlay" id="tplModal">
+  <div class="modal-panel" style="max-width:560px">
+    <div class="modal-title" id="tplModalTitle">Import-Vorlage</div>
+    <input type="hidden" id="tplId">
+    <div class="form-group">
+      <label>Name <span class="req">*</span></label>
+      <input type="text" id="tplName" placeholder="z. B. Personalrückstellung DE" maxlength="128">
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="form-group">
+        <label>Buchungskreis <em style="font-weight:400;color:var(--muted)">(leer = alle)</em></label>
+        <select id="tplBukrs">
+          <option value="">— alle Buchungskreise —</option>
+          <option value="VV9">VV9 — Catensys Holding</option>
+          <option value="0334">0334 — Catensys France</option>
+          <option value="0435">0435 — Catensys Germany</option>
+          <option value="0436">0436 — Catensys China</option>
+          <option value="0437">0437 — Catensys Slovakia</option>
+          <option value="0438">0438 — Catensys Korea</option>
+          <option value="0439">0439 — Catensys India</option>
+          <option value="0440">0440 — Catensys US</option>
+          <option value="0441">0441 — Catensys Japan</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Kategorie <em style="font-weight:400;color:var(--muted)">(leer = alle)</em></label>
+        <select id="tplKategorie">
+          <option value="">— alle Kategorien —</option>
+        </select>
+      </div>
+    </div>
+    <!-- Spalten-Konfiguration -->
+    <div style="margin:10px 0 6px;font-size:12px;font-weight:600;color:var(--muted)">
+      EXCEL-SPALTEN KONFIGURIEREN
+    </div>
+    <div style="background:rgba(255,255,255,.03);border:1px solid var(--border);
+                border-radius:8px;overflow:hidden;margin-bottom:12px">
+      <table style="width:100%;border-collapse:collapse;font-size:12px" id="tplColsTable">
+        <thead>
+          <tr style="border-bottom:1px solid var(--border);color:var(--muted)">
+            <th style="padding:6px 10px;text-align:left">Aktiv</th>
+            <th style="padding:6px 10px;text-align:left">SAP-Feld</th>
+            <th style="padding:6px 10px;text-align:left">Spaltenbezeichnung (Excel-Header)</th>
+            <th style="padding:6px 10px;text-align:left">Pflicht</th>
+          </tr>
+        </thead>
+        <tbody id="tplColsBody"></tbody>
+      </table>
+    </div>
+    <div class="form-group">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+        <input type="checkbox" id="tplAktiv" checked style="accent-color:var(--rk)">
+        Vorlage aktiv
+      </label>
+    </div>
+    <div class="modal-row" style="margin-top:8px">
+      <button class="btn-nav" onclick="closeModal()">Abbrechen</button>
+      <button class="btn-nav primary" onclick="saveTplEntry()">💾 Speichern</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MODAL: Freigabe / Ablehnung ═══════════════════════════════ -->
+<div class="modal-overlay" id="approvalModal">
+  <div class="modal-panel">
+    <div class="modal-title" id="approvalModalTitle">Antrag genehmigen</div>
+    <div id="approvalModalBody" style="margin-bottom:16px;font-size:13px;color:var(--muted)"></div>
+    <div class="form-group">
+      <label>Kommentar (optional)</label>
+      <textarea id="approvalComment" rows="3" placeholder="Begründung / Hinweise…"></textarea>
+    </div>
+    <div class="modal-row">
+      <button class="btn-nav" onclick="closeModal()">Abbrechen</button>
+      <button class="btn-nav primary" id="approvalConfirmBtn" onclick="confirmApproval()">Bestätigen</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MODAL: SAP-Buchung nach Freigabe ═══════════════════════════ -->
+<div class="modal-overlay" id="bookModal">
+  <div class="modal-panel">
+    <div class="modal-title">📮 SAP-Buchung ausführen</div>
+    <div id="bookModalBody" style="margin-bottom:16px;font-size:13px"></div>
+    <div id="bookProgress" style="display:none;margin-bottom:12px">
+      <div style="display:flex;align-items:center;gap:8px;color:var(--muted);font-size:13px">
+        <div class="spin"></div> Buche in SAP…
+      </div>
+      <div id="bookLog" style="font-size:12px;color:var(--muted);margin-top:8px;font-family:monospace"></div>
+    </div>
+    <div id="bookResult" style="display:none"></div>
+    <div class="modal-row" id="bookModalActions">
+      <button class="btn-nav" onclick="closeBookModal()">Abbrechen</button>
+      <button class="btn-nav primary" id="btnConfirmBook" onclick="executeBooking()">✅ Jetzt in SAP buchen</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+"use strict";
+const ORC = window.location.origin;
+const BRIDGE = window.location.origin.replace(':8000', ':8765');
+
+// ─── Kontenplan (dynamisch vom Backend) ──────────────────────────
+let _kontenplan = {};   // { kategorie → {soll, haben, kostenstelle, blart, id} }
+let _kpList     = [];   // rohe API-Liste für Admin-Tab
+
+// Fallback-Kontenplan falls API noch nicht erreichbar (vor Orchestrator-Neustart)
+const KONTENPLAN_FALLBACK = [
+  { kategorie:"Urlaubsrückstellung",         konto_soll:"6310000", konto_haben:"3750000", kostenstelle:"", blart:"SA", aktiv:1 },
+  { kategorie:"Drohverlustrückstellung",     konto_soll:"6550000", konto_haben:"3750000", kostenstelle:"", blart:"SA", aktiv:1 },
+  { kategorie:"Gewährleistungsrückstellung", konto_soll:"6501000", konto_haben:"3750000", kostenstelle:"", blart:"SA", aktiv:1 },
+  { kategorie:"Steuerrückstellung",          konto_soll:"7400000", konto_haben:"3750000", kostenstelle:"", blart:"SA", aktiv:1 },
+  { kategorie:"Pensionsrückstellung",        konto_soll:"6200000", konto_haben:"3750000", kostenstelle:"", blart:"SA", aktiv:1 },
+  { kategorie:"Aktive Rechnungsabgrenzung",  konto_soll:"1500000", konto_haben:"6000000", kostenstelle:"", blart:"AB", aktiv:1 },
+  { kategorie:"Passive Rechnungsabgrenzung", konto_soll:"6000000", konto_haben:"3900000", kostenstelle:"", blart:"AB", aktiv:1 },
+  { kategorie:"Sonstige Rückstellung",       konto_soll:"6990000", konto_haben:"3750000", kostenstelle:"", blart:"SA", aktiv:1 },
+  { kategorie:"Personalrückstellung",        konto_soll:"6320000", konto_haben:"3750000", kostenstelle:"", blart:"SA", aktiv:1 },
+];
+
+function _applyKontenplanList(list){
+  _kpList = list;
+  _kontenplan = {};
+  const sel = document.getElementById('fKategorie');
+  sel.innerHTML = '<option value="">— bitte wählen —</option>';
+  list.forEach(e => {
+    if(!e.aktiv) return;
+    _kontenplan[e.kategorie] = { soll:e.konto_soll, haben:e.konto_haben, kostenstelle:e.kostenstelle, blart:e.blart, id:e.id||0 };
+    const opt = document.createElement('option');
+    opt.value = e.kategorie; opt.textContent = e.kategorie;
+    sel.appendChild(opt);
+  });
+  if(document.getElementById('tabKontenplanPanel').classList.contains('active')) renderKpTable();
+}
+
+async function loadKontenplan(){
+  try {
+    const r = await fetch(ORC + '/rueckstellung/kontenplan');
+    if(!r.ok) throw new Error('HTTP ' + r.status);
+    const list = await r.json();
+    _applyKontenplanList(list.length ? list : KONTENPLAN_FALLBACK);
+  } catch(e){
+    console.warn('Kontenplan-API nicht erreichbar, Fallback wird verwendet:', e.message);
+    _applyKontenplanList(KONTENPLAN_FALLBACK);
+  }
+}
+
+const SAP_SYSTEMS = {
+  SEQ: { ashost:"172.28.189.11", sysnr:"00", client:"600" },
+  SEP: { ashost:"172.28.189.8",  sysnr:"00", client:"600" },
+};
+
+let _workflow = "direkt";
+let _currentApprovalId = null;
+let _currentApprovalAction = null;
+let _currentBookReq = null;
+
+// ─── Utility ─────────────────────────────────────────────────────
+function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function fmt(n){ return Number(n).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function fmtDt(s){ if(!s)return '—'; const d=new Date(s); return d.toLocaleDateString('de-DE')+' '+d.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'}); }
+
+let _toastT;
+function toast(msg,type='info'){
+  const el=document.getElementById('toast');
+  el.textContent=msg; el.className='show '+type;
+  clearTimeout(_toastT);
+  _toastT=setTimeout(()=>{ el.className=''; },4000);
+}
+
+function statusBadge(s){
+  const map={ offen:'badge-offen', ausstehend:'badge-ausstehend', genehmigt:'badge-genehmigt',
+              abgelehnt:'badge-abgelehnt', gebucht:'badge-gebucht', storniert:'badge-storniert' };
+  return `<span class="badge ${map[s]||'badge-offen'}">${esc(s)}</span>`;
+}
+
+// ─── Tabs ────────────────────────────────────────────────────────
+function switchTab(name){
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.tab-pane').forEach(p=>p.classList.remove('active'));
+  const panelMap = { buchen:'tabBuchen', antraege:'tabAntraege', freigabe:'tabFreigabePanel', history:'tabHistory', kontenplan:'tabKontenplanPanel' };
+  document.getElementById(panelMap[name]).classList.add('active');
+  if(name === 'kontenplan'){ renderKpTable(); loadAllTemplates(); }
+  event.target.classList.add('active');
+  if(name==='antraege')  loadMyRequests();
+  if(name==='freigabe')  loadApprovalQueue();
+  if(name==='history')   loadHistory();
+}
+
+// ─── Workflow-Auswahl ────────────────────────────────────────────
+function selectWorkflow(wf){
+  _workflow = wf;
+  document.getElementById('wfDirekt').classList.toggle('selected', wf==='direkt');
+  document.getElementById('wfIndirekt').classList.toggle('selected', wf==='indirekt');
+  // Entity-Hinweis bei Indirekt
+  var hint = document.getElementById('entityHint');
+  if(hint) hint.style.display = wf==='indirekt' ? '' : 'none';
+  document.getElementById('bukrsLabel').textContent = wf==='indirekt'
+    ? 'Buchungskreis / Entity *'
+    : 'Buchungskreis *';
+  // Import-Sektion ausblenden wenn Direkt
+  if(wf==='direkt'){
+    var imp = document.getElementById('importSection');
+    if(imp) imp.style.display='none';
+  } else {
+    loadTemplateForSelection();
+  }
+  onBetragChange();
+}
+
+function getSelectedBukrs(){
+  return [document.getElementById('fBukrs').value];
+}
+
+// ─── Kategorie + Kontenplan ──────────────────────────────────────
+function onKategorieChange(){
+  const kat = document.getElementById('fKategorie').value;
+  const kp  = _kontenplan[kat];
+  const info = document.getElementById('kontoInfo');
+  if(kp){
+    document.getElementById('fKontoSoll').value  = kp.soll;
+    document.getElementById('fKontoHaben').value = kp.haben;
+    document.getElementById('fBlart').value       = kp.blart;
+    if(kp.kostenstelle) document.getElementById('fKostenstelle').value = kp.kostenstelle;
+    document.getElementById('kiSoll').textContent  = kp.soll;
+    document.getElementById('kiHaben').textContent = kp.haben;
+    document.getElementById('kiBlart').textContent = kp.blart;
+    document.getElementById('kiKst').textContent   = kp.kostenstelle || '—';
+    info.classList.add('show');
+  } else {
+    info.classList.remove('show');
+  }
+  // Import-Vorlage prüfen (nur Indirekt)
+  loadTemplateForSelection();
+}
+
+// ─── Import-Vorlagen (Templates) ──────────────────────────────────────
+const TEMPLATE_FIELDS = [
+  { field:'beschreibung',  label:'Buchungstext',         type:'text',   required:true  },
+  { field:'betrag',        label:'Betrag (EUR)',          type:'number', required:true  },
+  { field:'kostenstelle',  label:'Kostenstelle',          type:'text',   required:false },
+  { field:'buchungsdatum', label:'Buchungsdatum',         type:'date',   required:true  },
+  { field:'periode',       label:'Periode (MM/JJJJ)',     type:'text',   required:false },
+  { field:'referenz',      label:'Referenz / Notiz',      type:'text',   required:false },
+];
+const FIELD_TO_ID = {
+  'beschreibung':'fBeschreibung', 'betrag':'fBetrag', 'kostenstelle':'fKostenstelle',
+  'buchungsdatum':'fBuchungsdatum', 'periode':'fPeriode', 'referenz':'fReferenz',
+};
+
+let _currentTemplate = null;
+let _importData      = null;
+let _allTemplates    = [];
+
+async function loadTemplateForSelection(){
+  const bukrs = document.getElementById('fBukrs').value;
+  const kat   = document.getElementById('fKategorie').value;
+  const sec   = document.getElementById('importSection');
+  if(!bukrs || !kat || _workflow !== 'indirekt'){ sec.style.display='none'; return; }
+  try {
+    const r = await fetch(`${ORC}/rueckstellung/templates?bukrs=${encodeURIComponent(bukrs)}&kategorie=${encodeURIComponent(kat)}`);
+    const list = await r.json();
+    // Priorität: exakt → nur Kategorie → Default
+    const tpl = list.find(t=>t.bukrs===bukrs&&t.kategorie===kat)
+             || list.find(t=>t.bukrs===''   &&t.kategorie===kat)
+             || list.find(t=>t.bukrs===bukrs&&t.kategorie==='')
+             || list.find(t=>t.bukrs===''   &&t.kategorie==='');
+    _currentTemplate = tpl || null;
+    if(tpl){
+      const cols = JSON.parse(tpl.spalten_json||'[]');
+      document.getElementById('importColHint').innerHTML =
+        `<strong style="color:var(--warn)">${esc(tpl.name)}</strong>`+
+        ` &nbsp;·&nbsp; Erwartete Spalten: <em>${cols.map(c=>esc(c.label)).join(', ')}</em>`;
+      document.getElementById('btnDownloadTpl').style.display='';
+      document.getElementById('importPreview').style.display='none';
+      _importData = null;
+      sec.style.display='';
+    } else {
+      sec.style.display='none';
+    }
+  } catch(e){ sec.style.display='none'; }
+}
+
+function handleFileDrop(evt){
+  evt.preventDefault();
+  document.getElementById('dropZone').style.borderColor='rgba(245,158,11,.35)';
+  const f = evt.dataTransfer.files[0]; if(f) handleFileSelect(f);
+}
+
+function handleFileSelect(file){
+  if(!file){ return; }
+  if(!_currentTemplate){ toast('Keine Vorlage für diese Auswahl','warn'); return; }
+  const ext = file.name.split('.').pop().toLowerCase();
+  if(ext==='csv'){
+    const reader = new FileReader();
+    reader.onload = e => parseCsvData(e.target.result);
+    reader.readAsText(file, 'UTF-8');
+  } else {
+    const reader = new FileReader();
+    reader.onload = e => {
+      try {
+        const wb = XLSX.read(new Uint8Array(e.target.result), {type:'array'});
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(ws, {raw:false, defval:''});
+        if(!rows.length){ toast('Datei ist leer','warn'); return; }
+        _importData = rows; showImportPreview(rows);
+      } catch(err){ toast('Datei konnte nicht gelesen werden: '+err.message,'error'); }
+    };
+    reader.readAsArrayBuffer(file);
+  }
+}
+
+function parseCsvData(text){
+  const lines = text.trim().split('\n');
+  if(lines.length<2){ toast('CSV-Datei hat keine Datenzeilen','warn'); return; }
+  const headers = lines[0].split(';').map(h=>h.trim().replace(/^"|"$/g,''));
+  const rows = [];
+  for(let i=1;i<lines.length;i++){
+    const vals = lines[i].split(';').map(v=>v.trim().replace(/^"|"$/g,''));
+    const obj={};
+    headers.forEach((h,j)=>{ obj[h]=vals[j]||''; });
+    rows.push(obj);
+  }
+  _importData=rows; showImportPreview(rows);
+}
+
+function showImportPreview(rows){
+  const cols = JSON.parse((_currentTemplate||{}).spalten_json||'[]');
+  const maxR = Math.min(rows.length, 5);
+  let html = '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:11px">';
+  html += '<thead><tr>';
+  cols.forEach(c=>{
+    html+=`<th style="padding:4px 8px;border-bottom:1px solid var(--border);text-align:left;`+
+          `color:var(--muted);white-space:nowrap">${esc(c.label)}</th>`;
+  });
+  html+='</tr></thead><tbody>';
+  for(let i=0;i<maxR;i++){
+    html+='<tr style="border-bottom:1px solid rgba(255,255,255,.04)">';
+    cols.forEach(c=>{
+      html+=`<td style="padding:4px 8px;max-width:160px;overflow:hidden;text-overflow:ellipsis;`+
+            `white-space:nowrap">${esc(rows[i][c.label]||'')}</td>`;
+    });
+    html+='</tr>';
+  }
+  if(rows.length>maxR){
+    html+=`<tr><td colspan="${cols.length}" style="padding:4px 8px;color:var(--muted);font-style:italic">`+
+          `… und ${rows.length-maxR} weitere Zeile(n)</td></tr>`;
+  }
+  html+='</tbody></table></div>';
+  document.getElementById('importPreviewTable').innerHTML=html;
+  document.getElementById('importPreview').style.display='';
+  toast(`${rows.length} Zeile(n) gelesen ✓`,'success');
+}
+
+function applyImportData(){
+  if(!_importData||!_importData.length){ toast('Keine Daten vorhanden','warn'); return; }
+  const cols = JSON.parse((_currentTemplate||{}).spalten_json||'[]');
+  const row  = _importData[0];
+  let filled = 0;
+  cols.forEach(c=>{
+    const val = row[c.label];
+    if(val===undefined||val===null||val==='') return;
+    const elId = FIELD_TO_ID[c.field];
+    if(elId){
+      const el = document.getElementById(elId);
+      if(el){ el.value=val; filled++; }
+    }
+  });
+  onKategorieChange(); onBetragChange();
+  toast(`${filled} Felder aus erster Zeile übernommen ✓`,'success');
+}
+
+function downloadTemplate(){
+  if(!_currentTemplate){ toast('Keine Vorlage aktiv','warn'); return; }
+  const cols = JSON.parse(_currentTemplate.spalten_json||'[]');
+  if(!cols.length){ toast('Vorlage hat keine Spalten','warn'); return; }
+  const header = {}; cols.forEach(c=>{ header[c.label]=''; });
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.json_to_sheet([header], {header:cols.map(c=>c.label)});
+  // Spaltenbreiten
+  ws['!cols'] = cols.map(()=>({wch:20}));
+  XLSX.utils.book_append_sheet(wb, ws, 'Vorlage');
+  const bukrs = document.getElementById('fBukrs').value;
+  const kat   = document.getElementById('fKategorie').value;
+  XLSX.writeFile(wb, `Rueckstellung_${bukrs}_${kat.replace(/\s+/g,'_')}.xlsx`);
+}
+
+// ─── Template Admin-CRUD ──────────────────────────────────────────
+async function loadAllTemplates(){
+  try {
+    const r = await fetch(ORC+'/rueckstellung/templates');
+    _allTemplates = await r.json();
+    renderTplTable();
+  } catch(e){ console.warn('Template-Ladefehler',e); }
+}
+
+function renderTplTable(){
+  const body = document.getElementById('tplTableBody');
+  if(!body) return;
+  if(!_allTemplates.length){
+    body.innerHTML='<tr><td colspan="6" style="padding:20px;text-align:center;color:var(--muted)">Keine Vorlagen.</td></tr>';
+    return;
+  }
+  body.innerHTML = _allTemplates.map(t=>{
+    const cols = JSON.parse(t.spalten_json||'[]');
+    return `<tr style="border-bottom:1px solid rgba(255,255,255,.05)">
+      <td style="padding:8px 10px;font-weight:600">${esc(t.name)}</td>
+      <td style="padding:8px 10px;color:var(--muted)">${t.bukrs||'<em>alle</em>'}</td>
+      <td style="padding:8px 10px;color:var(--muted)">${esc(t.kategorie)||'<em>alle</em>'}</td>
+      <td style="padding:8px 10px;font-size:11px;color:var(--muted)">${cols.map(c=>esc(c.label)).join(', ')}</td>
+      <td style="padding:8px 10px">${t.aktiv?'<span style="color:#10b981">●</span>':'<span style="color:var(--muted)">○</span>'}</td>
+      <td style="padding:8px 10px;display:flex;gap:6px">
+        <button class="btn-nav" style="padding:3px 10px;font-size:11px" onclick="openTplModal(${t.id})">✏️</button>
+        <button class="btn-nav" style="padding:3px 10px;font-size:11px;border-color:rgba(239,68,68,.3);color:#ef4444" onclick="deleteTplEntry(${t.id})">🗑</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function openTplModal(id){
+  const t = id ? _allTemplates.find(x=>x.id===id) : null;
+  document.getElementById('tplModalTitle').textContent = t ? 'Vorlage bearbeiten' : 'Neue Import-Vorlage';
+  document.getElementById('tplId').value       = t ? t.id : '';
+  document.getElementById('tplName').value     = t ? t.name : '';
+  document.getElementById('tplBukrs').value    = t ? t.bukrs : '';
+  document.getElementById('tplAktiv').checked  = t ? !!t.aktiv : true;
+  // Kategorie-Dropdown füllen
+  const katSel = document.getElementById('tplKategorie');
+  katSel.innerHTML = '<option value="">— alle Kategorien —</option>';
+  Object.keys(_kontenplan).forEach(k=>{
+    const opt=document.createElement('option');
+    opt.value=k; opt.textContent=k;
+    if(t && t.kategorie===k) opt.selected=true;
+    katSel.appendChild(opt);
+  });
+  if(t && t.kategorie && !_kontenplan[t.kategorie]){
+    const opt=document.createElement('option');
+    opt.value=t.kategorie; opt.textContent=t.kategorie; opt.selected=true;
+    katSel.appendChild(opt);
+  }
+  // Spalten-Konfig
+  const existingCols = t ? JSON.parse(t.spalten_json||'[]') : [];
+  const colMap = {};
+  existingCols.forEach(c=>{ colMap[c.field]=c; });
+  const tbody = document.getElementById('tplColsBody');
+  tbody.innerHTML = TEMPLATE_FIELDS.map(f=>{
+    const ex = colMap[f.field];
+    const active = ex ? true : (t ? false : true);
+    const lbl    = ex ? ex.label    : f.label;
+    const req    = ex ? ex.required : f.required;
+    return `<tr style="border-bottom:1px solid rgba(255,255,255,.04)">
+      <td style="padding:6px 10px"><input type="checkbox" data-field="${f.field}" class="tpl-col-active"
+          ${active?'checked':''} style="accent-color:var(--rk)"></td>
+      <td style="padding:6px 10px;color:var(--muted);font-size:11px">${f.field}</td>
+      <td style="padding:6px 10px">
+        <input type="text" data-field="${f.field}" class="tpl-col-label"
+          value="${esc(lbl)}" maxlength="64"
+          style="width:100%;background:rgba(255,255,255,.06);border:1px solid var(--border);
+                 border-radius:4px;padding:3px 8px;color:var(--text);font-size:12px">
+      </td>
+      <td style="padding:6px 10px;text-align:center">
+        <input type="checkbox" data-field="${f.field}" class="tpl-col-req"
+          ${req?'checked':''} style="accent-color:var(--warn)">
+      </td>
+    </tr>`;
+  }).join('');
+  document.getElementById('tplModal').classList.add('open');
+}
+
+async function saveTplEntry(){
+  const id   = document.getElementById('tplId').value;
+  const name = document.getElementById('tplName').value.trim();
+  if(!name){ toast('Name ist Pflichtfeld','warn'); return; }
+  const cols = [];
+  document.querySelectorAll('#tplColsBody tr').forEach(row=>{
+    const activeEl = row.querySelector('.tpl-col-active');
+    if(!activeEl||!activeEl.checked) return;
+    const field = activeEl.dataset.field;
+    const label = row.querySelector('.tpl-col-label').value.trim();
+    const req   = row.querySelector('.tpl-col-req').checked;
+    const meta  = TEMPLATE_FIELDS.find(f=>f.field===field)||{type:'text'};
+    cols.push({ label:label||meta.label, field, required:req, type:meta.type });
+  });
+  if(!cols.length){ toast('Mindestens eine Spalte aktivieren','warn'); return; }
+  const body = {
+    bukrs:        document.getElementById('tplBukrs').value,
+    kategorie:    document.getElementById('tplKategorie').value,
+    name:         name,
+    beschreibung: '',
+    spalten_json: JSON.stringify(cols),
+    aktiv:        document.getElementById('tplAktiv').checked ? 1 : 0,
+  };
+  try {
+    const url = id ? `${ORC}/rueckstellung/templates/${id}` : `${ORC}/rueckstellung/templates`;
+    const r = await fetch(url, { method:id?'PUT':'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+    if(!r.ok){ const e=await r.json(); toast('Fehler: '+(e.detail||r.status),'error'); return; }
+    toast('Vorlage gespeichert ✓','success');
+    closeModal();
+    await loadAllTemplates();
+  } catch(e){ toast('Netzwerkfehler','error'); }
+}
+
+async function deleteTplEntry(id){
+  if(!confirm('Vorlage wirklich löschen?')) return;
+  try {
+    await fetch(`${ORC}/rueckstellung/templates/${id}`, {method:'DELETE'});
+    toast('Vorlage gelöscht','info');
+    await loadAllTemplates();
+  } catch(e){ toast('Netzwerkfehler','error'); }
+}
+
+// ─── Kontenplan Admin-CRUD ────────────────────────────────────────
+function renderKpTable(){
+  const body = document.getElementById('kpTableBody');
+  if(!_kpList.length){ body.innerHTML='<tr><td colspan="7" style="padding:20px;text-align:center;color:var(--muted)">Keine Einträge.</td></tr>'; return; }
+  body.innerHTML = _kpList.map(e => `
+    <tr style="border-bottom:1px solid rgba(255,255,255,.05)">
+      <td style="padding:8px 10px;font-weight:600">${esc(e.kategorie)}</td>
+      <td style="padding:8px 10px;font-family:monospace">${esc(e.konto_soll)}</td>
+      <td style="padding:8px 10px;font-family:monospace">${esc(e.konto_haben)}</td>
+      <td style="padding:8px 10px;color:var(--muted)">${e.kostenstelle||'—'}</td>
+      <td style="padding:8px 10px"><span style="background:rgba(88,166,255,.12);color:#79b8ff;border-radius:4px;padding:1px 7px;font-size:11px">${esc(e.blart)}</span></td>
+      <td style="padding:8px 10px">${e.aktiv ? '<span style="color:#10b981">●</span>' : '<span style="color:var(--muted)">○</span>'}</td>
+      <td style="padding:8px 10px;display:flex;gap:6px">
+        <button class="btn-nav" style="padding:3px 10px;font-size:11px" onclick="openKpModal(${e.id})">✏️</button>
+        <button class="btn-nav" style="padding:3px 10px;font-size:11px;border-color:rgba(239,68,68,.3);color:#ef4444" onclick="deleteKpEntry(${e.id})">🗑</button>
+      </td>
+    </tr>`).join('');
+}
+
+function openKpModal(id){
+  const e = id ? _kpList.find(x=>x.id===id) : null;
+  document.getElementById('kpModalTitle').textContent = e ? 'Kategorie bearbeiten' : 'Neue Kategorie';
+  document.getElementById('kpId').value       = e ? e.id : '';
+  document.getElementById('kpKategorie').value = e ? e.kategorie    : '';
+  document.getElementById('kpSoll').value      = e ? e.konto_soll   : '';
+  document.getElementById('kpHaben').value     = e ? e.konto_haben  : '';
+  document.getElementById('kpKst').value       = e ? e.kostenstelle : '';
+  document.getElementById('kpBlart').value     = e ? e.blart        : 'SA';
+  document.getElementById('kpAktiv').checked   = e ? !!e.aktiv      : true;
+  document.getElementById('kpModal').classList.add('open');
+}
+
+async function saveKpEntry(){
+  const id  = document.getElementById('kpId').value;
+  const kat = document.getElementById('kpKategorie').value.trim();
+  const soll = document.getElementById('kpSoll').value.trim();
+  const haben = document.getElementById('kpHaben').value.trim();
+  if(!kat||!soll||!haben){ toast('Kategorie, Soll und Haben sind Pflichtfelder','warn'); return; }
+  const body = {
+    kategorie:    kat,
+    konto_soll:   soll,
+    konto_haben:  haben,
+    kostenstelle: document.getElementById('kpKst').value.trim(),
+    blart:        document.getElementById('kpBlart').value,
+    aktiv:        document.getElementById('kpAktiv').checked ? 1 : 0,
+    sort_order:   id ? (_kpList.find(x=>x.id==id)||{}).sort_order||0 : _kpList.length+1,
+  };
+  try {
+    const url = id ? `${ORC}/rueckstellung/kontenplan/${id}` : `${ORC}/rueckstellung/kontenplan`;
+    const r = await fetch(url, { method: id ? 'PUT' : 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    if(!r.ok){ const e=await r.json(); toast('Fehler: '+(e.detail||r.status),'error'); return; }
+    toast('Gespeichert ✓','success');
+    closeModal();
+    await loadKontenplan();
+  } catch(e){ toast('Netzwerkfehler','error'); }
+}
+
+async function deleteKpEntry(id){
+  if(!confirm('Eintrag wirklich löschen?')) return;
+  try {
+    const r = await fetch(`${ORC}/rueckstellung/kontenplan/${id}`, { method:'DELETE' });
+    if(!r.ok && r.status!==204){ toast('Fehler beim Löschen','error'); return; }
+    toast('Gelöscht','info');
+    await loadKontenplan();
+  } catch(e){ toast('Netzwerkfehler','error'); }
+}
+
+// ─── Betrag-Logik + Button-Zustand ───────────────────────────────
+function onBetragChange(){
+  const betrag = parseFloat(document.getElementById('fBetrag').value) || 0;
+  const needsApproval = _workflow==='indirekt' && betrag > 50000;
+  document.getElementById('approvalBanner').classList.toggle('show', needsApproval);
+  // Direkt: immer "Sofort buchen"
+  document.getElementById('btnBuchen').style.display    = _workflow==='direkt' ? '' : 'none';
+  // Indirekt ≤ 50k: "Antrag einreichen" (keine Freigabe nötig)
+  document.getElementById('btnEinreichen').style.display = (_workflow==='indirekt' && !needsApproval) ? '' : 'none';
+  // Indirekt > 50k: "Zur Freigabe einreichen (FCO/CEO)"
+  document.getElementById('btnFreigabe').style.display   = needsApproval ? '' : 'none';
+}
+
+// ─── Formular validieren ─────────────────────────────────────────
+function validateForm(){
+  const required = [
+    ['fKategorie','Kategorie'], ['fBeschreibung','Buchungstext'],
+    ['fBetrag','Betrag'],       ['fKontoSoll','Konto Soll'],
+    ['fKontoHaben','Konto Haben'],['fPeriode','Periode'],
+    ['fBuchungsdatum','Buchungsdatum']
+  ];
+  for(const [id,label] of required){
+    const el=document.getElementById(id);
+    if(!el.value || (el.type==='number' && parseFloat(el.value)<=0)){
+      toast(`Pflichtfeld fehlt: ${label}`,'warn'); el.focus(); return false;
+    }
+  }
+  if(!/^\d{2}\/\d{4}$/.test(document.getElementById('fPeriode').value)){
+    toast('Periode muss im Format MM/YYYY sein','warn'); return false;
+  }
+  if(!document.getElementById('fBukrs').value){
+    toast('Bitte einen Buchungskreis auswählen','warn'); return false;
+  }
+  return true;
+}
+
+function resetForm(){
+  ['fKategorie','fBeschreibung','fKontoSoll','fKontoHaben','fKostenstelle','fReferenz']
+    .forEach(id=>{ document.getElementById(id).value=''; });
+  document.getElementById('fBetrag').value='';
+  document.getElementById('fWaehrung').value='EUR';
+  document.getElementById('fBlart').value='SA';
+  document.getElementById('kontoInfo').classList.remove('show');
+  document.getElementById('approvalBanner').classList.remove('show');
+  // Button-Zustand nach Reset neu berechnen
+  onBetragChange();
+}
+
+// ─── Formular absenden ───────────────────────────────────────────
+// mode: 'direkt'     → sofort SAP-Buchung (kein Approval)
+//       'einreichen' → Indirekt ≤ 50k: speichern + SAP-Buchung
+//       'freigabe'   → Indirekt > 50k: nur speichern, Approval abwarten
+async function submitForm(mode){
+  if(!validateForm()) return;
+
+  const betrag = parseFloat(document.getElementById('fBetrag').value);
+  const user = (window.AUTH && AUTH.user) ? AUTH.user.display_name || AUTH.user.sap_username : 'Unbekannt';
+
+  const payload = {
+    workflow:      _workflow,
+    kategorie:     document.getElementById('fKategorie').value,
+    beschreibung:  document.getElementById('fBeschreibung').value,
+    betrag:        betrag,
+    waehrung:      document.getElementById('fWaehrung').value,
+    konto_soll:    document.getElementById('fKontoSoll').value,
+    konto_haben:   document.getElementById('fKontoHaben').value,
+    kostenstelle:  document.getElementById('fKostenstelle').value,
+    bukrs_json:    JSON.stringify(getSelectedBukrs()),
+    periode:       document.getElementById('fPeriode').value,
+    buchungsdatum: document.getElementById('fBuchungsdatum').value,
+    referenz:      document.getElementById('fReferenz').value,
+    sap_system:    document.getElementById('fSapSystem').value,
+    blart:         document.getElementById('fBlart').value,
+    submitted_by:  user,
+  };
+
+  if(mode === 'freigabe'){
+    // Indirekt > 50k: nur speichern → wartet auf FCO/CEO-Freigabe
+    await saveRequest(payload, true);
+  } else {
+    // Direkt oder Indirekt ≤ 50k: speichern + sofort SAP
+    const req = await saveRequest(payload, false);
+    if(req) await bookInSap(req);
+  }
+}
+
+async function saveRequest(payload, waitForApproval){
+  try {
+    const r = await fetch(ORC + '/rueckstellung/requests', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(payload)
+    });
+    const data = await r.json();
+    if(!r.ok) throw new Error(data.detail || 'Fehler beim Speichern');
+    if(waitForApproval){
+      toast('📤 Antrag zur Freigabe eingereicht (ID #'+data.id+')','ok');
+      resetForm();
+    }
+    return data;
+  } catch(e){
+    toast('Fehler: '+e.message,'err');
+    return null;
+  }
+}
+
+// ─── SAP-Buchung direkt ──────────────────────────────────────────
+async function bookInSap(req){
+  const bukrs = JSON.parse(req.bukrs_json || '[]');
+  const sys = SAP_SYSTEMS[req.sap_system] || SAP_SYSTEMS.SEQ;
+  const user = window.AUTH && AUTH.user;
+  const sapAuth = user ? {
+    user:    user.sap_username || '',
+    passwd:  user._pwd         || '',
+    ashost:  sys.ashost,
+    sysnr:   sys.sysnr,
+    client:  sys.client,
+    lang:    user.lang || 'DE',
+  } : null;
+
+  const docDate = req.buchungsdatum.replace(/-/g,'');
+  const [mm, yyyy] = req.periode.split('/');
+  const results = [];
+
+  for(const bkr of bukrs){
+    try {
+      const bapi = {
+        handler: 'BAPI',
+        action:  'BAPI_ACC_DOCUMENT_POST',
+        payload: {
+          _sap_auth: sapAuth,
+          DOCUMENTHEADER: {
+            USERNAME:   (user && user.sap_username) || '',
+            COMP_CODE:  bkr,
+            DOC_TYPE:   req.blart || 'SA',
+            DOC_DATE:   docDate,
+            PSTNG_DATE: docDate,
+            FISC_YEAR:  yyyy,
+            FIS_PERIOD: mm,
+            REF_DOC_NO: req.referenz || `RUECK-${req.id}`,
+            HEADER_TXT: req.beschreibung.slice(0,25),
+            LDGRP:      '0L',
+          },
+          ACCOUNTGL: [
+            { ITEMNO_ACC:'1', GL_ACCOUNT:req.konto_soll,  ITEM_TEXT:req.beschreibung.slice(0,50) },
+            { ITEMNO_ACC:'2', GL_ACCOUNT:req.konto_haben, ITEM_TEXT:req.beschreibung.slice(0,50) },
+          ],
+          CURRENCYAMOUNT: [
+            { ITEMNO_ACC:'1', CURRENCY:req.waehrung, AMT_DOCCUR: req.betrag },
+            { ITEMNO_ACC:'2', CURRENCY:req.waehrung, AMT_DOCCUR:-req.betrag },
+          ],
+        }
+      };
+
+      const resp = await fetch(BRIDGE + '/execute', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify(bapi)
+      });
+      const res = await resp.json();
+      if(!resp.ok || res.error) throw new Error(res.error || res.detail || 'Bridge-Fehler');
+      const docNr = (res.result && res.result.doc_number) || res.doc_number || '?';
+      results.push({ bkr, docNr, ok:true });
+    } catch(e){
+      results.push({ bkr, error:e.message, ok:false });
+    }
+  }
+
+  const allOk = results.every(r=>r.ok);
+  const docNrs = results.filter(r=>r.ok).map(r=>`${r.bkr}:${r.docNr}`).join(', ');
+
+  // Antrag als gebucht markieren
+  await fetch(ORC + '/rueckstellung/requests/' + req.id + '/booked', {
+    method:'PATCH', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({
+      sap_doc_nrs: docNrs,
+      actor: (user && (user.display_name||user.sap_username)) || 'system',
+    })
+  });
+
+  if(allOk){
+    toast(`✅ ${bukrs.length}×gebucht — Belege: ${docNrs}`, 'ok');
+    resetForm();
+  } else {
+    const errs = results.filter(r=>!r.ok).map(r=>`${r.bkr}: ${r.error}`).join('; ');
+    toast(`Teilfehler: ${errs}`, 'warn');
+  }
+  return results;
+}
+
+// ─── Meine Anträge laden ─────────────────────────────────────────
+async function loadMyRequests(){
+  const user = window.AUTH && AUTH.user;
+  const by = user ? (user.display_name || user.sap_username) : '';
+  try {
+    const r = await fetch(ORC + '/rueckstellung/requests' + (by ? '?submitted_by='+encodeURIComponent(by) : ''));
+    const data = await r.json();
+    renderMyRequests(data);
+  } catch(e){ toast('Ladefehler: '+e.message,'err'); }
+}
+
+function renderMyRequests(rows){
+  const tb = document.getElementById('myRequestsTbody');
+  if(!rows.length){
+    tb.innerHTML='<tr class="empty-row"><td colspan="9">Keine Anträge gefunden.</td></tr>'; return;
+  }
+  tb.innerHTML = rows.map(r=>`
+    <tr>
+      <td><span style="color:var(--muted);font-size:11px">#${r.id}</span></td>
+      <td>${esc(r.kategorie)}</td>
+      <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.beschreibung)}">${esc(r.beschreibung)}</td>
+      <td style="font-family:monospace;white-space:nowrap">${fmt(r.betrag)} ${esc(r.waehrung)}</td>
+      <td>${r.workflow==='indirekt'?'<span style="color:var(--warn)">🏢 Konzern</span>':'⚡ Direkt'}</td>
+      <td>${esc(r.periode)}</td>
+      <td>${statusBadge(r.status)}${r.requires_approval?'<br><span style="font-size:10px;color:var(--warn)">Freigabe req.</span>':''}</td>
+      <td style="font-family:monospace;font-size:11px">${esc(r.sap_doc_nrs)||'—'}</td>
+      <td>
+        <div class="actions">
+          ${r.status==='genehmigt' ? `<button class="btn-sm ok" onclick="openBookModal(${r.id})">📮 Buchen</button>` : ''}
+          ${r.status==='offen'||r.status==='ausstehend' ? `<button class="btn-sm danger" onclick="cancelRequest(${r.id})">✕ Stornieren</button>` : ''}
+          <button class="btn-sm" onclick="showHistory(${r.id})">📜</button>
+        </div>
+      </td>
+    </tr>`).join('');
+}
+
+// ─── Freigabe-Warteschlange ───────────────────────────────────────
+async function loadApprovalQueue(){
+  try {
+    const r = await fetch(ORC + '/rueckstellung/requests');
+    const all = await r.json();
+    updateStats(all);
+    const pending = all.filter(x=>x.status==='ausstehend');
+    renderApprovalQueue(pending);
+    renderAllRequests(all);
+    // Update pending badge
+    const badge = document.getElementById('pendingBadge');
+    if(pending.length){ badge.textContent=pending.length; badge.style.display=''; }
+    else { badge.style.display='none'; }
+  } catch(e){ toast('Ladefehler: '+e.message,'err'); }
+}
+
+function updateStats(all){
+  const cnt = (s) => all.filter(x=>x.status===s).length;
+  document.getElementById('stAusstehend').textContent = cnt('ausstehend');
+  document.getElementById('stGenehmigt').textContent  = cnt('genehmigt');
+  document.getElementById('stGebucht').textContent    = cnt('gebucht');
+  document.getElementById('stAbgelehnt').textContent  = cnt('abgelehnt');
+  document.getElementById('stGesamt').textContent     = all.length;
+}
+
+function renderApprovalQueue(rows){
+  const tb = document.getElementById('approvalTbody');
+  if(!rows.length){
+    tb.innerHTML='<tr class="empty-row"><td colspan="9">Keine ausstehenden Freigaben.</td></tr>'; return;
+  }
+  tb.innerHTML = rows.map(r=>`
+    <tr>
+      <td>#${r.id}</td>
+      <td>${esc(r.submitted_by)||'—'}</td>
+      <td>${esc(r.kategorie)}</td>
+      <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.beschreibung)}</td>
+      <td style="font-family:monospace;white-space:nowrap;color:var(--warn);font-weight:600">${fmt(r.betrag)} ${esc(r.waehrung)}</td>
+      <td style="font-size:11px">${esc(JSON.parse(r.bukrs_json||'[]').join(', '))}</td>
+      <td>${esc(r.periode)}</td>
+      <td>${statusBadge(r.status)}</td>
+      <td>
+        <div class="actions">
+          <button class="btn-sm ok" onclick="openApprovalModal(${r.id},'approve')">✅ Genehmigen</button>
+          <button class="btn-sm danger" onclick="openApprovalModal(${r.id},'reject')">✕ Ablehnen</button>
+        </div>
+      </td>
+    </tr>`).join('');
+}
+
+function renderAllRequests(rows){
+  const tb = document.getElementById('allRequestsTbody');
+  if(!rows.length){
+    tb.innerHTML='<tr class="empty-row"><td colspan="9">Keine Anträge.</td></tr>'; return;
+  }
+  tb.innerHTML = rows.map(r=>`
+    <tr>
+      <td>#${r.id}</td>
+      <td>${esc(r.submitted_by)||'—'}</td>
+      <td>${esc(r.kategorie)}</td>
+      <td style="font-family:monospace;white-space:nowrap">${fmt(r.betrag)} ${esc(r.waehrung)}</td>
+      <td>${r.workflow==='indirekt'?'🏢 Konzern':'⚡ Direkt'}</td>
+      <td>${statusBadge(r.status)}</td>
+      <td style="font-size:11px">${esc(r.approved_by)||'—'}</td>
+      <td style="font-family:monospace;font-size:11px">${esc(r.sap_doc_nrs)||'—'}</td>
+      <td>
+        <div class="actions">
+          ${r.status==='genehmigt' ? `<button class="btn-sm ok" onclick="openBookModal(${r.id})">📮 Buchen</button>` : ''}
+          ${r.status==='ausstehend' ? `<button class="btn-sm ok" onclick="openApprovalModal(${r.id},'approve')">✅</button><button class="btn-sm danger" onclick="openApprovalModal(${r.id},'reject')">✕</button>` : ''}
+          <button class="btn-sm" onclick="showHistory(${r.id})">📜</button>
+        </div>
+      </td>
+    </tr>`).join('');
+}
+
+// ─── Approval Modal ──────────────────────────────────────────────
+function openApprovalModal(id, action){
+  _currentApprovalId = id;
+  _currentApprovalAction = action;
+  const title = action==='approve' ? '✅ Antrag genehmigen' : '✕ Antrag ablehnen';
+  const body  = action==='approve'
+    ? `<strong>Antrag #${id}</strong> wird genehmigt. Der Antragsteller kann danach in SAP buchen.`
+    : `<strong>Antrag #${id}</strong> wird abgelehnt. Bitte geben Sie eine Begründung an.`;
+  document.getElementById('approvalModalTitle').textContent = title;
+  document.getElementById('approvalModalBody').innerHTML   = body;
+  document.getElementById('approvalComment').value = '';
+  const btn = document.getElementById('approvalConfirmBtn');
+  btn.textContent = action==='approve' ? '✅ Genehmigen' : '✕ Ablehnen';
+  btn.className = 'btn-nav ' + (action==='approve' ? 'green' : 'primary');
+  document.getElementById('approvalModal').classList.add('open');
+}
+
+function closeModal(){
+  ['approvalModal','bookModal','kpModal','tplModal'].forEach(id=>{
+    const el=document.getElementById(id); if(el) el.classList.remove('open');
+  });
+}
+
+async function confirmApproval(){
+  const action  = _currentApprovalAction;
+  const id      = _currentApprovalId;
+  const comment = document.getElementById('approvalComment').value;
+  const user    = window.AUTH && AUTH.user;
+  const actor   = user ? (user.display_name || user.sap_username) : 'Unbekannt';
+  const endpoint = action==='approve' ? 'approve' : 'reject';
+  try {
+    const r = await fetch(`${ORC}/rueckstellung/requests/${id}/${endpoint}`, {
+      method:'PATCH', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ actor, comment })
+    });
+    if(!r.ok) throw new Error((await r.json()).detail);
+    toast(action==='approve' ? '✅ Antrag genehmigt' : '✕ Antrag abgelehnt',
+          action==='approve' ? 'ok' : 'warn');
+    closeModal();
+    loadAp

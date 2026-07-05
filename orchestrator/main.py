@@ -517,6 +517,75 @@ class ModuleVersion(Base):
     created_at:     Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
+class RueckstellungRequest(Base):
+    """Rückstellungs-/Abgrenzungsantrag (direkt oder indirekt/Konzern)."""
+    __tablename__ = "rueckstellung_requests"
+    id:               Mapped[int]      = mapped_column(primary_key=True)
+    workflow:         Mapped[str]      = mapped_column(String(16), default="direkt")
+    kategorie:        Mapped[str]      = mapped_column(String(64), default="")
+    beschreibung:     Mapped[str]      = mapped_column(Text, default="")
+    betrag:           Mapped[float]    = mapped_column(default=0.0)
+    waehrung:         Mapped[str]      = mapped_column(String(4), default="EUR")
+    konto_soll:       Mapped[str]      = mapped_column(String(16), default="")
+    konto_haben:      Mapped[str]      = mapped_column(String(16), default="")
+    kostenstelle:     Mapped[str]      = mapped_column(String(16), default="")
+    bukrs_json:       Mapped[str]      = mapped_column(Text, default="[]")
+    periode:          Mapped[str]      = mapped_column(String(16), default="")
+    buchungsdatum:    Mapped[str]      = mapped_column(String(10), default="")
+    referenz:         Mapped[str]      = mapped_column(String(128), default="")
+    sap_system:       Mapped[str]      = mapped_column(String(16), default="SEQ")
+    blart:            Mapped[str]      = mapped_column(String(4), default="SA")
+    status:           Mapped[str]      = mapped_column(String(32), default="offen")
+    requires_approval: Mapped[int]    = mapped_column(Integer, default=0)
+    submitted_by:     Mapped[str]      = mapped_column(String(128), default="")
+    approved_by:      Mapped[str]      = mapped_column(String(128), default="")
+    approval_comment: Mapped[str]      = mapped_column(Text, default="")
+    sap_doc_nrs:      Mapped[str]      = mapped_column(Text, default="")
+    created_at:       Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at:       Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    approvals: Mapped[List["RueckstellungApproval"]] = relationship(
+        back_populates="request", cascade="all, delete-orphan")
+
+
+class RueckstellungApproval(Base):
+    """Freigabe-/Ablehnungs-Protokoll für Rückstellungsanträge."""
+    __tablename__ = "rueckstellung_approvals"
+    id:         Mapped[int]      = mapped_column(primary_key=True)
+    request_id: Mapped[int]      = mapped_column(ForeignKey("rueckstellung_requests.id"))
+    action:     Mapped[str]      = mapped_column(String(32))
+    actor:      Mapped[str]      = mapped_column(String(128), default="")
+    comment:    Mapped[str]      = mapped_column(Text, default="")
+    ts:         Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    request:    Mapped["RueckstellungRequest"] = relationship(back_populates="approvals")
+
+
+class RueckstellungKontenplan(Base):
+    """Admin-vordefinierte Sachkonten + Kostenstellen pro Rückstellungs-Kategorie."""
+    __tablename__ = "rueckstellung_kontenplan"
+    id:          Mapped[int] = mapped_column(primary_key=True)
+    kategorie:   Mapped[str] = mapped_column(String(64), unique=True)
+    konto_soll:  Mapped[str] = mapped_column(String(16), default="")
+    konto_haben: Mapped[str] = mapped_column(String(16), default="")
+    kostenstelle: Mapped[str] = mapped_column(String(16), default="")
+    blart:       Mapped[str] = mapped_column(String(4), default="SA")
+    aktiv:       Mapped[int] = mapped_column(Integer, default=1)
+    sort_order:  Mapped[int] = mapped_column(Integer, default=0)
+
+
+class RueckstellungTemplate(Base):
+    """Import-Vorlagen je Buchungskreis + Kategorie (indirekter Workflow)."""
+    __tablename__ = "rueckstellung_templates"
+    id:           Mapped[int] = mapped_column(primary_key=True)
+    bukrs:        Mapped[str] = mapped_column(String(16), default="")   # "" = alle
+    kategorie:    Mapped[str] = mapped_column(String(64), default="")   # "" = alle
+    name:         Mapped[str] = mapped_column(String(128), default="")
+    beschreibung: Mapped[str] = mapped_column(Text, default="")
+    spalten_json: Mapped[str] = mapped_column(Text, default="[]")
+    aktiv:        Mapped[int] = mapped_column(Integer, default=1)
+    created_at:   Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at:   Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
 # ----------------------------------------------------------------------------
 # Pydantic-Schemas (API)
 # ----------------------------------------------------------------------------
@@ -872,6 +941,63 @@ def seed_if_empty() -> None:
         # ── 3W Governance-Seed: App-Regeln (nur falls noch keine vorhanden) ─────
         if db.query(GovernanceRule).count() == 0:
             _seed_governance_rules(db)
+        # ── Rückstellungs-Kontenplan: immer idempotent sicherstellen ────────────
+        _ensure_kontenplan(db)
+        # ── Import-Vorlagen: Standard-Templates ───────────────────────────────
+        if db.query(RueckstellungTemplate).count() == 0:
+            _seed_rueck_templates(db)
+
+
+def _seed_rueck_templates(db: Session) -> None:
+    """Standard Import-Vorlagen für Rückstellungsanträge."""
+    import json as _json
+    templates = [
+        ("", "", "Standard-Vorlage",
+         "Universelle Vorlage für alle Buchungskreise und Kategorien",
+         '[{"label": "Buchungstext", "field": "beschreibung", "required": true, "type": "text"}, {"label": "Betrag (EUR)", "field": "betrag", "required": true, "type": "number"}, {"label": "Kostenstelle", "field": "kostenstelle", "required": false, "type": "text"}, {"label": "Buchungsdatum", "field": "buchungsdatum", "required": true, "type": "date"}, {"label": "Periode (MM/JJJJ)", "field": "periode", "required": false, "type": "text"}, {"label": "Referenz", "field": "referenz", "required": false, "type": "text"}]'),
+        ("", "Personalrückstellung", "Personalrückstellung-Vorlage",
+         "Vorlage für Personalrückstellungen inkl. Kostenstelle und Mitarbeiteranzahl",
+         '[{"label": "Buchungstext", "field": "beschreibung", "required": true, "type": "text"}, {"label": "Betrag (EUR)", "field": "betrag", "required": true, "type": "number"}, {"label": "Kostenstelle", "field": "kostenstelle", "required": true, "type": "text"}, {"label": "Periode (MM/JJJJ)", "field": "periode", "required": true, "type": "text"}, {"label": "Buchungsdatum", "field": "buchungsdatum", "required": true, "type": "date"}, {"label": "Mitarbeiteranzahl", "field": "referenz", "required": false, "type": "text"}]'),
+    ]
+    for bukrs, kat, name, beschr, cols in templates:
+        db.add(RueckstellungTemplate(
+            bukrs=bukrs, kategorie=kat, name=name,
+            beschreibung=beschr, spalten_json=cols, aktiv=1))
+    db.commit()
+    log.info("Rückstellungs-Import-Vorlagen initialisiert (%d Einträge).", len(templates))
+
+
+# Kanonische Kontenplan-Einträge — jederzeit idempotent erweiterbar
+_KONTENPLAN_DEFAULTS = [
+    ("Urlaubsrückstellung",         "6310000", "3750000", "", "SA", 1),
+    ("Drohverlustrückstellung",     "6550000", "3750000", "", "SA", 2),
+    ("Gewährleistungsrückstellung", "6501000", "3750000", "", "SA", 3),
+    ("Steuerrückstellung",          "7400000", "3750000", "", "SA", 4),
+    ("Pensionsrückstellung",        "6200000", "3750000", "", "SA", 5),
+    ("Aktive Rechnungsabgrenzung",  "1500000", "6000000", "", "AB", 6),
+    ("Passive Rechnungsabgrenzung", "6000000", "3900000", "", "AB", 7),
+    ("Sonstige Rückstellung",       "6990000", "3750000", "", "SA", 8),
+    ("Personalrückstellung",        "6320000", "3750000", "", "SA", 9),
+]
+
+def _seed_kontenplan(db: Session) -> None:
+    """Erst-Befüllung (leere Tabelle)."""
+    _ensure_kontenplan(db)
+
+def _ensure_kontenplan(db: Session) -> None:
+    """Idempotent: fügt fehlende Standard-Einträge hinzu, ohne bestehende zu überschreiben."""
+    added = 0
+    for kat, soll, haben, kst, blart, sort in _KONTENPLAN_DEFAULTS:
+        exists = db.query(RueckstellungKontenplan).filter(
+            RueckstellungKontenplan.kategorie == kat).first()
+        if not exists:
+            db.add(RueckstellungKontenplan(
+                kategorie=kat, konto_soll=soll, konto_haben=haben,
+                kostenstelle=kst, blart=blart, aktiv=1, sort_order=sort))
+            added += 1
+    if added:
+        db.commit()
+        log.info("Kontenplan: %d neue Einträge ergänzt.", added)
 
 
 def _seed_governance_rules(db: Session) -> None:
@@ -1419,6 +1545,73 @@ def get_env():
 # ----------------------------------------------------------------------------
 # Zahlungsbedingungen-Protokoll
 # ----------------------------------------------------------------------------
+class RueckstellungIn(BaseModel):
+    workflow:      str = "direkt"
+    kategorie:     str = ""
+    beschreibung:  str = ""
+    betrag:        float = 0.0
+    waehrung:      str = "EUR"
+    konto_soll:    str = ""
+    konto_haben:   str = ""
+    kostenstelle:  str = ""
+    bukrs_json:    str = "[]"
+    periode:       str = ""
+    buchungsdatum: str = ""
+    referenz:      str = ""
+    sap_system:    str = "SEQ"
+    blart:         str = "SA"
+    submitted_by:  str = ""
+
+class RueckstellungApprovalLog(BaseModel):
+    id:      int
+    action:  str
+    actor:   str = ""
+    comment: str = ""
+    ts:      datetime
+    model_config = {"from_attributes": True}
+
+class RueckstellungOut(RueckstellungIn):
+    id:               int
+    status:           str
+    requires_approval: int
+    approved_by:      str
+    approval_comment: str
+    sap_doc_nrs:      str
+    created_at:       datetime
+    updated_at:       datetime
+    approvals:        List[RueckstellungApprovalLog] = []
+    model_config = {"from_attributes": True}
+
+
+class KontenplanIn(BaseModel):
+    kategorie:    str
+    konto_soll:   str = ""
+    konto_haben:  str = ""
+    kostenstelle: str = ""
+    blart:        str = "SA"
+    aktiv:        int = 1
+    sort_order:   int = 0
+
+class KontenplanOut(KontenplanIn):
+    id: int
+    model_config = {"from_attributes": True}
+
+
+class RueckstellungTemplateIn(BaseModel):
+    bukrs:        str = ""
+    kategorie:    str = ""
+    name:         str = ""
+    beschreibung: str = ""
+    spalten_json: str = "[]"
+    aktiv:        int = 1
+
+class RueckstellungTemplateOut(RueckstellungTemplateIn):
+    id:         int
+    created_at: datetime
+    updated_at: datetime
+    model_config = {"from_attributes": True}
+
+
 class ZtermLogIn(BaseModel):
     kunnr:      str
     kname:      str = ""
@@ -2829,3 +3022,187 @@ def migrate_db(payload: dict):
         }
     except Exception as exc:
         raise HTTPException(500, f"Migration fehlgeschlagen: {exc}")
+
+# ── Rückstellungs-Request-Endpoints ──────────────────────────────────────────
+@app.get("/rueckstellung/requests", response_model=List[RueckstellungOut], tags=["Rückstellung"])
+def list_rueckstellungen(status: str = "", db: Session = Depends(get_db)):
+    q = db.query(RueckstellungRequest)
+    if status:
+        q = q.filter(RueckstellungRequest.status == status)
+    return q.order_by(RueckstellungRequest.created_at.desc()).all()
+
+
+@app.post("/rueckstellung/requests", response_model=RueckstellungOut, status_code=201, tags=["Rückstellung"])
+def create_rueckstellung(payload: RueckstellungIn, db: Session = Depends(get_db)):
+    requires = int(payload.workflow == "indirekt" and payload.betrag > 50000)
+    status   = "ausstehend" if requires else "offen"
+    req = RueckstellungRequest(**payload.model_dump(), requires_approval=requires, status=status)
+    db.add(req)
+    db.commit()
+    db.refresh(req)
+    db.add(RueckstellungApproval(request_id=req.id, action="submitted",
+                                  actor=payload.submitted_by, comment="Antrag eingereicht"))
+    db.commit()
+    db.refresh(req)
+    return req
+
+
+@app.get("/rueckstellung/requests/{request_id}", response_model=RueckstellungOut, tags=["Rückstellung"])
+def get_rueckstellung(request_id: int, db: Session = Depends(get_db)):
+    req = db.get(RueckstellungRequest, request_id)
+    if not req:
+        raise HTTPException(404, "Antrag nicht gefunden")
+    return req
+
+
+@app.patch("/rueckstellung/requests/{request_id}/approve", response_model=RueckstellungOut, tags=["Rückstellung"])
+def approve_rueckstellung(request_id: int, payload: dict, db: Session = Depends(get_db)):
+    req = db.get(RueckstellungRequest, request_id)
+    if not req:
+        raise HTTPException(404, "Antrag nicht gefunden")
+    if req.status not in ("ausstehend", "offen"):
+        raise HTTPException(400, f"Antrag kann nicht genehmigt werden (Status: {req.status})")
+    actor   = payload.get("actor", "")
+    comment = payload.get("comment", "")
+    req.status = "genehmigt"; req.approved_by = actor
+    req.approval_comment = comment; req.updated_at = datetime.utcnow()
+    db.add(RueckstellungApproval(request_id=req.id, action="approved", actor=actor, comment=comment))
+    db.commit(); db.refresh(req)
+    return req
+
+
+@app.patch("/rueckstellung/requests/{request_id}/reject", response_model=RueckstellungOut, tags=["Rückstellung"])
+def reject_rueckstellung(request_id: int, payload: dict, db: Session = Depends(get_db)):
+    req = db.get(RueckstellungRequest, request_id)
+    if not req:
+        raise HTTPException(404, "Antrag nicht gefunden")
+    if req.status not in ("ausstehend", "offen", "genehmigt"):
+        raise HTTPException(400, f"Antrag kann nicht abgelehnt werden (Status: {req.status})")
+    actor = payload.get("actor", ""); comment = payload.get("comment", "")
+    req.status = "abgelehnt"; req.updated_at = datetime.utcnow()
+    db.add(RueckstellungApproval(request_id=req.id, action="rejected", actor=actor, comment=comment))
+    db.commit(); db.refresh(req)
+    return req
+
+
+@app.patch("/rueckstellung/requests/{request_id}/booked", response_model=RueckstellungOut, tags=["Rückstellung"])
+def mark_rueckstellung_booked(request_id: int, payload: dict, db: Session = Depends(get_db)):
+    req = db.get(RueckstellungRequest, request_id)
+    if not req:
+        raise HTTPException(404, "Antrag nicht gefunden")
+    doc_nrs = payload.get("sap_doc_nrs", ""); actor = payload.get("actor", "system")
+    req.status = "gebucht"; req.sap_doc_nrs = doc_nrs; req.updated_at = datetime.utcnow()
+    db.add(RueckstellungApproval(request_id=req.id, action="booked",
+                                  actor=actor, comment=f"SAP-Belege: {doc_nrs}"))
+    db.commit(); db.refresh(req)
+    return req
+
+
+@app.patch("/rueckstellung/requests/{request_id}/cancel", response_model=RueckstellungOut, tags=["Rückstellung"])
+def cancel_rueckstellung(request_id: int, payload: dict, db: Session = Depends(get_db)):
+    req = db.get(RueckstellungRequest, request_id)
+    if not req:
+        raise HTTPException(404, "Antrag nicht gefunden")
+    if req.status == "gebucht":
+        raise HTTPException(400, "Gebuchte Anträge können nicht storniert werden")
+    actor = payload.get("actor", ""); req.status = "storniert"; req.updated_at = datetime.utcnow()
+    db.add(RueckstellungApproval(request_id=req.id, action="cancelled",
+                                  actor=actor, comment=payload.get("comment", "")))
+    db.commit(); db.refresh(req)
+    return req
+
+
+@app.delete("/rueckstellung/requests/{request_id}", status_code=204, tags=["Rückstellung"])
+def delete_rueckstellung(request_id: int, db: Session = Depends(get_db)):
+    req = db.get(RueckstellungRequest, request_id)
+    if not req:
+        raise HTTPException(404, "Antrag nicht gefunden")
+    if req.status == "gebucht":
+        raise HTTPException(400, "Gebuchte Anträge können nicht gelöscht werden")
+    db.delete(req); db.commit()
+
+
+# ── Kontenplan-Endpoints ─────────────────────────────────────────────────────
+@app.get("/rueckstellung/kontenplan", response_model=List[KontenplanOut], tags=["Rückstellung"])
+def list_kontenplan(db: Session = Depends(get_db)):
+    return db.query(RueckstellungKontenplan).order_by(RueckstellungKontenplan.sort_order).all()
+
+
+@app.post("/rueckstellung/kontenplan", response_model=KontenplanOut, status_code=201, tags=["Rückstellung"])
+def create_kontenplan(payload: KontenplanIn, db: Session = Depends(get_db)):
+    existing = db.query(RueckstellungKontenplan).filter(
+        RueckstellungKontenplan.kategorie == payload.kategorie).first()
+    if existing:
+        raise HTTPException(409, f"Kategorie '{payload.kategorie}' existiert bereits")
+    entry = RueckstellungKontenplan(**payload.model_dump())
+    db.add(entry)
+    db.commit()
+    db.refresh(entry)
+    return entry
+
+
+@app.put("/rueckstellung/kontenplan/{entry_id}", response_model=KontenplanOut, tags=["Rückstellung"])
+def update_kontenplan(entry_id: int, payload: KontenplanIn, db: Session = Depends(get_db)):
+    entry = db.get(RueckstellungKontenplan, entry_id)
+    if not entry:
+        raise HTTPException(404, "Kontenplan-Eintrag nicht gefunden")
+    for k, v in payload.model_dump().items():
+        setattr(entry, k, v)
+    db.commit()
+    db.refresh(entry)
+    return entry
+
+
+@app.delete("/rueckstellung/kontenplan/{entry_id}", status_code=204, tags=["Rückstellung"])
+def delete_kontenplan(entry_id: int, db: Session = Depends(get_db)):
+    entry = db.get(RueckstellungKontenplan, entry_id)
+    if not entry:
+        raise HTTPException(404, "Kontenplan-Eintrag nicht gefunden")
+    db.delete(entry)
+    db.commit()
+
+# ── Template-Endpoints ────────────────────────────────────────────────────────
+@app.get("/rueckstellung/templates", response_model=List[RueckstellungTemplateOut], tags=["Rückstellung"])
+def list_templates(bukrs: str = "", kategorie: str = "", db: Session = Depends(get_db)):
+    """Gibt alle aktiven Templates zurück — gefiltert wenn bukrs/kategorie übergeben."""
+    q = db.query(RueckstellungTemplate).filter(RueckstellungTemplate.aktiv == 1)
+    if bukrs or kategorie:
+        from sqlalchemy import or_
+        q = q.filter(or_(
+            RueckstellungTemplate.bukrs == bukrs,
+            RueckstellungTemplate.bukrs == "",
+        )).filter(or_(
+            RueckstellungTemplate.kategorie == kategorie,
+            RueckstellungTemplate.kategorie == "",
+        ))
+    return q.order_by(
+        RueckstellungTemplate.bukrs.desc(),
+        RueckstellungTemplate.kategorie.desc()
+    ).all()
+
+
+@app.post("/rueckstellung/templates", response_model=RueckstellungTemplateOut, status_code=201, tags=["Rückstellung"])
+def create_template(payload: RueckstellungTemplateIn, db: Session = Depends(get_db)):
+    entry = RueckstellungTemplate(**payload.model_dump())
+    db.add(entry); db.commit(); db.refresh(entry)
+    return entry
+
+
+@app.put("/rueckstellung/templates/{tpl_id}", response_model=RueckstellungTemplateOut, tags=["Rückstellung"])
+def update_template(tpl_id: int, payload: RueckstellungTemplateIn, db: Session = Depends(get_db)):
+    entry = db.get(RueckstellungTemplate, tpl_id)
+    if not entry:
+        raise HTTPException(404, "Vorlage nicht gefunden")
+    for k, v in payload.model_dump().items():
+        setattr(entry, k, v)
+    entry.updated_at = datetime.utcnow()
+    db.commit(); db.refresh(entry)
+    return entry
+
+
+@app.delete("/rueckstellung/templates/{tpl_id}", status_code=204, tags=["Rückstellung"])
+def delete_template(tpl_id: int, db: Session = Depends(get_db)):
+    entry = db.get(RueckstellungTemplate, tpl_id)
+    if not entry:
+        raise HTTPException(404, "Vorlage nicht gefunden")
+    db.delete(entry); db.commit()

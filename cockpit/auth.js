@@ -75,7 +75,8 @@
       .split(' ').map(function(w){ return w[0]; }).join('').slice(0, 2).toUpperCase();
 
     var roleColor = user.role === 'Admin'
-      ? '#f59e0b' : user.role === 'Readonly' ? '#8b949e' : '#10b981';
+      ? '#f59e0b' : user.role === 'Approver' ? '#fb7185'
+      : user.role === 'Readonly' ? '#8b949e' : '#10b981';
 
     var sys      = (user.sap_system || 'SEP').toUpperCase();
     var isSeq    = sys === 'SEQ';

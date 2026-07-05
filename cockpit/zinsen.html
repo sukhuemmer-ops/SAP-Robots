@@ -5,7 +5,7 @@
 <script>
 /* file:// → localhost: Browser merkt sich Mikrofon-Erlaubnis nur für localhost */
 if (location.protocol === 'file:') {
-  var _fn = (location.pathname.split('/').pop() || location.pathname.split('\').pop());
+  var _fn = (location.pathname.split('/').pop() || location.pathname.split('\\').pop());
   location.replace('http://localhost:8000/cockpit/' + _fn + location.search + location.hash);
 }
 </script>
@@ -1071,7 +1071,7 @@ td.mono{font-family:monospace;font-size:12px;}
   <div class="tab-bar">
     <button class="tab-btn active" id="tabBtnDarlehen" onclick="switchTab('darlehen')">📋 Interest Posting</button>
     <button class="tab-btn" id="tabBtnDarlehenStammdaten" onclick="switchTab('darlehenStammdaten')">💶 Loans</button>
-    <button class="tab-btn" id="tabBtnDarlehenUebersicht" onclick="switchTab('darlehenStammdaten')">🏦 Darlehen Übersicht</button>
+    <button class="tab-btn" id="tabBtnDarlehenUebersicht" onclick="switchTab('darlehenUebersicht')">🏦 Darlehen Übersicht</button>
     <button class="tab-btn" id="tabBtnSchnittstelle" onclick="switchTab('schnittstelle')">🔌 Schnittstelle</button>
     <button class="tab-btn" id="tabBtnStammdaten" onclick="switchTab('stammdaten')">🗄 Stammdaten</button>
     <button class="tab-btn" id="tabBtnZeitplaene" onclick="switchTab('zeitplaene')">📅 Zeitpläne</button>
@@ -1231,8 +1231,84 @@ td.mono{font-family:monospace;font-size:12px;}
                     color:var(--text);border-radius:6px;padding:6px 10px;font-size:12px;outline:none;"/>
       <button class="btn-confirm" style="padding:6px 14px;font-size:12px;" onclick="dlOpen(null)">➕ Neues Darlehen</button>
     </div>
-    <div id="dlsdGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(560px,1fr));gap:16px;"></div>
+    <div style="display:flex;gap:16px;align-items:flex-start;">
+      <div id="dlsdGrid" style="flex:1;min-width:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(520px,1fr));gap:16px;"></div>
+
+      <!-- ══ Zinsplan-Seitenpanel ══ -->
+      <div id="dlsdCalcPanel" style="display:none;width:320px;min-width:280px;flex-shrink:0;
+             background:var(--bg2);border:1px solid var(--border);border-radius:10px;
+             padding:16px;position:sticky;top:12px;max-height:calc(100vh - 120px);overflow-y:auto;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+          <strong id="dlsdCalcTitle" style="font-size:13px;color:var(--text);">📊 Zinsplan</strong>
+          <button onclick="document.getElementById('dlsdCalcPanel').style.display='none'"
+            style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;line-height:1;padding:0 2px;">✕</button>
+        </div>
+        <!-- Jahr-Navigation -->
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:12px;">
+          <button id="dlsdCalcPrevYr" onclick="dlsdCalcNavYear(-1)"
+            style="background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:5px;padding:3px 9px;cursor:pointer;font-size:13px;">‹</button>
+          <span id="dlsdCalcYear" style="flex:1;text-align:center;font-weight:700;font-size:14px;color:var(--accent);"></span>
+          <button id="dlsdCalcNextYr" onclick="dlsdCalcNavYear(+1)"
+            style="background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:5px;padding:3px 9px;cursor:pointer;font-size:13px;">›</button>
+        </div>
+        <table style="width:100%;border-collapse:collapse;font-size:12px;">
+          <thead>
+            <tr style="border-bottom:1px solid var(--border);">
+              <th style="padding:4px 6px;text-align:left;color:var(--muted);font-weight:600;">Monat</th>
+              <th style="padding:4px 6px;text-align:right;color:var(--muted);font-weight:600;">Betrag</th>
+              <th style="padding:4px 6px;text-align:center;color:var(--muted);font-weight:600;">Regel</th>
+            </tr>
+          </thead>
+          <tbody id="dlsdCalcBody"></tbody>
+          <tfoot>
+            <tr style="border-top:2px solid var(--border);font-weight:700;">
+              <td style="padding:6px 6px 2px;color:var(--text);">Gesamt</td>
+              <td id="dlsdCalcTotal" style="padding:6px 6px 2px;text-align:right;color:var(--accent);"></td>
+              <td></td>
+            </tr>
+          </tfoot>
+        </table>
+        <div id="dlsdCalcInfo" style="margin-top:10px;font-size:11px;color:var(--muted);line-height:1.6;"></div>
+      </div><!-- /dlsdCalcPanel -->
+    </div>
   </div><!-- /tabDarlehenStammdaten -->
+
+  <!-- ══════════════════════════════════════════════════════════
+       TAB: DARLEHEN ÜBERSICHT
+  ═══════════════════════════════════════════════════════════ -->
+  <div class="tab-pane" id="tabDarlehenUebersicht">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap;">
+      <h3 style="margin:0;font-size:15px;font-weight:700;color:var(--text);">🏦 Darlehen Übersicht</h3>
+      <label style="font-size:12px;color:var(--muted);display:flex;align-items:center;gap:4px;cursor:pointer;">
+        <input type="checkbox" id="duShowClosed" onchange="renderDarlehenUebersicht()" style="cursor:pointer;"/>
+        Abgelaufene zeigen
+      </label>
+      <input id="duSearch" type="search" placeholder="🔍 Suchen..."
+             oninput="renderDarlehenUebersicht()"
+             style="min-width:140px;max-width:220px;background:var(--bg3);border:1px solid var(--border);
+                    color:var(--text);border-radius:6px;padding:6px 10px;font-size:12px;outline:none;"/>
+    </div>
+    <div style="overflow-x:auto;">
+      <table id="duTable" style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead>
+          <tr style="background:var(--bg3);border-bottom:2px solid var(--border);">
+            <th style="padding:8px 10px;text-align:left;color:var(--muted);font-weight:600;">Nr</th>
+            <th style="padding:8px 10px;text-align:left;color:var(--muted);font-weight:600;">Buchungskreis</th>
+            <th style="padding:8px 10px;text-align:left;color:var(--muted);font-weight:600;">Gesellschaft</th>
+            <th style="padding:8px 10px;text-align:left;color:var(--muted);font-weight:600;">IC-Partner</th>
+            <th style="padding:8px 10px;text-align:right;color:var(--muted);font-weight:600;">Betrag</th>
+            <th style="padding:8px 10px;text-align:center;color:var(--muted);font-weight:600;">Währung</th>
+            <th style="padding:8px 10px;text-align:right;color:var(--muted);font-weight:600;">Zins %</th>
+            <th style="padding:8px 10px;text-align:center;color:var(--muted);font-weight:600;">Laufzeit</th>
+            <th style="padding:8px 10px;text-align:center;color:var(--muted);font-weight:600;">Status</th>
+            <th style="padding:8px 10px;text-align:center;color:var(--muted);font-weight:600;">Aktion</th>
+          </tr>
+        </thead>
+        <tbody id="duBody"></tbody>
+      </table>
+    </div>
+  </div><!-- /tabDarlehenUebersicht -->
+
 
   <!-- ══════════════════════════════════════════════════════════
        TAB: SCHNITTSTELLE
@@ -3189,6 +3265,10 @@ function renderLoanStammdaten() {
            background:rgba(16,185,129,.12);color:#10b981;border:1px solid rgba(16,185,129,.3);">
            📦 NB: ${MO_S[parseInt(nhb.vonMi)]}/${nhb.vonYr}–${MO_S[parseInt(nhb.buchMi)]}/${nhb.buchYr}</span>`
       : '';
+    const zinsBtn = `<button class="btn-nav btn-sm" onclick="showLoanCalc('${l.nr}')"
+       title="Monatliche Zinskalkulation anzeigen"
+       style="font-size:11px;background:rgba(99,102,241,.12);color:#818cf8;border:1px solid rgba(99,102,241,.3);">
+       📊 Zinsplan</button>`;
     const nhbBtn = `<button class="btn-nav btn-sm" onclick="openNachholModal('${l.nr}')"
        title="Nachholbuchung anlegen / bearbeiten"
        style="font-size:11px;background:rgba(16,185,129,.12);color:#10b981;border:1px solid rgba(16,185,129,.3);">
@@ -3257,7 +3337,7 @@ function renderLoanStammdaten() {
           <span style="font-size:10px;padding:2px 8px;border-radius:4px;font-weight:700;${typeCls}">${typeLabel}</span>
           ${l.status==='closed'?`<span style="font-size:10px;padding:2px 8px;border-radius:4px;font-weight:700;${statusCls}">🔒 Abgelaufen</span>`:''}
         </div>
-        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">${nhbBadge}${editBtn}${nhbBtn}</div>
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">${nhbBadge}${editBtn}${nhbBtn}${zinsBtn}</div>
       </div>
 
       <div class="dlsd-divider">Stammdaten</div>
@@ -5152,6 +5232,146 @@ setInterval(checkBridgeZinsen, 30000);
 if(location.hash === '#schnittstelle') switchTab('schnittstelle');
 
 // ═══════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════
+//  ZINSPLAN – Seitenpanel Monatskalkulation
+// ═══════════════════════════════════════════════════════════
+let _calcLoanNr = null;
+let _calcYear   = new Date().getFullYear();
+
+function showLoanCalc(nr) {
+  _calcLoanNr = nr;
+  _calcYear   = parseInt(document.getElementById('selYear')?.value || new Date().getFullYear());
+  _renderCalcPanel();
+  document.getElementById('dlsdCalcPanel').style.display = '';
+}
+
+function dlsdCalcNavYear(delta) {
+  _calcYear += delta;
+  _renderCalcPanel();
+}
+
+function _renderCalcPanel() {
+  const loan = getAllLoans().find(l => l.nr === _calcLoanNr);
+  if (!loan) return;
+
+  const yr   = _calcYear;
+  const curr = loan.curr || 'EUR';
+  const MONTHS = ['Jan','Feb','Mrz','Apr','Mai','Jun','Jul','Aug','Sep','Okt','Nov','Dez'];
+  const fmt = v => Number(v).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2});
+
+  document.getElementById('dlsdCalcTitle').textContent =
+    `📊 Zinsplan – Nr. ${loan.nr} (${loan.company || loan.cocode})`;
+  document.getElementById('dlsdCalcYear').textContent = yr;
+
+  // Laufzeit-Grenzen
+  let startMi = 0, endMi = 11;
+  if (loan.start) {
+    const [,sm,sy] = loan.start.split('.').map(Number);
+    if (parseInt(yr) === sy) startMi = sm - 1;
+    if (parseInt(yr) < sy) { startMi = 0; endMi = -1; } // Darlehen noch nicht aktiv
+  }
+  if (loan.end) {
+    const [,em,ey] = loan.end.split('.').map(Number);
+    if (parseInt(yr) === ey) endMi = em - 1;
+    if (parseInt(yr) > ey) { startMi = 0; endMi = -1; } // Darlehen abgelaufen
+  }
+
+  // Regel-Bezeichnung
+  function ruleLabel(mi) {
+    if (endMi < 0 || mi < startMi || mi > endMi) return '–';
+    const selYrStr = document.getElementById('selYear')?.value || String(new Date().getFullYear());
+    if (String(yr) === selYrStr) {
+      const k = overrideKey(loan.nr, mi);
+      if (k in overrides) return '<span style="color:#f59e0b;font-weight:600;">UI</span>';
+    }
+    if (usesFlatMonthly(loan, yr, mi)) return '<span style="color:#818cf8;">Z-5-F</span>';
+    if (loan.monthly && loan.monthly[mi] != null) return '<span style="color:#10b981;">mtl.</span>';
+    if (loan.amount && loan.rate)                 return '<span style="color:#60a5fa;">Z-5-R</span>';
+    return '–';
+  }
+
+  let total = 0;
+  const rows = MONTHS.map((mn, mi) => {
+    const amt = (mi >= startMi && mi <= endMi && endMi >= 0)
+      ? (calcMonthlyForPeriod(loan, yr, mi) || 0) : 0;
+    total += amt;
+    const inactive = (endMi < 0 || mi < startMi || mi > endMi);
+    const bg = inactive ? 'opacity:.4;' : '';
+    return `<tr style="border-bottom:1px solid var(--border);${bg}">
+      <td style="padding:4px 6px;">${mn}</td>
+      <td style="padding:4px 6px;text-align:right;font-variant-numeric:tabular-nums;">${inactive ? '–' : fmt(amt)}</td>
+      <td style="padding:4px 6px;text-align:center;">${ruleLabel(mi)}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('dlsdCalcBody').innerHTML = rows;
+  document.getElementById('dlsdCalcTotal').textContent =
+    fmt(total) + ' ' + curr;
+
+  // Info-Zeile Legende
+  document.getElementById('dlsdCalcInfo').innerHTML =
+    `<strong>Regeln:</strong> `+
+    `<span style="color:#818cf8;">Z-5-F</span> = Flat (Betrag×Zins/12) &nbsp;`+
+    `<span style="color:#60a5fa;">Z-5-R</span> = Restschuld×Zins/360×Tage &nbsp;`+
+    `<span style="color:#10b981;">mtl.</span> = Stammdaten-Betrag &nbsp;`+
+    `<span style="color:#f59e0b;font-weight:600;">UI</span> = Manuell`;
+}
+
+// ═══════════════════════════════════════════════════════════
+//  DARLEHEN ÜBERSICHT – kompakte Tabelle
+// ═══════════════════════════════════════════════════════════
+function renderDarlehenUebersicht() {
+  const tbody = document.getElementById('duBody');
+  if (!tbody) return;
+  const q          = (document.getElementById('duSearch')?.value || '').toLowerCase();
+  const showClosed = document.getElementById('duShowClosed')?.checked;
+  const loans      = getAllLoans();
+
+  const BUKRS_NAME = {
+    '0435':'Catensys Germany', 'VV9':'Catensys Holding', 'VV6':'Catensys Holding',
+    '0436':'Catensys China', '0438':'Catensys Korea'
+  };
+  const fmt = v => v != null ? Number(v).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2}) : '–';
+  const statusBadge = s => s === 'closed'
+    ? '<span style="background:rgba(220,38,38,.15);color:#dc2626;border-radius:4px;padding:2px 7px;font-size:11px;">Abgelaufen</span>'
+    : '<span style="background:rgba(22,163,74,.15);color:#16a34a;border-radius:4px;padding:2px 7px;font-size:11px;">Aktiv</span>';
+
+  const filtered = loans.filter(l => {
+    if (!showClosed && l.status === 'closed') return false;
+    const str = [l.nr, l.cocode, l.company, l.curr, l.ic?.partner].filter(Boolean).join(' ').toLowerCase();
+    return !q || str.includes(q);
+  }).sort((a,b) => (a.nr||'').localeCompare(b.nr||'', undefined, {numeric:true}));
+
+  if (!filtered.length) {
+    tbody.innerHTML = '<tr><td colspan="10" style="padding:20px;color:var(--muted);text-align:center;">Keine Darlehen gefunden.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = filtered.map(l => {
+    const partner = l.ic?.partner || l.ic?.mirror?.partner || '–';
+    const rate    = l.rate != null ? l.rate.toFixed(2) + ' %' : (l.flatFrom ? 'Z-5-F' : '–');
+    const lz      = (l.start || '?') + ' – ' + (l.end || '∞');
+    const rowBg   = l.status === 'closed' ? 'opacity:.55;' : '';
+    return `<tr style="border-bottom:1px solid var(--border);${rowBg}">
+      <td style="padding:7px 10px;font-weight:600;color:var(--accent);">${l.nr}</td>
+      <td style="padding:7px 10px;">${l.cocode}</td>
+      <td style="padding:7px 10px;color:var(--muted);font-size:12px;">${BUKRS_NAME[l.cocode]||l.company||'–'}</td>
+      <td style="padding:7px 10px;color:var(--muted);">${partner}</td>
+      <td style="padding:7px 10px;text-align:right;font-variant-numeric:tabular-nums;">${fmt(l.amount)}</td>
+      <td style="padding:7px 10px;text-align:center;">${l.curr||'EUR'}</td>
+      <td style="padding:7px 10px;text-align:right;">${rate}</td>
+      <td style="padding:7px 10px;text-align:center;font-size:11px;color:var(--muted);">${lz}</td>
+      <td style="padding:7px 10px;text-align:center;">${statusBadge(l.status)}</td>
+      <td style="padding:7px 10px;text-align:center;">
+        <button onclick="switchTab('darlehenStammdaten');setTimeout(()=>{const s=document.getElementById('dlsdSearch');if(s){s.value='${l.nr}';renderLoanStammdaten();}},100);"
+          style="background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:3px 8px;font-size:11px;cursor:pointer;">
+          ✏️ Bearbeiten
+        </button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
 //  TAB SWITCHING
 // ═══════════════════════════════════════════════════════════
 function switchTab(name) {
@@ -5163,6 +5383,7 @@ function switchTab(name) {
   if(name === 'stammdaten')         initStammdaten();
   if(name === 'zeitplaene')         zpInit();
   if(name === 'darlehenStammdaten') renderLoanStammdaten();
+  if(name === 'darlehenUebersicht') renderDarlehenUebersicht();
   if(name === 'sapUebergabe') {
     // Tab geöffnet ohne vorherige Prüfung → Leerstand zeigen
     const c = document.getElementById('zupContent');

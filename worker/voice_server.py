@@ -424,4 +424,3 @@ async def teams_send(request: Request):
 
 if __name__ == "__main__":
     uvicorn.run("voice_server:app", host=HOST, port=PORT, reload=False, log_level="info")
-     
