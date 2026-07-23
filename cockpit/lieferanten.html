@@ -11,6 +11,8 @@ if (location.protocol === 'file:') {
 <title>SAP Lieferantenstammdaten – YCONN</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <script src="auth.js"></script>
+<script src="bukrs.js"></script>
+<script src="cockpit-bar.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -193,14 +195,10 @@ table.main tr.selected td{background:rgba(88,166,255,.07);}
   <div class="sysbar">
     <div class="sysbox">
       <span class="sysbox-label">Buchungskreis</span>
-      <label class="sysopt">
-        <input type="radio" name="bukrs" value="0435" checked onchange="onSysChange()">
-        <strong>0435</strong> <span>Catensys Germany GmbH</span>
-      </label>
-      <label class="sysopt">
-        <input type="radio" name="bukrs" value="0439" onchange="onSysChange()">
-        <strong>0439</strong> <span>Catensys India Pvt. Ltd.</span>
-      </label>
+      <select id="selBukrsLiefer" style="background:var(--bg3);border:1px solid var(--border);
+        color:var(--text);padding:5px 10px;border-radius:6px;font-size:12px;cursor:pointer;"
+        onchange="onSysChange()" data-bukrs data-bukrs-selected="0435">
+      </select>
     </div>
     <div class="sysbox">
       <span class="sysbox-label">SAP-System</span>
@@ -463,7 +461,7 @@ var sortDir  = 1;
 var _abort   = false;
 
 // ─── System helpers ──────────────────────────────────────────
-function getBukrs(){ var r=document.querySelector('input[name="bukrs"]:checked'); return r?r.value:'0435'; }
+function getBukrs(){ var s=document.getElementById('selBukrsLiefer'); return s?s.value:'0435'; }
 function getSapSys(){ var r=document.querySelector('input[name="sapSys"]:checked'); return r?r.value:'SEP'; }
 function getEkorg(){ return '0001'; }
 

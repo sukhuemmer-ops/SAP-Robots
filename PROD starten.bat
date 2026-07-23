@@ -13,20 +13,20 @@ echo.
 echo  Druecken Sie STRG+C um abzubrechen, oder...
 timeout /t 5
 
-python env_switch.py prod
+orchestrator\.venv\Scripts\python.exe "%~dp0env_switch.py" prod
 if errorlevel 1 ( echo Abgebrochen. & pause & exit /b 1 )
 
 echo.
 echo  Starte Dienste...
 echo.
 
-start "YCONN Orchestrator [PROD]" cmd /k "cd /d %~dp0orchestrator && echo [PROD] Orchestrator startet... && uvicorn main:app --host 0.0.0.0 --port 8000"
+start "YCONN Orchestrator [PROD]" cmd /k "cd /d %~dp0orchestrator && echo [PROD] Orchestrator startet... && .venv\Scripts\python.exe -m uvicorn main:app --host 0.0.0.0 --port 8000"
 timeout /t 3 /nobreak >nul
 
-start "YCONN Bridge [PROD]" cmd /k "cd /d %~dp0worker && del /q __pycache__\handlers.cpython-*.pyc 2>nul && echo [PROD] Bridge startet... && python bridge.py"
+start "YCONN Bridge [PROD]" cmd /k "cd /d %~dp0worker && del /q __pycache__\handlers.cpython-*.pyc 2>nul && echo [PROD] Bridge startet... && .venv\Scripts\python.exe bridge.py"
 timeout /t 2 /nobreak >nul
 
-start "YCONN Voice [PROD]" cmd /k "cd /d %~dp0worker && uvicorn voice_server:app --port 8766"
+start "YCONN Voice [PROD]" cmd /k "cd /d %~dp0worker && .venv\Scripts\python.exe -m uvicorn voice_server:app --port 8766"
 
 start "" "%~dp0cockpit\startseite.html"
 

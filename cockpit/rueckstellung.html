@@ -11,6 +11,8 @@ if (location.protocol === 'file:') {
 }
 </script>
 <script src="auth.js"></script>
+<script src="bukrs.js"></script>
+<script src="cockpit-bar.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -214,6 +216,9 @@ tr:hover td { background:rgba(255,255,255,.02); }
       ✅ Freigabe <span id="pendingBadge" style="display:none;background:var(--warn);color:#000;border-radius:10px;padding:1px 7px;font-size:11px;margin-left:4px;">0</span>
     </button>
     <button class="tab-btn" onclick="switchTab('history')">📜 Verlauf</button>
+    <button class="tab-btn" id="tabSapUebergabe" onclick="switchTab('sapuebergabe')">
+      🔎 SAP-Übergabe <span id="sapPendingBadge" style="display:none;background:#7c3aed;color:#fff;border-radius:10px;padding:1px 7px;font-size:11px;margin-left:4px">0</span>
+    </button>
     <button class="tab-btn" id="tabKontenplan" onclick="switchTab('kontenplan')" style="display:none">
       ⚙️ Kontenplan
     </button>
@@ -253,14 +258,29 @@ tr:hover td { background:rgba(255,255,255,.02); }
 
     <!-- Formular -->
     <div class="info-card">
-      <h3>📋 Buchungsdetails</h3>
+      <!-- Modus-Indikator: Einzel- vs. Massenbuchung -->
+      <div id="buchungsModeBar" style="display:flex;align-items:center;gap:12px;
+           margin-bottom:16px;padding:10px 16px;border-radius:8px;
+           background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.2)">
+        <div id="buchungsModeIcon" style="font-size:22px">📝</div>
+        <div>
+          <div id="buchungsModeTitel" style="font-size:13px;font-weight:700;color:var(--ok)">
+            Einzelbuchung
+          </div>
+          <div id="buchungsModeDesc" style="font-size:11px;color:var(--muted)">
+            Manuell erfasste Rückstellung · ein SAP-Beleg pro Buchungskreis
+          </div>
+        </div>
+        <div id="buchungsModeZeilen" style="margin-left:auto;font-size:11px;color:var(--muted)"></div>
+      </div>
+      <h3 style="display:none">📋 Buchungsdetails</h3>
 
       <div class="form-grid" style="gap:16px">
 
         <!-- Kategorie -->
         <div class="form-group">
           <label>Kategorie <span class="req">*</span></label>
-          <select id="fKategorie" onchange="onKategorieChange()">
+          <select id="fKategorie" onchange="onKategorieChange(); _checkPersonalSection()">
             <option value="">— wird geladen … —</option>
           </select>
           <div class="konto-info" id="kontoInfo">
@@ -310,6 +330,69 @@ tr:hover td { background:rgba(255,255,255,.02); }
             <div id="importPreviewTable" style="overflow-x:auto"></div>
           </div>
         </div>
+        <!-- ═══ Personalrückstellung: Posting_Rst-Import (nur 0435) ════════ -->
+        <div class="form-group full" id="personalImportSection" style="display:none">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;
+                      padding:10px 14px;border-radius:8px;
+                      background:rgba(168,85,247,.10);border:1px solid rgba(168,85,247,.3)">
+            <span style="font-size:20px">📊</span>
+            <div>
+              <div style="font-size:13px;font-weight:700;color:#a855f7;letter-spacing:.3px">
+                Massenbuchung — Personalrückstellung
+              </div>
+              <div style="font-size:11px;color:var(--muted);margin-top:2px">
+                BKr 0435 · Excel-Import aus Posting_Rst · Mehrere SAP-Belege werden gleichzeitig erzeugt
+              </div>
+            </div>
+          </div>
+          <div id="personalDropZone"
+               style="border:2px dashed rgba(96,165,250,.4);border-radius:10px;padding:20px 16px;
+                      background:rgba(96,165,250,.04);text-align:center;transition:border-color .2s;
+                      cursor:pointer"
+               ondragover="event.preventDefault();this.style.borderColor='#60a5fa'"
+               ondragleave="this.style.borderColor='rgba(96,165,250,.4)'"
+               ondrop="handlePersonalFileDrop(event)">
+            <div style="font-size:26px;margin-bottom:6px">📥</div>
+            <div style="font-weight:600;color:var(--text);margin-bottom:4px">
+              0435_Personal-Rückstellung_*.xlsm hierher ziehen
+            </div>
+            <div style="font-size:12px;color:var(--muted);margin-bottom:12px">
+              Liest automatisch das Blatt <code style="background:rgba(255,255,255,.08);padding:1px 5px;border-radius:3px">Posting_Rst</code>
+              · Nur ungebuchte Zeilen (ohne Posting Nr.) werden übernommen
+            </div>
+            <label class="btn-nav" style="cursor:pointer;display:inline-flex;align-items:center;gap:4px">
+              📂 .xlsm auswählen
+              <input type="file" id="personalFileInput" accept=".xlsm,.xlsx,.xls"
+                     style="display:none" onchange="handlePersonalFileSelect(this.files[0])">
+            </label>
+          </div>
+          <!-- Vorschau -->
+          <div id="personalPreview" style="display:none;margin-top:12px;background:rgba(255,255,255,.03);
+               border:1px solid var(--border);border-radius:8px;padding:12px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
+              <div>
+                <span style="font-size:13px;font-weight:600" id="personalPreviewTitle">Buchungszeilen</span>
+                <span style="font-size:12px;color:var(--muted);margin-left:8px" id="personalPreviewStats"></span>
+              </div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap">
+                <button class="btn-nav" onclick="clearPersonalImport()">✕ Zurücksetzen</button>
+                <button class="btn-nav primary" id="btnSavePersonalDB" onclick="savePersonalToDB()"
+                  style="background:linear-gradient(135deg,#7c3aed,#5b21b6);border-color:#7c3aed">
+                  💾 Buchungsvorschlag in DB speichern
+                </button>
+                <button class="btn-nav" id="btnPersonalPost" onclick="postPersonalAll()">
+                  🚀 Direkt in SAP buchen (ohne DB)
+                </button>
+              </div>
+            </div>
+            <div id="personalPreviewTable" style="overflow-x:auto;max-height:340px;overflow-y:auto"></div>
+            <div id="personalPostResult" style="margin-top:10px"></div>
+            <div id="personalDbResult" style="margin-top:10px"></div>
+          </div>
+        </div>
+
+        <!-- ── Einzelbuchung-Felder (ausgeblendet bei Massenbuchung) ── -->
+        <div id="einzelbuchungFelder" style="display:contents">
 
         <!-- Beschreibung -->
         <div class="form-group">
@@ -358,11 +441,13 @@ tr:hover td { background:rgba(255,255,255,.02); }
           </select>
         </div>
 
+        </div><!-- /einzelbuchungFelder -->
+
         <!-- Buchungskreis (einzelne Entity, beide Workflows) -->
         <div class="form-group full" id="bukrsGroup">
           <label id="bukrsLabel">Buchungskreis / Entity <span class="req">*</span></label>
           <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-            <select id="fBukrs" style="max-width:340px">
+            <select id="fBukrs" style="max-width:340px" onchange="loadTemplateForSelection()">
               <option value="VV9">VV9  — Catensys Holding</option>
               <option value="0334">0334 — Catensys France</option>
               <option value="0435">0435 — Catensys Germany</option>
@@ -370,6 +455,8 @@ tr:hover td { background:rgba(255,255,255,.02); }
               <option value="0437">0437 — Catensys Slovakia</option>
               <option value="0438">0438 — Catensys Korea</option>
               <option value="0439">0439 — Catensys India</option>
+            <option value="0440">0440 — Catensys US</option>
+            <option value="0441">0441 — Catensys Japan</option>
               <option value="0440">0440 — Catensys US</option>
               <option value="0441">0441 — Catensys Japan</option>
             </select>
@@ -410,17 +497,22 @@ tr:hover td { background:rgba(255,255,255,.02); }
       </div><!-- /form-grid -->
 
       <div class="modal-row" style="margin-top:20px;justify-content:flex-start;flex-wrap:wrap;gap:8px">
-        <!-- Direkt: sofort in SAP -->
+        <!-- Einzelbuchung: Direkt sofort in SAP -->
         <button class="btn-nav primary" id="btnBuchen" onclick="submitForm('direkt')" style="display:none">
-          ⚡ Sofort in SAP buchen
+          ⚡ Einzelbuchung — Sofort in SAP buchen
         </button>
-        <!-- Indirekt ≤ 50k: einreichen (sofort buchbar) -->
+        <!-- Einzelbuchung: Indirekt ≤ 50k -->
         <button class="btn-nav primary" id="btnEinreichen" onclick="submitForm('einreichen')" style="display:none">
-          📤 Antrag einreichen
+          📤 Einzelbuchung — Antrag einreichen
         </button>
-        <!-- Indirekt > 50k: Freigabe anfordern -->
+        <!-- Einzelbuchung: Indirekt > 50k -->
         <button class="btn-nav warn-btn" id="btnFreigabe" onclick="submitForm('freigabe')" style="display:none">
           🔐 Zur Freigabe einreichen (FCO/CEO)
+        </button>
+        <!-- Massenbuchung: Personal -->
+        <button class="btn-nav primary" id="btnMasseGoToExcel" onclick="_scrollToPersonalImport()"
+                style="display:none;background:linear-gradient(135deg,#7c3aed,#5b21b6);border-color:#7c3aed">
+          📊 Massenbuchung — Excel-Datei importieren ↓
         </button>
         <button class="btn-nav" onclick="resetForm()">↺ Zurücksetzen</button>
       </div>
@@ -515,6 +607,50 @@ tr:hover td { background:rgba(255,255,255,.02); }
       <p style="color:var(--muted);font-size:13px">Antrag aus der Liste wählen, um den Freigabe-Verlauf anzuzeigen.</p>
       <div id="historyList" style="margin-top:16px"></div>
     </div>
+  </div>
+
+  <!-- ═══ TAB: SAP-ÜBERGABE ════════════════════════════════════════════════ -->
+  <div class="tab-pane" id="tabSapUebergabePanel">
+
+    <!-- Stats-Zeile -->
+    <div class="stats-bar" id="sapUebergabeStats" style="margin-bottom:16px">
+      <div class="stat-card">
+        <div class="stat-val" id="suPending" style="color:#a855f7">0</div>
+        <div class="stat-lbl">Bereit für SAP</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-val" id="suValid" style="color:var(--ok)">0</div>
+        <div class="stat-lbl">Validiert ✓</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-val" id="suWarn" style="color:var(--warn)">0</div>
+        <div class="stat-lbl">Mit Warnungen</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-val" id="suError" style="color:var(--err)">0</div>
+        <div class="stat-lbl">Fehler</div>
+      </div>
+    </div>
+
+    <!-- Toolbar -->
+    <div style="display:flex;align-items:center;justify-content:space-between;
+         flex-wrap:wrap;gap:10px;margin-bottom:16px">
+      <div style="font-size:13px;color:var(--muted)">
+        Nur Buchungen mit Status <strong style="color:var(--ok)">offen</strong> oder
+        <strong style="color:var(--ok)">genehmigt</strong> werden angezeigt.
+        Daten werden erst nach Bestätigung an SAP übergeben.
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn-nav" onclick="loadSapUebergabe()">↺ Aktualisieren</button>
+        <button class="btn-nav primary" id="btnBulkSap" onclick="bulkPostToSap()" style="display:none;background:linear-gradient(135deg,#7c3aed,#5b21b6);border-color:#7c3aed">
+          🚀 Alle validierten Buchungen → SAP
+        </button>
+      </div>
+    </div>
+
+    <!-- Buchungs-Cards -->
+    <div id="sapUebergabeList"></div>
+
   </div>
 
   <!-- ── Kontenplan-Admin-Tab ───────────────────────────────────────────── -->
@@ -636,6 +772,8 @@ tr:hover td { background:rgba(255,255,255,.02); }
           <option value="0437">0437 — Catensys Slovakia</option>
           <option value="0438">0438 — Catensys Korea</option>
           <option value="0439">0439 — Catensys India</option>
+            <option value="0440">0440 — Catensys US</option>
+            <option value="0441">0441 — Catensys Japan</option>
           <option value="0440">0440 — Catensys US</option>
           <option value="0441">0441 — Catensys Japan</option>
         </select>
@@ -713,6 +851,21 @@ tr:hover td { background:rgba(255,255,255,.02); }
   </div>
 </div>
 
+
+<div class="modal-overlay" id="vorschlagModal">
+  <div class="modal-panel" style="max-width:900px;width:95vw">
+    <div class="modal-title">📋 Buchungsvorschlag — Bitte vor Übergabe an SAP prüfen</div>
+    <div id="vorschlagMeta" style="font-size:12px;color:var(--muted);margin-bottom:12px"></div>
+    <div id="vorschlagBody" style="overflow-x:auto;margin-bottom:16px"></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+      <div id="vorschlagSumme" style="font-size:13px;font-weight:700;color:var(--accent)"></div>
+      <div class="modal-row" style="margin:0">
+        <button class="btn-nav" onclick="closeVorschlag()">✕ Abbrechen</button>
+        <button class="btn-nav primary" id="btnConfirmVorschlag" onclick="confirmVorschlag()">✅ Jetzt in SAP buchen</button>
+      </div>
+    </div>
+  </div>
+</div>
 <div id="toast"></div>
 
 <script>
@@ -749,7 +902,8 @@ function _applyKontenplanList(list){
     opt.value = e.kategorie; opt.textContent = e.kategorie;
     sel.appendChild(opt);
   });
-  if(document.getElementById('tabKontenplanPanel').classList.contains('active')) renderKpTable();
+  const kpPanel = document.getElementById('tabKontenplanPanel');
+  if(kpPanel && kpPanel.classList.contains('active')) renderKpTable();
 }
 
 async function loadKontenplan(){
@@ -797,13 +951,14 @@ function statusBadge(s){
 function switchTab(name){
   document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
   document.querySelectorAll('.tab-pane').forEach(p=>p.classList.remove('active'));
-  const panelMap = { buchen:'tabBuchen', antraege:'tabAntraege', freigabe:'tabFreigabePanel', history:'tabHistory', kontenplan:'tabKontenplanPanel' };
+  const panelMap = { buchen:'tabBuchen', antraege:'tabAntraege', freigabe:'tabFreigabePanel', history:'tabHistory', sapuebergabe:'tabSapUebergabePanel', kontenplan:'tabKontenplanPanel' };
   document.getElementById(panelMap[name]).classList.add('active');
   if(name === 'kontenplan'){ renderKpTable(); loadAllTemplates(); }
   event.target.classList.add('active');
-  if(name==='antraege')  loadMyRequests();
-  if(name==='freigabe')  loadApprovalQueue();
-  if(name==='history')   loadHistory();
+  if(name==='antraege')    loadMyRequests();
+  if(name==='freigabe')    loadApprovalQueue();
+  if(name==='history')     loadHistory();
+  if(name==='sapuebergabe') loadSapUebergabe();
 }
 
 // ─── Workflow-Auswahl ────────────────────────────────────────────
@@ -817,13 +972,12 @@ function selectWorkflow(wf){
   document.getElementById('bukrsLabel').textContent = wf==='indirekt'
     ? 'Buchungskreis / Entity *'
     : 'Buchungskreis *';
-  // Import-Sektion ausblenden wenn Direkt
+  // Import-Sektionen aktualisieren (immer, da Personal-Import auch bei Direkt sichtbar)
   if(wf==='direkt'){
     var imp = document.getElementById('importSection');
     if(imp) imp.style.display='none';
-  } else {
-    loadTemplateForSelection();
   }
+  loadTemplateForSelection();
   onBetragChange();
 }
 
@@ -875,6 +1029,10 @@ async function loadTemplateForSelection(){
   const bukrs = document.getElementById('fBukrs').value;
   const kat   = document.getElementById('fKategorie').value;
   const sec   = document.getElementById('importSection');
+  // Personalrückstellung 0435: eigener Import-Bereich (via _checkPersonalSection)
+  _checkPersonalSection();
+  const isPersonal = (kat === 'Personalrückstellung' && bukrs === '0435');
+  if(isPersonal){ sec.style.display='none'; return; }
   if(!bukrs || !kat || _workflow !== 'indirekt'){ sec.style.display='none'; return; }
   try {
     const r = await fetch(`${ORC}/rueckstellung/templates?bukrs=${encodeURIComponent(bukrs)}&kategorie=${encodeURIComponent(kat)}`);
@@ -1197,15 +1355,29 @@ async function deleteKpEntry(id){
 
 // ─── Betrag-Logik + Button-Zustand ───────────────────────────────
 function onBetragChange(){
-  const betrag = parseFloat(document.getElementById('fBetrag').value) || 0;
-  const needsApproval = _workflow==='indirekt' && betrag > 50000;
-  document.getElementById('approvalBanner').classList.toggle('show', needsApproval);
-  // Direkt: immer "Sofort buchen"
-  document.getElementById('btnBuchen').style.display    = _workflow==='direkt' ? '' : 'none';
-  // Indirekt ≤ 50k: "Antrag einreichen" (keine Freigabe nötig)
-  document.getElementById('btnEinreichen').style.display = (_workflow==='indirekt' && !needsApproval) ? '' : 'none';
-  // Indirekt > 50k: "Zur Freigabe einreichen (FCO/CEO)"
-  document.getElementById('btnFreigabe').style.display   = needsApproval ? '' : 'none';
+  const bukrs   = (document.getElementById('fBukrs')     || {}).value || '';
+  const kat     = (document.getElementById('fKategorie') || {}).value || '';
+  const isMasse = (bukrs === '0435' && kat === 'Personalrückstellung');
+  const betrag  = parseFloat((document.getElementById('fBetrag') || {}).value) || 0;
+  const needsApproval = !isMasse && _workflow==='indirekt' && betrag > 50000;
+
+  document.getElementById('approvalBanner').classList.toggle('show', needsApproval && !isMasse);
+
+  if(isMasse){
+    // Massenbuchung: alle Einzel-Buttons aus, Masse-Button ein
+    document.getElementById('btnBuchen').style.display     = 'none';
+    document.getElementById('btnEinreichen').style.display = 'none';
+    document.getElementById('btnFreigabe').style.display   = 'none';
+    document.getElementById('btnMasseGoToExcel').style.display = '';
+  } else {
+    document.getElementById('btnMasseGoToExcel').style.display = 'none';
+    // Direkt: immer "Sofort buchen"
+    document.getElementById('btnBuchen').style.display    = _workflow==='direkt' ? '' : 'none';
+    // Indirekt ≤ 50k: "Antrag einreichen"
+    document.getElementById('btnEinreichen').style.display = (_workflow==='indirekt' && !needsApproval) ? '' : 'none';
+    // Indirekt > 50k: "Zur Freigabe einreichen"
+    document.getElementById('btnFreigabe').style.display   = needsApproval ? '' : 'none';
+  }
 }
 
 // ─── Formular validieren ─────────────────────────────────────────
@@ -1275,9 +1447,8 @@ async function submitForm(mode){
     // Indirekt > 50k: nur speichern → wartet auf FCO/CEO-Freigabe
     await saveRequest(payload, true);
   } else {
-    // Direkt oder Indirekt ≤ 50k: speichern + sofort SAP
-    const req = await saveRequest(payload, false);
-    if(req) await bookInSap(req);
+    // Buchungsvorschlag anzeigen — erst nach Bestätigung SAP
+    showVorschlag(payload, mode);
   }
 }
 
@@ -1532,4 +1703,1032 @@ async function confirmApproval(){
     toast(action==='approve' ? '✅ Antrag genehmigt' : '✕ Antrag abgelehnt',
           action==='approve' ? 'ok' : 'warn');
     closeModal();
-    loadAp
+    loadApprovalQueue();
+  } catch(e){ toast('Fehler: '+e.message,'error'); }
+}
+
+// ─── Book Modal ──────────────────────────────────────────────────
+async function openBookModal(id){
+  _currentBookReq = null;
+  try {
+    const r = await fetch(`${ORC}/rueckstellung/requests/${id}`);
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const req = await r.json();
+    _currentBookReq = req;
+    const bukrs = JSON.parse(req.bukrs_json||'[]');
+    document.getElementById('bookModalBody').innerHTML = `
+      <table style="width:100%;font-size:13px;border-collapse:collapse">
+        <tr><td style="padding:4px 8px;color:var(--muted)">Kategorie</td><td style="padding:4px 8px;font-weight:600">${esc(req.kategorie)}</td></tr>
+        <tr><td style="padding:4px 8px;color:var(--muted)">Beschreibung</td><td style="padding:4px 8px">${esc(req.beschreibung)}</td></tr>
+        <tr><td style="padding:4px 8px;color:var(--muted)">Betrag</td><td style="padding:4px 8px;font-family:monospace;font-weight:600;color:var(--warn)">${fmt(req.betrag)} ${esc(req.waehrung)}</td></tr>
+        <tr><td style="padding:4px 8px;color:var(--muted)">Buchungskreise</td><td style="padding:4px 8px">${esc(bukrs.join(', '))}</td></tr>
+        <tr><td style="padding:4px 8px;color:var(--muted)">Periode</td><td style="padding:4px 8px">${esc(req.periode)}</td></tr>
+        <tr><td style="padding:4px 8px;color:var(--muted)">Konto Soll / Haben</td><td style="padding:4px 8px;font-family:monospace">${esc(req.konto_soll)} / ${esc(req.konto_haben)}</td></tr>
+      </table>`;
+    document.getElementById('bookProgress').style.display='none';
+    document.getElementById('bookResult').style.display='none';
+    document.getElementById('bookModalActions').style.display='';
+    document.getElementById('bookModalActions').innerHTML =
+      '<button class="btn-nav" onclick="closeBookModal()">× Abbrechen</button>' +
+      '<button class="btn-nav primary" id="btnConfirmBook" onclick="executeBooking()">✅ Jetzt in SAP buchen</button>';
+    document.getElementById('bookModal').classList.add('open');
+  } catch(e){ toast('Fehler beim Laden: '+e.message,'error'); }
+}
+
+function closeBookModal(){
+  document.getElementById('bookModal').classList.remove('open');
+  _currentBookReq = null;
+}
+
+async function executeBooking(){
+  if(!_currentBookReq){ toast('Kein Antrag geladen','error'); return; }
+  document.getElementById('bookModalActions').style.display='none';
+  const prog = document.getElementById('bookProgress');
+  prog.style.display='';
+  document.getElementById('bookLog').textContent='Verbinde mit SAP…';
+  document.getElementById('bookResult').style.display='none';
+  try {
+    const results = await bookInSap(_currentBookReq);
+    prog.style.display='none';
+    const resDiv = document.getElementById('bookResult');
+    resDiv.style.display='';
+    resDiv.innerHTML = results.map(r=>
+      r.ok
+        ? `<div style="color:var(--ok);padding:4px 0;font-size:13px">✅ ${esc(r.bkr)}: Beleg ${esc(r.docNr)}</div>`
+        : `<div style="color:var(--err);padding:4px 0;font-size:13px">❌ ${esc(r.bkr)}: ${esc(r.error)}</div>`
+    ).join('');
+    document.getElementById('bookModalActions').innerHTML =
+      '<button class="btn-nav" onclick="closeBookModal(); loadMyRequests()">Schließen</button>';
+    document.getElementById('bookModalActions').style.display='';
+  } catch(e){
+    prog.style.display='none';
+    toast('Buchungsfehler: '+e.message,'error');
+    document.getElementById('bookModalActions').innerHTML =
+      '<button class="btn-nav" onclick="closeBookModal()">× Abbrechen</button>' +
+      '<button class="btn-nav primary" onclick="executeBooking()">Erneut versuchen</button>';
+    document.getElementById('bookModalActions').style.display='';
+  }
+}
+
+// ─── Verlauf / History ───────────────────────────────────────────
+async function showHistory(id){
+  // Switch to history tab
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.tab-pane').forEach(p=>p.classList.remove('active'));
+  document.getElementById('tabHistory').classList.add('active');
+  const hl = document.getElementById('historyList');
+  hl.innerHTML='<div style="color:var(--muted);font-size:13px">Lade Verlauf …</div>';
+  try {
+    const r = await fetch(`${ORC}/rueckstellung/requests/${id}`);
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const req = await r.json();
+    const approvals = req.approvals || [];
+    const header = `<p style="margin-bottom:12px;font-size:13px;color:var(--muted)">
+      Antrag #${req.id} — <strong>${esc(req.kategorie)}</strong> — ${statusBadge(req.status)}</p>`;
+    if(!approvals.length){
+      hl.innerHTML=header+'<p style="color:var(--muted)">Noch kein Freigabe-Verlauf.</p>';
+      return;
+    }
+    hl.innerHTML = header + `<table style="width:100%;border-collapse:collapse;font-size:13px">
+      <thead><tr style="border-bottom:1px solid var(--border);color:var(--muted)">
+        <th style="padding:6px 10px;text-align:left">Zeitpunkt</th>
+        <th style="padding:6px 10px;text-align:left">Aktion</th>
+        <th style="padding:6px 10px;text-align:left">Benutzer</th>
+        <th style="padding:6px 10px;text-align:left">Kommentar</th>
+      </tr></thead><tbody>
+        ${approvals.map(h=>`<tr style="border-bottom:1px solid var(--border)">
+          <td style="padding:6px 10px;font-family:monospace;font-size:12px">${fmtDt(h.ts)}</td>
+          <td style="padding:6px 10px">${esc(h.action)}</td>
+          <td style="padding:6px 10px">${esc(h.actor)}</td>
+          <td style="padding:6px 10px;color:var(--muted)">${esc(h.comment||'—')}</td>
+        </tr>`).join('')}
+      </tbody></table>`;
+  } catch(e){ hl.innerHTML=`<p style="color:var(--err)">Fehler: ${esc(e.message)}</p>`; }
+}
+
+async function loadHistory(){
+  const hl = document.getElementById('historyList');
+  hl.innerHTML='<div style="color:var(--muted);font-size:13px">Lade Anträge …</div>';
+  try {
+    const r = await fetch(`${ORC}/rueckstellung/requests`);
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const rows = await r.json();
+    if(!rows.length){
+      hl.innerHTML='<p style="color:var(--muted)">Noch keine Anträge vorhanden.</p>';
+      return;
+    }
+    hl.innerHTML = `<p style="color:var(--muted);font-size:13px;margin-bottom:12px">
+        Auf \u{1f4dc} klicken, um den Freigabe-Verlauf eines Antrags anzuzeigen.</p>
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+      <thead><tr style="border-bottom:1px solid var(--border);color:var(--muted)">
+        <th style="padding:6px 10px;text-align:left">#</th>
+        <th style="padding:6px 10px;text-align:left">Kategorie</th>
+        <th style="padding:6px 10px;text-align:left">Beschreibung</th>
+        <th style="padding:6px 10px;text-align:left">Betrag</th>
+        <th style="padding:6px 10px;text-align:left">Status</th>
+        <th style="padding:6px 10px;text-align:left">Verlauf</th>
+      </tr></thead><tbody>
+        ${rows.map(r=>`<tr style="border-bottom:1px solid var(--border)">
+          <td style="padding:6px 10px;color:var(--muted)">#${r.id}</td>
+          <td style="padding:6px 10px">${esc(r.kategorie)}</td>
+          <td style="padding:6px 10px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.beschreibung)}</td>
+          <td style="padding:6px 10px;font-family:monospace">${fmt(r.betrag)} ${esc(r.waehrung)}</td>
+          <td style="padding:6px 10px">${statusBadge(r.status)}</td>
+          <td style="padding:6px 10px"><button class="btn-sm" onclick="showHistory(${r.id})">\u{1f4dc} Verlauf</button></td>
+        </tr>`).join('')}
+      </tbody></table>`;
+  } catch(e){ hl.innerHTML=`<p style="color:var(--err)">Fehler: ${esc(e.message)}</p>`; }
+}
+
+
+// ─── Personalrückstellung: Sichtbarkeit + Modus-Banner ───────────────
+function _checkPersonalSection(){
+  const bukrs    = (document.getElementById('fBukrs')     || {}).value || '';
+  const kat      = (document.getElementById('fKategorie') || {}).value || '';
+  const isMasse  = (bukrs === '0435' && kat === 'Personalrückstellung');
+
+  // Personal-Import-Bereich ein/ausblenden
+  const el = document.getElementById('personalImportSection');
+  if(el) el.style.display = isMasse ? '' : 'none';
+
+  // Standard-Import-Bereich ausblenden wenn Masse aktiv
+  const imp = document.getElementById('importSection');
+  if(imp && isMasse) imp.style.display = 'none';
+
+  // Einzelbuchung-Felder ein/ausblenden (Kinder des display:contents-Wrappers)
+  const wrap = document.getElementById('einzelbuchungFelder');
+  if(wrap){
+    Array.from(wrap.children).forEach(ch => {
+      ch.style.display = isMasse ? 'none' : '';
+    });
+  }
+
+  // Modus-Banner aktualisieren
+  const bar   = document.getElementById('buchungsModeBar');
+  const icon  = document.getElementById('buchungsModeIcon');
+  const titel = document.getElementById('buchungsModeTitel');
+  const desc  = document.getElementById('buchungsModeDesc');
+  const zln   = document.getElementById('buchungsModeZeilen');
+  if(bar){
+    if(isMasse){
+      bar.style.background = 'rgba(168,85,247,.10)';
+      bar.style.border     = '1px solid rgba(168,85,247,.30)';
+      icon.textContent     = '📊';
+      titel.style.color    = '#a855f7';
+      titel.textContent    = 'Massenbuchung — Personalrückstellung';
+      desc.textContent     = 'Mehrere SAP-Belege aus Excel-Import · BKr 0435 · Liest Posting_Rst-Blatt';
+      zln.innerHTML        = _personalRows.length
+        ? `<span style="color:#a855f7;font-weight:600">${_personalRows.length} Zeile(n) geladen</span>`
+        : '<span style="color:var(--muted)">Keine Datei geladen</span>';
+    } else {
+      bar.style.background = 'rgba(16,185,129,.08)';
+      bar.style.border     = '1px solid rgba(16,185,129,.2)';
+      icon.textContent     = '📝';
+      titel.style.color    = 'var(--ok)';
+      titel.textContent    = 'Einzelbuchung';
+      desc.textContent     = 'Manuell erfasste Rückstellung · ein SAP-Beleg pro Buchungskreis';
+      zln.textContent      = '';
+    }
+  }
+
+  // Buttons aktualisieren
+  onBetragChange();
+}
+
+
+
+function _scrollToPersonalImport(){
+  const el = document.getElementById('personalImportSection');
+  if(el) el.scrollIntoView({behavior:'smooth', block:'start'});
+  // Drop-Zone kurz hervorheben
+  const dz = document.getElementById('personalDropZone');
+  if(dz){
+    dz.style.borderColor = '#a855f7';
+    dz.style.background  = 'rgba(168,85,247,.10)';
+    setTimeout(() => {
+      dz.style.borderColor = 'rgba(96,165,250,.4)';
+      dz.style.background  = 'rgba(96,165,250,.04)';
+    }, 1800);
+  }
+}
+
+// ─── Personalrückstellung: Posting_Rst Import ────────────────────
+let _personalRows = [];   // parsed, ungebuchte Zeilen
+
+function handlePersonalFileDrop(evt){
+  evt.preventDefault();
+  evt.currentTarget.style.borderColor = 'rgba(96,165,250,.4)';
+  const file = evt.dataTransfer.files[0];
+  if(file) parsePersonalExcel(file);
+}
+function handlePersonalFileSelect(file){ if(file) parsePersonalExcel(file); }
+
+// ─── VBA→JS: Input_PayRoll + ZuOrd → Buchungszeilen ───────────────
+function _computePayrollPostings(wb) {
+  // 1. ZuOrd-Mapping aufbauen (Zeile 4+ = Index 3+)
+  const wsZ = wb.Sheets['ZuOrd'];
+  if (!wsZ) throw new Error('Blatt "ZuOrd" nicht gefunden');
+  const zuordRaw = XLSX.utils.sheet_to_json(wsZ, {header:1, raw:true, defval:null});
+  const zuord = {};
+  for (let i = 3; i < zuordRaw.length; i++) {
+    const r = zuordRaw[i];
+    if (!r[1]) continue;
+    zuord[String(r[1])] = {
+      lohnKonto: String(r[2] || '').trim(),
+      lohnGegen: String(r[3] || '').trim(),
+      svKonto:   String(r[6] || '').trim(),
+      svGegen:   String(r[7] || '').trim(),
+      bwa:       Number(r[10] || 520)
+    };
+  }
+
+  // 2. Input_PayRoll lesen (Header Zeile 2 = Index 1, Daten ab Index 2)
+  const wsI = wb.Sheets['Input_PayRoll'];
+  if (!wsI) throw new Error('Blatt "Input_PayRoll" nicht gefunden');
+  const inputRaw = XLSX.utils.sheet_to_json(wsI, {header:1, raw:true, cellDates:true, defval:null});
+
+  // 3. Letzten Tag des Monats berechnen
+  function lastDayOfMonth(d) {
+    if (d instanceof Date) {
+      return new Date(d.getFullYear(), d.getMonth() + 1, 0);
+    }
+    return null;
+  }
+  function fmtDate(d) {
+    if (!d) return '';
+    return String(d.getDate()).padStart(2,'0') + '.' +
+           String(d.getMonth()+1).padStart(2,'0') + '.' + d.getFullYear();
+  }
+
+  // 4. Buchungszeilen erzeugen
+  const postings = [];
+  for (let i = 2; i < inputRaw.length; i++) {
+    const r = inputRaw[i];
+    if (!r[0] || !r[1] || !r[2]) continue;
+    const bez      = String(r[1]);
+    const cctr     = String(r[2]).trim();
+    const lohnYTD  = Math.round((parseFloat(r[5]) || 0) * 100) / 100;
+    const svYTD    = Math.round((parseFloat(r[6]) || 0) * 100) / 100;
+    const z = zuord[bez];
+    if (!z) continue;
+
+    const ld       = lastDayOfMonth(r[0]);
+    const datumStr = fmtDate(ld);
+    const periode  = ld ? `${ld.getFullYear()}-${String(ld.getMonth()+1).padStart(2,'0')}` : '';
+    // Kurzname: "a. offene Urlaubstage" → "offene Urlaubstage"
+    const kurz     = bez.includes('. ') ? bez.split('. ').slice(1).join('. ') : bez;
+    const btext    = `${periode} ${kurz}`;
+
+    // Lohn/Gehalt-Zeile — nur positive Beträge (VBA-Verhalten: neg. = Auflösung, manuell)
+    if (lohnYTD > 0.005) {
+      postings.push([
+        'SA', datumStr, '40',
+        z.lohnKonto, z.lohnGegen,
+        lohnYTD, z.bwa, cctr,
+        'RST-Personal', btext, null, null
+      ]);
+    }
+    // SV-Zeile — nur positive Beträge
+    if (svYTD > 0.005) {
+      postings.push([
+        'SA', datumStr, '40',
+        z.svKonto, z.svGegen,
+        svYTD, z.bwa, cctr,
+        'RST-Personal', btext, null, null
+      ]);
+    }
+  }
+  return postings;
+}
+
+function parsePersonalExcel(file){
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const wb = XLSX.read(e.target.result, {type:'array', cellDates:true});
+      // Input_PayRoll + ZuOrd → VBA-Logik in JS nachbilden
+      if (!wb.Sheets['Input_PayRoll']) {
+        toast('Blatt "Input_PayRoll" nicht gefunden!', 'error'); return;
+      }
+      const rows = _computePayrollPostings(wb);
+      if (!rows.length) {
+        toast('Keine buchbaren Zeilen in Input_PayRoll gefunden.', 'warn'); return;
+      }
+      _personalRows = rows;
+      showPersonalPreview(rows, file.name, wb);
+    } catch(ex){ toast('Lesefehler: '+ex.message, 'error'); console.error(ex); }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function _formatPersonalDate(val){
+  if(!val) return '—';
+  if(val instanceof Date) return val.toLocaleDateString('de-DE');
+  // String wie "30.06.2026"
+  return String(val);
+}
+
+function _parsePersonalDate(val){
+  // → "YYYYMMDD" für BAPI
+  if(val instanceof Date){
+    const d = val;
+    return `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
+  }
+  // "30.06.2026"
+  const s = String(val);
+  if(s.includes('.')){
+    const [dd,mm,yyyy] = s.split('.');
+    return `${yyyy}${mm}${dd}`;
+  }
+  return s;
+}
+
+function _parseFisc(val){
+  // → {year, period}
+  if(val instanceof Date) return { year:String(val.getFullYear()), period:String(val.getMonth()+1).padStart(2,'0') };
+  const s = String(val);
+  if(s.includes('.')){
+    const [,mm,yyyy] = s.split('.');
+    return { year:yyyy, period:mm };
+  }
+  return { year:'', period:'' };
+}
+
+function showPersonalPreview(rows, filename){
+  const div   = document.getElementById('personalPreview');
+  const tbl   = document.getElementById('personalPreviewTable');
+  const stats = document.getElementById('personalPreviewStats');
+  const title = document.getElementById('personalPreviewTitle');
+  if (!rows.length) {
+    div.style.display = '';
+    tbl.innerHTML = '<p style="color:var(--ok);padding:10px">✅ Keine buchbaren Zeilen gefunden.</p>';
+    document.getElementById('btnPersonalPost').style.display = 'none';
+    stats.textContent = '';
+    return;
+  }
+
+  // Gruppieren nach Buchungstext (= Bezeichnung)
+  const groups = {};
+  const groupOrder = [];
+  rows.forEach((r, i) => {
+    const key = String(r[9] || '');
+    if (!groups[key]) { groups[key] = []; groupOrder.push(key); }
+    groups[key].push({row: r, idx: i});
+  });
+
+  const total = rows.reduce((s, r) => s + Math.abs(Number(r[5]) || 0), 0);
+  title.textContent = `📋 Buchungsvorschlag — ${rows.length} Zeilen aus „${filename}"`;
+  stats.textContent = `Gesamtvolumen: ${total.toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})} EUR`;
+  document.getElementById('btnPersonalPost').style.display = '';
+  document.getElementById('btnPersonalPost').textContent = `🚀 Alle ${rows.length} Zeilen in SAP buchen`;
+  document.getElementById('personalPostResult').innerHTML = '';
+
+  let html = `<table style="width:100%;border-collapse:collapse;font-size:12px">
+    <thead><tr style="border-bottom:2px solid var(--border);color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.4px">
+      <th style="padding:5px 10px;text-align:left">#</th>
+      <th style="padding:5px 10px;text-align:left">Konto Soll</th>
+      <th style="padding:5px 10px;text-align:left">Konto Haben</th>
+      <th style="padding:5px 10px;text-align:right">Betrag EUR</th>
+      <th style="padding:5px 10px;text-align:left">Kostenstelle</th>
+      <th style="padding:5px 10px;text-align:left">Datum</th>
+      <th style="padding:5px 10px;text-align:left">Status</th>
+    </tr></thead><tbody id="personalTbody">`;
+
+  groupOrder.forEach(key => {
+    const items = groups[key];
+    const grpTotal = items.reduce((s, {row}) => s + Math.abs(Number(row[5]) || 0), 0);
+    // Gruppenheader
+    html += `<tr style="background:rgba(31,111,235,.12);border-top:1px solid var(--border)">
+      <td colspan="4" style="padding:6px 10px;font-weight:700;color:var(--accent);font-size:12px">
+        📂 ${esc(key)}
+      </td>
+      <td colspan="3" style="padding:6px 10px;text-align:right;font-weight:700;color:var(--ok);font-size:12px">
+        Σ ${grpTotal.toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})} EUR
+      </td>
+    </tr>`;
+    // Datenzeilen
+    items.forEach(({row: r, idx: i}) => {
+      const isLohn = String(r[3]).startsWith('63') || String(r[3]).startsWith('62') || String(r[3]).startsWith('639');
+      const typ = isLohn ? '<span style="font-size:10px;color:var(--muted)">L/G</span>' : '<span style="font-size:10px;color:var(--warn)">SV</span>';
+      html += `<tr id="prow_${i}" style="border-bottom:1px solid rgba(255,255,255,.04)">
+        <td style="padding:4px 10px;color:var(--muted)">${i+1} ${typ}</td>
+        <td style="padding:4px 10px;font-family:monospace;font-weight:600">${esc(String(r[3]))}</td>
+        <td style="padding:4px 10px;font-family:monospace">${esc(String(r[4]))}</td>
+        <td style="padding:4px 10px;text-align:right;font-family:monospace;font-weight:600;color:var(--ok)">
+          ${Math.abs(Number(r[5])||0).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})}
+        </td>
+        <td style="padding:4px 10px;font-family:monospace">${esc(String(r[7]||''))}</td>
+        <td style="padding:4px 10px;font-family:monospace;font-size:11px">${esc(String(r[1]||''))}</td>
+        <td style="padding:4px 10px" id="pstatus_${i}">⏳</td>
+      </tr>`;
+    });
+  });
+
+  html += '</tbody></table>';
+  tbl.innerHTML = html;
+  div.style.display = '';
+}
+
+function clearPersonalImport(){
+  _personalRows = [];
+  document.getElementById('personalPreview').style.display='none';
+  document.getElementById('personalFileInput').value='';
+}
+
+// ─── Buchungsvorschlag in DB speichern (Personal-Massenbuchung) ──────────────
+async function savePersonalToDB(){
+  if(!_personalRows.length){ toast('Keine Zeilen geladen','warn'); return; }
+
+  const btn = document.getElementById('btnSavePersonalDB');
+  const res = document.getElementById('personalDbResult');
+  btn.disabled = true;
+  btn.textContent = `⏳ Speichere ${_personalRows.length} Zeilen …`;
+  res.innerHTML = '';
+
+  const user      = window.AUTH && AUTH.user;
+  const submitter = user ? (user.display_name || user.sap_username || '') : '';
+  const sapSys    = (document.getElementById('fSapSystem') || {}).value || 'SEQ';
+
+  // Hilfsfunktionen
+  function _rowToBuchungsdatum(val){
+    // "DD.MM.YYYY" → "YYYY-MM-DD"
+    if(!val) return '';
+    const s = String(val);
+    if(s.includes('.')){
+      const parts = s.split('.');
+      if(parts.length === 3) return `${parts[2]}-${parts[1]}-${parts[0]}`;
+    }
+    return s;
+  }
+  function _rowToPeriode(btext){
+    // btext = "YYYY-MM Bezeichnung" → "MM/YYYY"
+    const m = String(btext||'').match(/^(\d{4})-(\d{2})/);
+    if(m) return `${m[2]}/${m[1]}`;
+    return '';
+  }
+
+  let saved = 0, failed = 0, savedIds = [];
+
+  for(let i = 0; i < _personalRows.length; i++){
+    const r = _personalRows[i];
+    // row: [blart, datum, '40', konto_soll, konto_haben, betrag, bwa, kst, kategorie, btext, null, null]
+    const payload = {
+      workflow:      'direkt',
+      kategorie:     'Personalrückstellung',
+      beschreibung:  String(r[9] || ''),
+      betrag:        Math.abs(Number(r[5]) || 0),
+      waehrung:      'EUR',
+      konto_soll:    String(r[3] || ''),
+      konto_haben:   String(r[4] || ''),
+      kostenstelle:  String(r[7] || ''),
+      bukrs_json:    JSON.stringify(['0435']),
+      periode:       _rowToPeriode(r[9]),
+      buchungsdatum: _rowToBuchungsdatum(r[1]),
+      referenz:      '',
+      sap_system:    sapSys,
+      blart:         String(r[0] || 'SA'),
+      submitted_by:  submitter,
+    };
+    try {
+      const resp = await fetch(ORC + '/rueckstellung/requests', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify(payload)
+      });
+      if(!resp.ok){
+        const err = await resp.json().catch(()=>({detail:'HTTP '+resp.status}));
+        throw new Error(err.detail || 'HTTP '+resp.status);
+      }
+      const created = await resp.json();
+      savedIds.push(created.id);
+      // Zeilen-Status in Tabelle aktualisieren
+      const cell = document.getElementById('pstatus_'+i);
+      if(cell) cell.innerHTML = `<span style="color:#a855f7;font-size:11px">💾 #${created.id}</span>`;
+      saved++;
+    } catch(e){
+      const cell = document.getElementById('pstatus_'+i);
+      if(cell) cell.innerHTML = `<span style="color:var(--err);font-size:11px" title="${esc(e.message)}">❌</span>`;
+      failed++;
+    }
+  }
+
+  btn.disabled = false;
+  btn.textContent = '💾 Buchungsvorschlag in DB speichern';
+
+  if(saved > 0){
+    res.innerHTML = `
+      <div style="padding:12px 16px;border-radius:8px;margin-top:8px;
+           background:rgba(168,85,247,.10);border:1px solid rgba(168,85,247,.3)">
+        <div style="font-weight:700;color:#a855f7;margin-bottom:6px">
+          💾 ${saved} Buchungsvorschläge gespeichert${failed ? ` · ❌ ${failed} Fehler` : ''}
+        </div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:10px">
+          IDs: ${savedIds.join(', ')} · Status: <strong>offen</strong> · System: <strong>${esc(sapSys)}</strong>
+        </div>
+        <button class="btn-nav primary" style="background:linear-gradient(135deg,#7c3aed,#5b21b6);border-color:#7c3aed"
+          onclick="switchTab('sapuebergabe');document.querySelectorAll('.tab-btn').forEach(b=>{if(b.onclick&&String(b.onclick).includes('sapuebergabe'))b.classList.add('active');else b.classList.remove('active')});">
+          🔎 Zur SAP-Übergabe → Daten prüfen &amp; testen
+        </button>
+      </div>`;
+    // Badge im Tab aktualisieren
+    const badge = document.getElementById('sapPendingBadge');
+    if(badge){
+      const curr = parseInt(badge.textContent)||0;
+      badge.textContent = curr + saved;
+      badge.style.display = '';
+    }
+    toast(`${saved} Buchungsvorschläge in DB gespeichert`, 'ok');
+  } else {
+    res.innerHTML = `<div style="color:var(--err);padding:8px">❌ Speichern fehlgeschlagen: ${failed} Fehler</div>`;
+    toast('Speichern fehlgeschlagen', 'warn');
+  }
+}
+
+async function postPersonalAll(){
+  if(!_personalRows.length){ toast('Keine Zeilen geladen','warn'); return; }
+  const btn = document.getElementById('btnPersonalPost');
+  btn.disabled=true;
+  btn.textContent='⏳ Buche …';
+  const user = window.AUTH && AUTH.user;
+  let ok=0, fail=0;
+  for(let i=0; i<_personalRows.length; i++){
+    const row = _personalRows[i];
+    const cell = document.getElementById('pstatus_'+i);
+    if(cell) cell.textContent='⏳';
+    try {
+      const docNr = await _postPersonalRow(row, user);
+      if(cell) cell.innerHTML=`<span style="color:var(--ok);font-family:monospace">✅ ${esc(docNr)}</span>`;
+      ok++;
+    } catch(e){
+      if(cell) cell.innerHTML=`<span style="color:var(--err);font-size:11px" title="${esc(e.message)}">❌ ${esc(e.message.slice(0,30))}</span>`;
+      fail++;
+    }
+  }
+  btn.disabled=false;
+  const res = document.getElementById('personalPostResult');
+  res.innerHTML = `<div style="padding:10px;border-radius:6px;font-size:13px;font-weight:600;
+    background:${fail?'rgba(239,68,68,.12)':'rgba(34,197,94,.12)'};
+    color:${fail?'var(--err)':'var(--ok)'};margin-top:8px">
+    ${fail ? `⚠️ ${ok} gebucht, ${fail} Fehler` : `✅ Alle ${ok} Zeilen erfolgreich gebucht`}
+  </div>`;
+  btn.textContent = fail ? '🔁 Fehlgeschlagene erneut versuchen' : '✅ Fertig';
+  if(!fail){ setTimeout(()=>clearPersonalImport(), 3000); }
+}
+
+async function _postPersonalRow(row, user){
+  // row: [BA, Datum, BS, Konto, Gegenkonto, Betrag, BWA, Kostenstelle, Zuordnung, Buchungstext, PostingNr, Storno]
+  const ba          = row[0] || 'SA';
+  const datumVal    = row[1];
+  const konto       = String(row[3] || '').trim();
+  const gegenkonto  = String(row[4] || '').trim();
+  const betrag      = Math.abs(Number(row[5]) || 0);
+  const kostenstelle = String(row[7] || '').trim();
+  const zuordnung   = String(row[8] || 'RST-Personal').trim();
+  const buchungstext = String(row[9] || '').trim();
+
+  const docDate = _parsePersonalDate(datumVal);
+  const { year, period } = _parseFisc(datumVal);
+  const gegenStartsWith3 = gegenkonto.startsWith('3');
+
+  const sys = SAP_SYSTEMS[document.getElementById('fSapSystem') ? document.getElementById('fSapSystem').value : 'SEQ'] || SAP_SYSTEMS.SEQ;
+  const sapAuth = user ? { user:user.sap_username||'', passwd:user._pwd||'', ashost:sys.ashost, sysnr:sys.sysnr, client:sys.client, lang:user.lang||'DE' } : null;
+
+  const glLine1 = { ITEMNO_ACC:'1', GL_ACCOUNT:konto, ITEM_TEXT:buchungstext.slice(0,50), ALLOC_NMBR:zuordnung.slice(0,18) };
+  const glLine2 = { ITEMNO_ACC:'2', GL_ACCOUNT:gegenkonto, ITEM_TEXT:buchungstext.slice(0,50), ALLOC_NMBR:zuordnung.slice(0,18) };
+  if(kostenstelle) glLine1.COSTCENTER = kostenstelle;
+  if(gegenStartsWith3) glLine2.PROFIT_CTR = 'A-0101-000';
+
+  const bapi = {
+    handler: 'BAPI',
+    action:  'BAPI_ACC_DOCUMENT_POST',
+    payload: {
+      _sap_auth: sapAuth,
+      DOCUMENTHEADER: {
+        USERNAME:   (user && user.sap_username) || '',
+        COMP_CODE:  '0435',
+        DOC_TYPE:   ba,
+        DOC_DATE:   docDate,
+        PSTNG_DATE: docDate,
+        FISC_YEAR:  year,
+        FIS_PERIOD: period,
+        REF_DOC_NO: zuordnung.slice(0,16),
+        HEADER_TXT: buchungstext.slice(0,25),
+        LDGRP:      '0L',
+      },
+      ACCOUNTGL: [glLine1, glLine2],
+      CURRENCYAMOUNT: [
+        { ITEMNO_ACC:'1', CURRENCY:'EUR', AMT_DOCCUR:  betrag },
+        { ITEMNO_ACC:'2', CURRENCY:'EUR', AMT_DOCCUR: -betrag },
+      ],
+    }
+  };
+
+  const resp = await fetch(BRIDGE + '/execute', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(bapi)
+  });
+  const res = await resp.json();
+  if(!resp.ok || res.error) throw new Error(res.error || res.detail || 'Bridge-Fehler');
+  return (res.result && res.result.doc_number) || res.doc_number || '?';
+}
+
+
+// ─── Buchungsvorschlag ───────────────────────────────────────────
+let _vorschlagPayload = null;
+let _vorschlagMode    = null;
+
+function _fmtBetrag(b, w){
+  return Number(b).toLocaleString('de-DE', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' ' + (w||'EUR');
+}
+
+function showVorschlag(payload, mode){
+  _vorschlagPayload = payload;
+  _vorschlagMode    = mode;
+
+  const bukrs   = JSON.parse(payload.bukrs_json || '[]');
+  const betrag  = parseFloat(payload.betrag) || 0;
+  const total   = betrag * bukrs.length;
+
+  // Meta-Zeile
+  document.getElementById('vorschlagMeta').innerHTML =
+    `Kategorie: <strong>${esc(payload.kategorie)}</strong> &nbsp;·&nbsp; ` +
+    `Workflow: <strong>${payload.workflow === 'indirekt' ? '🏢 Konzern' : '⚡ Direkt'}</strong> &nbsp;·&nbsp; ` +
+    `Periode: <strong>${esc(payload.periode)}</strong> &nbsp;·&nbsp; ` +
+    `Buchungsdatum: <strong>${esc(payload.buchungsdatum)}</strong> &nbsp;·&nbsp; ` +
+    `SAP-System: <strong>${esc(payload.sap_system)}</strong>`;
+
+  // Tabelle aufbauen
+  const rows = bukrs.map((bkr, i) => {
+    return `<tr style="border-bottom:1px solid var(--border)">
+      <td style="padding:7px 10px;font-family:monospace;font-weight:700;color:var(--accent)">${esc(bkr)}</td>
+      <td style="padding:7px 10px">${esc(payload.kategorie)}</td>
+      <td style="padding:7px 10px;font-family:monospace">${esc(payload.blart||'SA')}</td>
+      <td style="padding:7px 10px">
+        <span style="font-family:monospace;font-weight:600">${esc(payload.konto_soll)}</span>
+        ${payload.kostenstelle ? `<br><span style="font-size:11px;color:var(--muted)">KST: ${esc(payload.kostenstelle)}</span>` : ''}
+      </td>
+      <td style="padding:7px 10px;font-family:monospace">${esc(payload.konto_haben)}</td>
+      <td style="padding:7px 10px;font-family:monospace;text-align:right;font-weight:600;color:var(--ok)">
+        ${_fmtBetrag(betrag, payload.waehrung)}
+      </td>
+      <td style="padding:7px 10px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(payload.beschreibung)}">${esc(payload.beschreibung)}</td>
+      <td style="padding:7px 10px;font-size:11px;color:var(--muted)">${esc(payload.referenz||'—')}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('vorschlagBody').innerHTML = `
+    <table style="width:100%;border-collapse:collapse;font-size:13px">
+      <thead>
+        <tr style="border-bottom:2px solid var(--border);color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.5px">
+          <th style="padding:6px 10px;text-align:left">BKr</th>
+          <th style="padding:6px 10px;text-align:left">Kategorie</th>
+          <th style="padding:6px 10px;text-align:left">BelegArt</th>
+          <th style="padding:6px 10px;text-align:left">Konto Soll</th>
+          <th style="padding:6px 10px;text-align:left">Konto Haben</th>
+          <th style="padding:6px 10px;text-align:right">Betrag</th>
+          <th style="padding:6px 10px;text-align:left">Buchungstext</th>
+          <th style="padding:6px 10px;text-align:left">Referenz</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+
+  document.getElementById('vorschlagSumme').textContent =
+    `${bukrs.length} Buchungskreis${bukrs.length>1?'e':''} · Gesamtvolumen: ${_fmtBetrag(total, payload.waehrung)}`;
+
+  document.getElementById('btnConfirmVorschlag').disabled = false;
+  document.getElementById('btnConfirmVorschlag').textContent = '✅ Jetzt in SAP buchen';
+  document.getElementById('vorschlagModal').classList.add('active');
+}
+
+function closeVorschlag(){
+  document.getElementById('vorschlagModal').classList.remove('active');
+  _vorschlagPayload = null;
+  _vorschlagMode    = null;
+}
+
+async function confirmVorschlag(){
+  if(!_vorschlagPayload) return;
+  const btn = document.getElementById('btnConfirmVorschlag');
+  btn.disabled = true;
+  btn.textContent = '⏳ Wird gespeichert…';
+
+  const req = await saveRequest(_vorschlagPayload, false);
+  if(!req){ btn.disabled=false; btn.textContent='✅ Jetzt in SAP buchen'; return; }
+
+  closeVorschlag();
+  await bookInSap(req);
+}
+
+// ─── Seite initialisieren ────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  // Fallback sofort laden — Kategorien immer sichtbar
+  _applyKontenplanList(KONTENPLAN_FALLBACK);
+  selectWorkflow('direkt');
+  // API im Hintergrund — überschreibt Fallback falls erreichbar
+  loadKontenplan();
+});
+// ═══════════════════════════════════════════════════════════════════
+// SAP-ÜBERGABE: Vorprüfung aller Rückstellungsbuchungen vor SAP
+// ═══════════════════════════════════════════════════════════════════
+
+let _sapPendingReqs = [];   // Zwischenspeicher für Bulk-Posting
+
+// ─── Validierung eines einzelnen Antrags ─────────────────────────
+function _validateForSap(req) {
+  const errors = [];
+  const warns  = [];
+
+  if (!req.konto_soll  || req.konto_soll.trim() === '')  errors.push('Konto Soll fehlt');
+  if (!req.konto_haben || req.konto_haben.trim() === '') errors.push('Konto Haben fehlt');
+  if (!req.betrag || Number(req.betrag) <= 0)            errors.push('Betrag ist 0 oder ungültig');
+  if (!req.buchungsdatum)                                errors.push('Buchungsdatum fehlt');
+  if (!req.periode || !/^\d{2}\/\d{4}$/.test(req.periode)) errors.push('Periode ungültig — erwartet MM/YYYY');
+  if (!req.waehrung)                                     errors.push('Währung fehlt');
+
+  const bukrs = JSON.parse(req.bukrs_json || '[]');
+  if (!bukrs.length) errors.push('Kein Buchungskreis gewählt');
+
+  if (Number(req.betrag) > 500000) warns.push('Betrag > 500.000 — bitte nochmals prüfen');
+  if (!req.kostenstelle)           warns.push('Keine Kostenstelle angegeben');
+  if (!req.referenz)               warns.push('Keine Referenznummer — wird automatisch vergeben');
+
+  return { valid: errors.length === 0, errors, warns };
+}
+
+// ─── BAPI-Payload-Vorschau ────────────────────────────────────────
+function _buildBapiPreview(req) {
+  const bukrs    = JSON.parse(req.bukrs_json || '[]');
+  const docDate  = (req.buchungsdatum || '').replace(/-/g, '');
+  const [mm, yyyy] = (req.periode || '/').split('/');
+  const rows = [];
+
+  for (const bkr of bukrs) {
+    rows.push({
+      bkr,
+      DOCUMENTHEADER: {
+        COMP_CODE:  bkr,
+        DOC_TYPE:   req.blart || 'SA',
+        DOC_DATE:   docDate,
+        PSTNG_DATE: docDate,
+        FISC_YEAR:  yyyy || '?',
+        FIS_PERIOD: mm   || '?',
+        REF_DOC_NO: req.referenz || `RUECK-${req.id}`,
+        HEADER_TXT: (req.beschreibung || '').slice(0, 25),
+        LDGRP:      '0L',
+        USERNAME:   '(angemeldeter SAP-User)',
+      },
+      ACCOUNTGL: [
+        { ITEMNO_ACC: '1', GL_ACCOUNT: req.konto_soll,  ITEM_TEXT: (req.beschreibung || '').slice(0, 50), DEBIT_CRED: 'S' },
+        { ITEMNO_ACC: '2', GL_ACCOUNT: req.konto_haben, ITEM_TEXT: (req.beschreibung || '').slice(0, 50), DEBIT_CRED: 'H' },
+      ],
+      CURRENCYAMOUNT: [
+        { ITEMNO_ACC: '1', CURRENCY: req.waehrung || 'EUR', AMT_DOCCUR:  Number(req.betrag) },
+        { ITEMNO_ACC: '2', CURRENCY: req.waehrung || 'EUR', AMT_DOCCUR: -Number(req.betrag) },
+      ],
+    });
+  }
+  return rows;
+}
+
+// ─── Einzelkarte rendern ──────────────────────────────────────────
+function _renderSapCard(req) {
+  const v     = _validateForSap(req);
+  const bukrs = JSON.parse(req.bukrs_json || '[]');
+  const bapis = _buildBapiPreview(req);
+
+  const statusColor = v.valid && !v.warns.length ? 'var(--ok)'
+                    : v.valid                     ? 'var(--warn)'
+                    :                               'var(--err)';
+  const statusIcon  = v.valid && !v.warns.length ? '✅'
+                    : v.valid                     ? '⚠️'
+                    :                               '❌';
+
+  const errHtml = v.errors.map(e =>
+    `<div style="color:var(--err);font-size:12px;margin-top:3px">❌ ${esc(e)}</div>`).join('');
+  const warnHtml = v.warns.map(w =>
+    `<div style="color:var(--warn);font-size:12px;margin-top:3px">⚠️ ${esc(w)}</div>`).join('');
+
+  // BAPI-Tabellen pro BKr
+  const bapiTabsHtml = bapis.map(b => `
+    <div style="margin-bottom:18px">
+      <div style="font-size:12px;font-weight:700;color:#60a5fa;margin-bottom:8px;
+                  padding:4px 8px;background:rgba(96,165,250,.08);border-radius:4px;
+                  border-left:3px solid #60a5fa">
+        📁 Buchungskreis ${esc(b.bkr)} → SAP BAPI_ACC_DOCUMENT_POST
+      </div>
+
+      <!-- DOCUMENTHEADER -->
+      <div style="font-size:11px;font-weight:700;color:var(--muted);margin:6px 0 4px;text-transform:uppercase;letter-spacing:.5px">DOCUMENTHEADER</div>
+      <table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:10px">
+        <thead><tr style="border-bottom:1px solid var(--border)">
+          <th style="text-align:left;padding:4px 8px;color:var(--muted);font-weight:600;width:180px">Parameter</th>
+          <th style="text-align:left;padding:4px 8px;color:var(--muted);font-weight:600">Wert</th>
+        </tr></thead>
+        <tbody>
+          ${Object.entries(b.DOCUMENTHEADER).map(([k,v2]) => `
+            <tr style="border-bottom:1px solid rgba(255,255,255,.04)">
+              <td style="padding:4px 8px;color:var(--muted);font-family:monospace">${esc(k)}</td>
+              <td style="padding:4px 8px;color:var(--text);font-family:monospace;font-weight:${k==='COMP_CODE'||k==='DOC_TYPE'?'700':'400'}">${esc(String(v2))}</td>
+            </tr>`).join('')}
+        </tbody>
+      </table>
+
+      <!-- ACCOUNTGL + CURRENCYAMOUNT zusammen -->
+      <div style="font-size:11px;font-weight:700;color:var(--muted);margin:6px 0 4px;text-transform:uppercase;letter-spacing:.5px">ACCOUNTGL / CURRENCYAMOUNT</div>
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead><tr style="border-bottom:1px solid var(--border)">
+          <th style="padding:4px 8px;color:var(--muted);font-weight:600;text-align:left">Pos.</th>
+          <th style="padding:4px 8px;color:var(--muted);font-weight:600;text-align:left">Konto</th>
+          <th style="padding:4px 8px;color:var(--muted);font-weight:600;text-align:left">S/H</th>
+          <th style="padding:4px 8px;color:var(--muted);font-weight:600;text-align:right">Betrag</th>
+          <th style="padding:4px 8px;color:var(--muted);font-weight:600;text-align:left">Währung</th>
+          <th style="padding:4px 8px;color:var(--muted);font-weight:600;text-align:left">Buchungstext</th>
+        </tr></thead>
+        <tbody>
+          ${b.ACCOUNTGL.map((gl,i) => {
+            const ca = b.CURRENCYAMOUNT[i] || {};
+            const isSoll = ca.AMT_DOCCUR >= 0;
+            return `<tr style="border-bottom:1px solid rgba(255,255,255,.04)">
+              <td style="padding:4px 8px;color:var(--muted);font-family:monospace">${esc(gl.ITEMNO_ACC)}</td>
+              <td style="padding:4px 8px;font-family:monospace;font-weight:700;color:${isSoll?'#60a5fa':'#34d399'}">${esc(gl.GL_ACCOUNT)}</td>
+              <td style="padding:4px 8px">
+                <span style="background:${isSoll?'rgba(96,165,250,.15)':'rgba(52,211,153,.15)'};
+                  color:${isSoll?'#60a5fa':'#34d399'};border-radius:4px;padding:1px 6px;
+                  font-size:11px;font-weight:700">${esc(gl.DEBIT_CRED)}</span>
+              </td>
+              <td style="padding:4px 8px;text-align:right;font-weight:700;font-family:monospace;
+                color:${isSoll?'#60a5fa':'#34d399'}">
+                ${isSoll ? '+' : '−'} ${Math.abs(ca.AMT_DOCCUR||0).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})}
+              </td>
+              <td style="padding:4px 8px;color:var(--muted)">${esc(ca.CURRENCY||'EUR')}</td>
+              <td style="padding:4px 8px;color:var(--text);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(gl.ITEM_TEXT)}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+  `).join('');
+
+  const canPost = v.valid;
+
+  return `
+    <div class="info-card" id="sapCard_${req.id}" style="margin-bottom:14px;
+         border-left:3px solid ${statusColor}">
+
+      <!-- Card-Header -->
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <span style="font-size:18px">${statusIcon}</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700;font-size:13px;color:var(--text)">
+            #${req.id} · ${esc(req.kategorie)} · ${esc(req.beschreibung||'')}
+          </div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px">
+            BKr: <strong>${esc(bukrs.join(', '))}</strong> &nbsp;|&nbsp;
+            Betrag: <strong style="color:var(--text)">${fmt(req.betrag)} ${esc(req.waehrung||'EUR')}</strong> &nbsp;|&nbsp;
+            Periode: <strong>${esc(req.periode||'—')}</strong> &nbsp;|&nbsp;
+            Belegart: <strong>${esc(req.blart||'SA')}</strong> &nbsp;|&nbsp;
+            System: <strong style="color:#60a5fa">${esc(req.sap_system||'SEQ')}</strong>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <button class="btn-nav" style="font-size:11px;padding:4px 10px"
+            onclick="_toggleSapDetail(${req.id})">🔍 Details</button>
+          <button class="btn-nav ${canPost?'primary':''}" id="btnSapPost_${req.id}"
+            onclick="singlePostToSap(${req.id})"
+            ${canPost?'':'disabled title="Validierungsfehler beheben"'}
+            style="font-size:12px;${canPost?'':'opacity:.45;cursor:not-allowed'}">
+            ${canPost ? '→ In SAP übergeben' : '✗ Nicht übergebar'}
+          </button>
+        </div>
+      </div>
+
+      <!-- Validierungsstatus -->
+      ${errHtml || warnHtml ? `
+        <div style="margin-top:10px;padding:8px 12px;border-radius:6px;
+             background:rgba(255,255,255,.03);border:1px solid var(--border)">
+          ${errHtml}${warnHtml}
+        </div>` : ''}
+
+      <!-- Detail-Bereich (ein/ausklappbar) -->
+      <div id="sapDetail_${req.id}" style="display:none;margin-top:14px;
+           padding-top:14px;border-top:1px solid var(--border)">
+        ${bapiTabsHtml}
+      </div>
+    </div>`;
+}
+
+function _toggleSapDetail(id) {
+  const el = document.getElementById('sapDetail_' + id);
+  if (!el) return;
+  el.style.display = el.style.display === 'none' ? '' : 'none';
+}
+
+// ─── Laden & Rendern ─────────────────────────────────────────────
+async function loadSapUebergabe() {
+  const list = document.getElementById('sapUebergabeList');
+  list.innerHTML = '<div style="color:var(--muted);padding:20px;text-align:center">⏳ Wird geladen …</div>';
+
+  try {
+    const r    = await fetch(ORC + '/rueckstellung/requests');
+    const data = await r.json();
+
+    // Nur noch nicht gebuchte Anträge
+    const pending = data.filter(d => ['offen','ausstehend','genehmigt'].includes(d.status));
+    _sapPendingReqs = pending;
+
+    // Stats
+    let nValid = 0, nWarn = 0, nErr = 0;
+    pending.forEach(req => {
+      const v = _validateForSap(req);
+      if (!v.valid)            nErr++;
+      else if (v.warns.length) nWarn++;
+      else                     nValid++;
+    });
+    document.getElementById('suPending').textContent = pending.length;
+    document.getElementById('suValid').textContent   = nValid;
+    document.getElementById('suWarn').textContent    = nWarn;
+    document.getElementById('suError').textContent   = nErr;
+
+    // Badge im Tab-Button
+    const badge = document.getElementById('sapPendingBadge');
+    if (badge) {
+      badge.textContent = pending.length;
+      badge.style.display = pending.length ? '' : 'none';
+    }
+
+    // Bulk-Button
+    const btnBulk = document.getElementById('btnBulkSap');
+    if (btnBulk) btnBulk.style.display = (nValid + nWarn > 0) ? '' : 'none';
+
+    if (!pending.length) {
+      list.innerHTML = `<div class="info-card" style="text-align:center;padding:32px;color:var(--muted)">
+        <div style="font-size:36px;margin-bottom:12px">✅</div>
+        <div style="font-weight:600">Keine offenen Buchungen</div>
+        <div style="font-size:12px;margin-top:6px">Alle Rückstellungsanträge sind bereits gebucht oder storniert.</div>
+      </div>`;
+      return;
+    }
+
+    list.innerHTML = pending.map(req => _renderSapCard(req)).join('');
+
+  } catch(e) {
+    list.innerHTML = `<div class="info-card" style="color:var(--err);padding:20px">
+      Fehler beim Laden: ${esc(e.message)}
+    </div>`;
+  }
+}
+
+// ─── Einzelbuchung aus SAP-Übergabe-Tab ──────────────────────────
+async function singlePostToSap(reqId) {
+  const req = _sapPendingReqs.find(r => r.id === reqId);
+  if (!req) return;
+  const v = _validateForSap(req);
+  if (!v.valid) { toast('Validierungsfehler — Buchung nicht möglich', 'warn'); return; }
+
+  const btn = document.getElementById('btnSapPost_' + reqId);
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Wird gebucht …'; }
+
+  try {
+    const results = await bookInSap(req);
+    const allOk = results.every(r => r.ok);
+    const card  = document.getElementById('sapCard_' + reqId);
+    if (card) {
+      card.style.borderLeftColor = allOk ? 'var(--ok)' : 'var(--warn)';
+      card.style.opacity = allOk ? '.55' : '1';
+    }
+    if (allOk) {
+      setTimeout(() => loadSapUebergabe(), 1200);
+    } else {
+      if (btn) { btn.disabled = false; btn.textContent = '→ Erneut versuchen'; }
+    }
+  } catch(e) {
+    toast('Fehler: ' + e.message, 'warn');
+    if (btn) { btn.disabled = false; btn.textContent = '→ In SAP übergeben'; }
+  }
+}
+
+// ─── Bulk-Posting ────────────────────────────────────────────────
+async function bulkPostToSap() {
+  const valid = _sapPendingReqs.filter(r => _validateForSap(r).valid);
+  if (!valid.length) { toast('Keine validierten Buchungen vorhanden', 'warn'); return; }
+
+  const btn = document.getElementById('btnBulkSap');
+  if (btn) { btn.disabled = true; btn.textContent = `⏳ ${valid.length} Buchungen werden übergeben …`; }
+
+  let ok = 0, fail = 0;
+  for (const req of valid) {
+    try {
+      const results = await bookInSap(req);
+      if (results.every(r => r.ok)) ok++; else fail++;
+    } catch { fail++; }
+  }
+
+  toast(`Fertig: ${ok} gebucht${fail ? ', ' + fail + ' Fehler' : ''}`, ok && !fail ? 'ok' : 'warn');
+  if (btn) { btn.disabled = false; btn.textContent = '🚀 Alle validierten Buchungen → SAP'; }
+  setTimeout(() => loadSapUebergabe(), 1000);
+}
+
+</script>
+</body>
+</html>

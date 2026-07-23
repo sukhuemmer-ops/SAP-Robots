@@ -1,0 +1,730 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Sales Report — YCONN</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<script>
+if (location.protocol==='file:'){
+  var _fn=(location.pathname.split('/').pop()||location.pathname.split('\\').pop());
+  location.replace('http://localhost:8000/cockpit/'+_fn+location.search+location.hash);
+}
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0d1117;--bg2:#161b22;--bg3:#21262d;
+  --border:#30363d;--text:#e6edf3;--muted:#8b949e;
+  --accent:#1f6feb;--ok:#10b981;--warn:#f59e0b;--err:#ef4444;
+  --sl:#22c55e;--sl-dark:#15803d;--sl-bg1:#0a2e1a;--sl-bg2:#061a0f;
+}
+html,body{background:#06150e;color:var(--text);
+  font-family:-apple-system,"Segoe UI",Roboto,sans-serif;font-size:14px;line-height:1.5;min-height:100vh}
+body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
+  background:
+    radial-gradient(ellipse 80% 50% at 20% 10%,rgba(34,197,94,.09) 0%,transparent 60%),
+    radial-gradient(ellipse 60% 40% at 80% 80%,rgba(10,40,100,.2) 0%,transparent 55%),
+    #06150e}
+.wrap{max-width:1700px;margin:0 auto;padding:24px 28px;position:relative;z-index:1}
+
+/* ── Header ── */
+.page-header{display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+  margin-bottom:24px;padding-bottom:18px;position:relative;
+  border-bottom:1px solid rgba(48,54,61,.6)}
+.page-header::after{content:'';position:absolute;bottom:-1px;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent,rgba(34,197,94,.5) 40%,rgba(31,111,235,.4) 70%,transparent)}
+.hdr-icon{width:44px;height:44px;border-radius:12px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;font-size:22px;
+  background:linear-gradient(135deg,var(--sl-dark),var(--sl))}
+.hdr-title{font-size:20px;font-weight:700;letter-spacing:-.3px}
+.hdr-sub{font-size:11px;color:var(--muted);margin-top:1px}
+.hdr-right{margin-left:auto;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+
+/* ── KPI Cards ── */
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px;margin-bottom:22px}
+.kpi{background:var(--bg2);border:1px solid var(--border);border-radius:14px;
+  padding:18px 20px;position:relative;overflow:hidden}
+.kpi::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;
+  background:linear-gradient(90deg,var(--kpi-c,var(--sl)),transparent)}
+.kpi-val{font-size:26px;font-weight:800;letter-spacing:-.5px;color:var(--kpi-c,var(--sl))}
+.kpi-lbl{font-size:11px;color:var(--muted);margin-top:4px;text-transform:uppercase;letter-spacing:.06em}
+.kpi-sub{font-size:11px;color:var(--muted);margin-top:2px}
+
+/* ── Tabs ── */
+.tabs{display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:20px}
+.tab{padding:10px 22px;font-size:13px;font-weight:600;cursor:pointer;
+  border:none;background:none;color:var(--muted);
+  border-bottom:3px solid transparent;margin-bottom:-2px;transition:all .15s}
+.tab.active{color:var(--sl);border-bottom-color:var(--sl)}
+.tab:hover:not(.active){color:var(--text)}
+.tab-panel{display:none}.tab-panel.active{display:block}
+
+/* ── Forms ── */
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:14px;
+  padding:22px 26px;margin-bottom:18px}
+.card-title{font-size:14px;font-weight:700;margin-bottom:16px;
+  display:flex;align-items:center;gap:8px;color:var(--sl)}
+.form-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px 18px;align-items:end}
+.form-group{display:flex;flex-direction:column;gap:5px}
+.form-label{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.form-input,.form-select{padding:8px 12px;border-radius:8px;border:1px solid var(--border);
+  background:var(--bg3);color:var(--text);font-size:13px;transition:border-color .15s}
+.form-input:focus,.form-select:focus{outline:none;border-color:var(--sl)}
+
+/* ── Buttons ── */
+.btn{display:inline-flex;align-items:center;gap:7px;padding:9px 18px;border-radius:8px;
+  font-size:13px;font-weight:600;cursor:pointer;border:none;transition:all .15s;white-space:nowrap}
+.btn-green{background:var(--sl);color:#fff}.btn-green:hover{background:var(--sl-dark)}
+.btn-outline{background:transparent;color:var(--muted);border:1px solid var(--border)}
+.btn-outline:hover{background:var(--bg3);color:var(--text)}
+.btn-red{background:transparent;color:var(--err);border:1px solid rgba(239,68,68,.4)}
+.btn-red:hover{background:rgba(239,68,68,.08)}
+.btn:disabled{opacity:.4;cursor:default}
+.btn-row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:14px}
+
+/* ── Filter-Bar ── */
+.filter-bar{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;
+  background:var(--bg2);border:1px solid var(--border);border-radius:12px;
+  padding:14px 18px;margin-bottom:14px}
+.filter-bar .form-group{min-width:140px;flex:1}
+.filter-bar .form-input{height:36px}
+
+/* ── Tabelle ── */
+.tbl-wrap{overflow-x:auto;border-radius:12px;border:1px solid var(--border)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+thead th{background:var(--bg3);padding:10px 14px;text-align:left;
+  font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;
+  letter-spacing:.06em;white-space:nowrap;border-bottom:1px solid var(--border)}
+thead th.num{text-align:right}
+tbody tr{border-bottom:1px solid rgba(48,54,61,.5);transition:background .1s}
+tbody tr:hover{background:rgba(34,197,94,.04)}
+tbody tr:last-child{border-bottom:none}
+td{padding:9px 14px;vertical-align:middle;white-space:nowrap}
+td.num{text-align:right;font-variant-numeric:tabular-nums}
+td.wrap{white-space:normal;max-width:220px}
+.badge{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:20px;
+  font-size:11px;font-weight:600}
+.badge-green{background:rgba(34,197,94,.12);color:var(--ok)}
+.badge-blue{background:rgba(31,111,235,.12);color:#58a6ff}
+.badge-muted{background:rgba(139,148,158,.1);color:var(--muted)}
+
+/* ── Verlauf ── */
+.hist-item{background:var(--bg2);border:1px solid var(--border);border-radius:10px;
+  padding:14px 18px;margin-bottom:10px;display:flex;align-items:center;gap:16px;cursor:pointer;
+  transition:border-color .15s}
+.hist-item:hover{border-color:var(--sl)}
+.hist-meta{flex:1}
+.hist-label{font-weight:600;font-size:13px}
+.hist-detail{font-size:11px;color:var(--muted);margin-top:3px}
+.hist-kpi{text-align:right;white-space:nowrap}
+.hist-total{font-size:16px;font-weight:700;color:var(--sl)}
+.hist-cnt{font-size:11px;color:var(--muted)}
+
+/* ── Status-Banner ── */
+.status-bar{display:flex;align-items:center;gap:10px;padding:10px 16px;border-radius:8px;
+  margin-bottom:14px;font-size:13px}
+.status-bar.info{background:rgba(31,111,235,.1);border:1px solid rgba(31,111,235,.3);color:#58a6ff}
+.status-bar.ok{background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.3);color:var(--ok)}
+.status-bar.err{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);color:var(--err)}
+.status-bar.warn{background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);color:var(--warn)}
+.spinner{width:16px;height:16px;border:2px solid rgba(34,197,94,.3);border-top-color:var(--sl);
+  border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── Pagination ── */
+.pag{display:flex;align-items:center;gap:8px;margin-top:12px;flex-wrap:wrap}
+.pag-info{font-size:12px;color:var(--muted);margin-right:auto}
+.pag-btn{padding:5px 12px;border-radius:6px;border:1px solid var(--border);
+  background:var(--bg3);color:var(--text);cursor:pointer;font-size:12px}
+.pag-btn:hover:not(:disabled){border-color:var(--sl);color:var(--sl)}
+.pag-btn:disabled{opacity:.3;cursor:default}
+.pag-cur{padding:5px 14px;border-radius:6px;background:var(--sl);color:#fff;font-size:12px;font-weight:700}
+
+.empty{padding:48px;text-align:center;color:var(--muted)}
+.empty-icon{font-size:36px;margin-bottom:10px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ── Header ── -->
+  <div class="page-header">
+    <div class="hdr-icon">📈</div>
+    <div>
+      <div class="hdr-title">Sales Report</div>
+      <div class="hdr-sub">CO-PA · SD-Faktura · alle Materialien · alle Kunden · je Gesellschaft</div>
+    </div>
+    <div class="hdr-right">
+      <button class="btn btn-outline" onclick="location.href='startseite.html'">← Startseite</button>
+      <button class="btn btn-green" onclick="exportExcel()" id="btnExport" disabled>
+        ⬇ Excel Export
+      </button>
+    </div>
+  </div>
+
+  <!-- ── KPI Cards ── -->
+  <div class="kpi-row">
+    <div class="kpi" style="--kpi-c:var(--sl)">
+      <div class="kpi-val" id="kpiRevenue">—</div>
+      <div class="kpi-lbl">Gesamtumsatz</div>
+      <div class="kpi-sub" id="kpiCurrency">EUR</div>
+    </div>
+    <div class="kpi" style="--kpi-c:#58a6ff">
+      <div class="kpi-val" id="kpiRows">—</div>
+      <div class="kpi-lbl">Positionen</div>
+      <div class="kpi-sub" id="kpiDateRange">—</div>
+    </div>
+    <div class="kpi" style="--kpi-c:#a78bfa">
+      <div class="kpi-val" id="kpiCustomers">—</div>
+      <div class="kpi-lbl">Kunden</div>
+      <div class="kpi-sub">eindeutige Debitoren</div>
+    </div>
+    <div class="kpi" style="--kpi-c:#f59e0b">
+      <div class="kpi-val" id="kpiMaterials">—</div>
+      <div class="kpi-lbl">Materialien</div>
+      <div class="kpi-sub">eindeutige Artikel</div>
+    </div>
+    <div class="kpi" style="--kpi-c:#ec4899">
+      <div class="kpi-val" id="kpiCompanies">—</div>
+      <div class="kpi-lbl">Gesellschaften</div>
+      <div class="kpi-sub">Buchungskreise</div>
+    </div>
+  </div>
+
+  <!-- ── Tabs ── -->
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('import',this)">📥 SAP Import</button>
+    <button class="tab" onclick="switchTab('report',this)">📊 Report</button>
+    <button class="tab" onclick="switchTab('history',this)">🕑 Verlauf</button>
+  </div>
+
+  <!-- ════ TAB: IMPORT ════ -->
+  <div class="tab-panel active" id="tab-import">
+    <div class="card">
+      <div class="card-title">⚙ SAP Import-Einstellungen</div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label">Buchungskreis(e)</label>
+          <input id="fCompCodes" class="form-input" placeholder="0435,0436,0439 (leer=alle)">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Datum von</label>
+          <input id="fDateFrom" class="form-input" type="date">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Datum bis</label>
+          <input id="fDateTo" class="form-input" type="date">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Datenquelle</label>
+          <select id="fSource" class="form-select" onchange="toggleCopaFields()">
+            <option value="vbrk">SD-Billing (VBRK/VBRP)</option>
+            <option value="copa">CO-PA (CE4xxxx)</option>
+          </select>
+        </div>
+        <div class="form-group" id="rowOpco" style="display:none">
+          <label class="form-label">Operating Concern</label>
+          <input id="fOpco" class="form-input" placeholder="z.B. 0001">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Kunden-Filter (Prefix)</label>
+          <input id="fCustFilter" class="form-input" placeholder="z.B. 10001">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Material-Filter (Prefix)</label>
+          <input id="fMatFilter" class="form-input" placeholder="z.B. MAT">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Max. Zeilen</label>
+          <input id="fMaxrows" class="form-input" type="number" value="5000" min="100" max="50000">
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-green" onclick="runImport()" id="btnImport">
+          🔄 SAP-Daten laden
+        </button>
+        <span id="importStatus" style="font-size:12px;color:var(--muted)"></span>
+      </div>
+    </div>
+
+    <div id="importResult" style="display:none">
+      <div id="importMsg" class="status-bar info" style="margin-bottom:14px"></div>
+      <div class="btn-row" style="margin-top:0;margin-bottom:14px">
+        <button class="btn btn-green" onclick="saveRun()" id="btnSave">
+          💾 In Datenbank speichern
+        </button>
+        <button class="btn btn-outline" onclick="switchTab('report',document.querySelector('.tab:nth-child(2)'))">
+          📊 Report ansehen
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════ TAB: REPORT ════ -->
+  <div class="tab-panel" id="tab-report">
+
+    <div class="filter-bar">
+      <div class="form-group">
+        <label class="form-label">Gesellschaft</label>
+        <input id="rBukrs" class="form-input" placeholder="0435">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Kunde</label>
+        <input id="rKunnr" class="form-input" placeholder="Kundennr.">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Material</label>
+        <input id="rMatnr" class="form-input" placeholder="Materialnr.">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Periode/Jahr</label>
+        <input id="rPeriod" class="form-input" placeholder="07 oder 2026">
+      </div>
+      <div class="form-group" style="min-width:80px;flex:none">
+        <label class="form-label">&nbsp;</label>
+        <button class="btn btn-green" onclick="applyFilter()" style="height:36px">🔍</button>
+      </div>
+      <div class="form-group" style="min-width:80px;flex:none">
+        <label class="form-label">&nbsp;</label>
+        <button class="btn btn-outline" onclick="clearFilter()" style="height:36px">✕ Reset</button>
+      </div>
+    </div>
+
+    <div id="reportEmpty" class="empty">
+      <div class="empty-icon">📊</div>
+      <div>Noch keine Daten geladen.</div>
+      <div style="font-size:12px;margin-top:6px">Bitte zuerst einen SAP-Import durchführen oder einen gespeicherten Verlauf laden.</div>
+    </div>
+
+    <div id="reportTable" style="display:none">
+      <div class="tbl-wrap">
+        <table id="tblReport">
+          <thead>
+            <tr>
+              <th>Gesellschaft</th>
+              <th>Faktura</th>
+              <th>Datum</th>
+              <th>Periode</th>
+              <th>Kunde</th>
+              <th class="wrap">Kundenname</th>
+              <th>Material</th>
+              <th class="wrap">Bezeichnung</th>
+              <th>Art</th>
+              <th class="num">Menge</th>
+              <th>ME</th>
+              <th class="num">Umsatz</th>
+              <th>Währung</th>
+              <th>Quelle</th>
+            </tr>
+          </thead>
+          <tbody id="tblBody"></tbody>
+        </table>
+      </div>
+      <div class="pag" id="pagBar">
+        <span class="pag-info" id="pagInfo"></span>
+        <button class="pag-btn" onclick="goPage(-1)" id="pagPrev">‹ Zurück</button>
+        <span class="pag-cur" id="pagCur">1</span>
+        <button class="pag-btn" onclick="goPage(1)" id="pagNext">Weiter ›</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════ TAB: VERLAUF ════ -->
+  <div class="tab-panel" id="tab-history">
+    <div id="histList">
+      <div class="empty">
+        <div class="empty-icon">🕑</div>
+        <div>Noch keine gespeicherten Reports</div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /wrap -->
+
+<script src="auth.js"></script>
+<script>
+const BASE = window.location.origin;
+const PAGE_SIZE = 200;
+
+let _allRows    = [];   // alle Zeilen (ungefiltert)
+let _filtered   = [];   // nach Filter
+let _page       = 1;
+let _currentRun = null; // { id, label, ... } aus Verlauf
+
+// ── Datum-Defaults (aktuelles Jahr) ─────────────────────────────────
+(function initDates(){
+  const now = new Date();
+  const y   = now.getFullYear();
+  document.getElementById('fDateFrom').value = `${y}-01-01`;
+  document.getElementById('fDateTo').value   = now.toISOString().slice(0,10);
+})();
+
+function toggleCopaFields(){
+  const copa = document.getElementById('fSource').value === 'copa';
+  document.getElementById('rowOpco').style.display = copa ? '' : 'none';
+}
+
+function switchTab(name, btn){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('tab-'+name).classList.add('active');
+  if(name==='history') loadHistory();
+  if(name==='report')  renderTable();
+}
+
+// ── Datum YYYY-MM-DD → YYYYMMDD ────────────────────────────────────
+function toSapDate(s){ return s ? s.replace(/-/g,'') : ''; }
+
+// ── SAP Import ───────────────────────────────────────────────────────
+async function runImport(){
+  const btn = document.getElementById('btnImport');
+  const st  = document.getElementById('importStatus');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Lädt aus SAP…';
+  st.textContent = '';
+  document.getElementById('importResult').style.display = 'none';
+
+  const _u = (typeof AUTH !== 'undefined' && AUTH.user) ? AUTH.user : {};
+  const _sapAuth = (_u.sap_username && _u.passwd) ? {
+    user:       _u.sap_username,
+    passwd:     _u.passwd,
+    lang:       _u.lang || 'EN',
+    sap_system: _u.sap_system || 'SEQ',
+  } : null;
+
+  const body = {
+    comp_codes:        document.getElementById('fCompCodes').value.trim(),
+    date_from:         toSapDate(document.getElementById('fDateFrom').value),
+    date_to:           toSapDate(document.getElementById('fDateTo').value),
+    source:            document.getElementById('fSource').value,
+    operating_concern: document.getElementById('fOpco').value.trim() || '0001',
+    customer_filter:   document.getElementById('fCustFilter').value.trim(),
+    material_filter:   document.getElementById('fMatFilter').value.trim(),
+    maxrows:           parseInt(document.getElementById('fMaxrows').value)||5000,
+    sap_auth:          _sapAuth,
+  };
+
+  try {
+    const r = await fetch(`${BASE}/sales/import`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(body)
+    });
+    const data = await r.json();
+    if(!r.ok) throw new Error(data.detail || JSON.stringify(data));
+
+    // Antwort: data.rows oder data.result.rows
+    const rows = data.rows || (data.result && data.result.rows) || [];
+    const meta = data.meta || (data.result && data.result.meta) || {};
+
+    _allRows = rows;
+    _filtered = [...rows];
+    _currentRun = {label:'', meta, ...body};
+
+    updateKpis(rows, meta);
+    showMsg('importMsg', 'ok',
+      `✅ ${rows.length} Positionen aus SAP geladen · Zeitraum ${meta.date_from||''} – ${meta.date_to||''}`);
+    document.getElementById('importResult').style.display = '';
+    document.getElementById('btnExport').disabled = rows.length === 0;
+
+  } catch(e){
+    showMsg('importMsg','err',`❌ Fehler: ${e.message}`);
+    document.getElementById('importResult').style.display = '';
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '🔄 SAP-Daten laden';
+  }
+}
+
+// ── Speichern ───────────────────────────────────────────────────────
+async function saveRun(){
+  if(!_allRows.length){ alert('Keine Daten zum Speichern.'); return; }
+  const btn = document.getElementById('btnSave');
+  btn.disabled = true;
+  btn.innerHTML = '⏳ Speichere…';
+  try {
+    const meta = _currentRun && _currentRun.meta || {};
+    const body = {
+      label:      `Sales ${document.getElementById('fDateFrom').value} – ${document.getElementById('fDateTo').value}`,
+      date_from:  toSapDate(document.getElementById('fDateFrom').value),
+      date_to:    toSapDate(document.getElementById('fDateTo').value),
+      comp_codes: document.getElementById('fCompCodes').value.trim(),
+      source:     document.getElementById('fSource').value,
+      sap_system: meta.sap_system || '',
+      created_by: (typeof _currentUser !== 'undefined' ? _currentUser : ''),
+      currency:   'EUR',
+      rows:       _allRows,
+      meta:       meta,
+    };
+    const r = await fetch(`${BASE}/sales/runs`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(body)
+    });
+    const d = await r.json();
+    if(!r.ok) throw new Error(d.detail||JSON.stringify(d));
+    showMsg('importMsg','ok',`✅ ${d.row_count} Zeilen gespeichert (ID ${d.id})`);
+  } catch(e){
+    showMsg('importMsg','err',`❌ Speichern fehlgeschlagen: ${e.message}`);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '💾 In Datenbank speichern';
+  }
+}
+
+// ── Filter & Tabelle ────────────────────────────────────────────────
+function applyFilter(){
+  const bukrs  = document.getElementById('rBukrs').value.trim().toUpperCase();
+  const kunnr  = document.getElementById('rKunnr').value.trim();
+  const matnr  = document.getElementById('rMatnr').value.trim().toUpperCase();
+  const period = document.getElementById('rPeriod').value.trim();
+
+  _filtered = _allRows.filter(r=>{
+    if(bukrs  && !r.bukrs?.toUpperCase().startsWith(bukrs))   return false;
+    if(kunnr  && !r.kunnr?.startsWith(kunnr))                 return false;
+    if(matnr  && !r.matnr?.toUpperCase().startsWith(matnr))   return false;
+    if(period && r.period !== period && r.gjahr !== period)    return false;
+    return true;
+  });
+  _page = 1;
+  updateKpis(_filtered);
+  renderTable();
+}
+
+function clearFilter(){
+  ['rBukrs','rKunnr','rMatnr','rPeriod'].forEach(id=>document.getElementById(id).value='');
+  _filtered = [..._allRows];
+  _page = 1;
+  updateKpis(_allRows);
+  renderTable();
+}
+
+function renderTable(){
+  const tbody = document.getElementById('tblBody');
+  const empty = document.getElementById('reportEmpty');
+  const tbl   = document.getElementById('reportTable');
+
+  if(!_filtered.length){
+    empty.style.display='';  tbl.style.display='none'; return;
+  }
+  empty.style.display='none'; tbl.style.display='';
+
+  const total = _filtered.length;
+  const pages = Math.ceil(total/PAGE_SIZE);
+  if(_page > pages) _page = pages;
+  const start = (_page-1)*PAGE_SIZE;
+  const slice = _filtered.slice(start, start+PAGE_SIZE);
+
+  tbody.innerHTML = slice.map(r=>{
+    const rev = fmtNum(r.revenue || 0, 2);
+    const qty = fmtNum(r.qty     || 0, 3);
+    const srcBadge = r.source==='copa'
+      ? `<span class="badge badge-blue">COPA</span>`
+      : `<span class="badge badge-green">SD</span>`;
+    return `<tr>
+      <td><span class="badge badge-muted">${esc(r.bukrs)}</span></td>
+      <td style="font-family:monospace;font-size:12px">${esc(r.vbeln||'')}</td>
+      <td>${fmtDate(r.fkdat||'')}</td>
+      <td>${esc(r.period||r.gjahr||'')}</td>
+      <td style="font-family:monospace">${esc(r.kunnr||'')}</td>
+      <td class="wrap">${esc(r.cust_name||'')}</td>
+      <td style="font-family:monospace;font-size:12px">${esc(r.matnr||'')}</td>
+      <td class="wrap">${esc(r.mat_desc||'')}</td>
+      <td><span class="badge badge-muted" style="font-size:10px">${esc(r.fkart||'')}</span></td>
+      <td class="num">${qty}</td>
+      <td style="color:var(--muted)">${esc(r.unit||'')}</td>
+      <td class="num" style="color:var(--sl);font-weight:600">${rev}</td>
+      <td>${esc(r.currency||'EUR')}</td>
+      <td>${srcBadge}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('pagInfo').textContent =
+    `${start+1}–${Math.min(start+PAGE_SIZE,total)} von ${total} Zeilen`;
+  document.getElementById('pagCur').textContent = `${_page} / ${pages}`;
+  document.getElementById('pagPrev').disabled = _page <= 1;
+  document.getElementById('pagNext').disabled = _page >= pages;
+}
+
+function goPage(delta){
+  _page = Math.max(1, _page + delta);
+  renderTable();
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+// ── KPIs aktualisieren ───────────────────────────────────────────────
+function updateKpis(rows, meta){
+  if(!rows || !rows.length){
+    ['kpiRevenue','kpiRows','kpiCustomers','kpiMaterials','kpiCompanies']
+      .forEach(id=>document.getElementById(id).textContent='—');
+    document.getElementById('kpiDateRange').textContent='—';
+    return;
+  }
+  const totalRev  = rows.reduce((s,r)=>s+parseFloat(r.revenue||0),0);
+  const customers = new Set(rows.map(r=>r.kunnr).filter(Boolean)).size;
+  const materials = new Set(rows.map(r=>r.matnr).filter(Boolean)).size;
+  const companies = new Set(rows.map(r=>r.bukrs).filter(Boolean)).size;
+  const currency  = rows[0]?.currency || 'EUR';
+
+  document.getElementById('kpiRevenue').textContent  = fmtNum(totalRev,0);
+  document.getElementById('kpiRows').textContent     = rows.length.toLocaleString('de-DE');
+  document.getElementById('kpiCustomers').textContent= customers.toLocaleString('de-DE');
+  document.getElementById('kpiMaterials').textContent= materials.toLocaleString('de-DE');
+  document.getElementById('kpiCompanies').textContent= companies;
+  document.getElementById('kpiCurrency').textContent = currency;
+  if(meta){
+    const df = fmtDate(meta.date_from||''); const dt = fmtDate(meta.date_to||'');
+    document.getElementById('kpiDateRange').textContent =
+      (df||dt) ? `${df} – ${dt}` : rows.length+' Pos.';
+  }
+  document.getElementById('btnExport').disabled = false;
+}
+
+// ── Verlauf ─────────────────────────────────────────────────────────
+async function loadHistory(){
+  const container = document.getElementById('histList');
+  container.innerHTML = '<div style="color:var(--muted);padding:20px">Lädt…</div>';
+  try {
+    const r    = await fetch(`${BASE}/sales/runs`);
+    const runs = await r.json();
+    if(!runs.length){
+      container.innerHTML = '<div class="empty"><div class="empty-icon">🕑</div><div>Noch keine gespeicherten Reports</div></div>';
+      return;
+    }
+    container.innerHTML = runs.map(run=>`
+      <div class="hist-item" onclick="loadRun(${run.id})">
+        <div style="font-size:22px">📊</div>
+        <div class="hist-meta">
+          <div class="hist-label">${esc(run.label)}</div>
+          <div class="hist-detail">
+            ${fmtDate(run.date_from)} – ${fmtDate(run.date_to)} ·
+            BKR: ${esc(run.comp_codes||'alle')} · Quelle: ${esc(run.source)} ·
+            gespeichert: ${run.created_at?.slice(0,16)||'—'} von ${esc(run.created_by||'?')}
+          </div>
+        </div>
+        <div class="hist-kpi">
+          <div class="hist-total">${fmtNum(run.total_revenue,0)} ${esc(run.currency)}</div>
+          <div class="hist-cnt">${run.row_count} Positionen</div>
+        </div>
+        <button class="btn btn-red" style="padding:5px 10px;font-size:12px"
+          onclick="event.stopPropagation();deleteRun(${run.id},this)">🗑</button>
+      </div>
+    `).join('');
+  } catch(e){
+    container.innerHTML = `<div class="empty"><div class="empty-icon">❌</div><div>${e.message}</div></div>`;
+  }
+}
+
+async function loadRun(id){
+  try {
+    const r   = await fetch(`${BASE}/sales/runs/${id}`);
+    const run = await r.json();
+    _allRows    = run.rows || [];
+    _filtered   = [..._allRows];
+    _currentRun = run;
+    _page       = 1;
+    updateKpis(_allRows, run.meta || {});
+    // zu Report-Tab wechseln
+    document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+    document.querySelector('.tab:nth-child(2)').classList.add('active');
+    document.getElementById('tab-report').classList.add('active');
+    renderTable();
+  } catch(e){ alert('Fehler beim Laden: '+e.message); }
+}
+
+async function deleteRun(id, btn){
+  if(!confirm('Report löschen?')) return;
+  btn.disabled = true;
+  try {
+    await fetch(`${BASE}/sales/runs/${id}`,{method:'DELETE'});
+    loadHistory();
+  } catch(e){ alert('Fehler: '+e.message); btn.disabled=false; }
+}
+
+// ── Excel Export ─────────────────────────────────────────────────────
+function exportExcel(){
+  if(!_filtered.length){ alert('Keine Daten.'); return; }
+  const ws_data = [
+    ['Gesellschaft','Faktura','Pos','Datum','Periode','GJ','Kunde','Kundenname',
+     'Material','Bezeichnung','Faktura-Art','Menge','ME','Umsatz','Währung','Quelle'],
+    ..._filtered.map(r=>[
+      r.bukrs||'', r.vbeln||'', r.posnr||'', fmtDate(r.fkdat||''),
+      r.period||'', r.gjahr||'', r.kunnr||'', r.cust_name||'',
+      r.matnr||'', r.mat_desc||'', r.fkart||'',
+      parseFloat(r.qty||0), r.unit||'',
+      parseFloat(r.revenue||0), r.currency||'EUR', r.source||''
+    ])
+  ];
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(ws_data);
+
+  // Spaltenbreiten
+  ws['!cols'] = [8,12,6,10,8,6,12,24,14,28,8,10,6,14,8,6]
+    .map(w=>({wch:w}));
+
+  // Kopfzeile fetten (manuell via cell-styles – nur xlsx.full.min.js: begrenzt)
+  const range = XLSX.utils.decode_range(ws['!ref']);
+  for(let c=range.s.c;c<=range.e.c;c++){
+    const addr = XLSX.utils.encode_cell({r:0,c});
+    if(ws[addr]) ws[addr].s = {font:{bold:true},fill:{fgColor:{rgb:"1A3A5C"}}};
+  }
+
+  XLSX.utils.book_append_sheet(wb, ws, 'Sales Report');
+
+  // Pivot: Umsatz je Gesellschaft + Kunde
+  const pivot = {};
+  _filtered.forEach(r=>{
+    const k = `${r.bukrs||''}|${r.kunnr||''}|${r.cust_name||''}`;
+    if(!pivot[k]) pivot[k]={bukrs:r.bukrs||'',kunnr:r.kunnr||'',name:r.cust_name||'',rev:0,cnt:0};
+    pivot[k].rev += parseFloat(r.revenue||0);
+    pivot[k].cnt++;
+  });
+  const piv_data = [
+    ['Gesellschaft','Kunde','Kundenname','Positionen','Umsatz (EUR)'],
+    ...Object.values(pivot)
+      .sort((a,b)=>b.rev-a.rev)
+      .map(p=>[p.bukrs,p.kunnr,p.name,p.cnt,parseFloat(p.rev.toFixed(2))])
+  ];
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(piv_data), 'Pivot Kunde');
+
+  // Pivot: je Material
+  const pivM = {};
+  _filtered.forEach(r=>{
+    const k = `${r.bukrs||''}|${r.matnr||''}`;
+    if(!pivM[k]) pivM[k]={bukrs:r.bukrs||'',matnr:r.matnr||'',desc:r.mat_desc||'',rev:0,qty:0,cnt:0};
+    pivM[k].rev += parseFloat(r.revenue||0);
+    pivM[k].qty += parseFloat(r.qty||0);
+    pivM[k].cnt++;
+  });
+  const pivM_data = [
+    ['Gesellschaft','Material','Bezeichnung','Positionen','Menge','Umsatz (EUR)'],
+    ...Object.values(pivM)
+      .sort((a,b)=>b.rev-a.rev)
+      .map(p=>[p.bukrs,p.matnr,p.desc,p.cnt,parseFloat(p.qty.toFixed(3)),parseFloat(p.rev.toFixed(2))])
+  ];
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(pivM_data), 'Pivot Material');
+
+  const ts = new Date().toISOString().slice(0,10);
+  XLSX.writeFile(wb, `Sales_Report_${ts}.xlsx`);
+}
+
+// ── Hilfsfunktionen ─────────────────────────────────────────────────
+function fmtNum(n,dec=0){
+  const v=parseFloat(n)||0;
+  return v.toLocaleString('de-DE',{minimumFractionDigits:dec,maximumFractionDigits:dec});
+}
+function fmtDate(s){
+  if(!s||s.length!==8) return s||'';
+  return `${s.slice(6,8)}.${s.slice(4,6)}.${s.slice(0,4)}`;
+}
+function esc(s){ const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+function showMsg(id,type,txt){
+  const el=document.getElementById(id);
+  el.className=`status-bar ${type}`;
+  el.innerHTML=txt;
+  el.style.display='flex';
+}
+</script>
+</body>
+</html>

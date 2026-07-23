@@ -1,0 +1,1329 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>AP-Aging Report — YCONN</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<script>
+if (location.protocol === 'file:') {
+  var _fn = (location.pathname.split('/').pop() || location.pathname.split('\\').pop());
+  location.replace('http://localhost:8000/cockpit/' + _fn + location.search + location.hash);
+}
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg:#0d1117; --bg2:#161b22; --bg3:#21262d;
+  --border:#30363d; --text:#e6edf3; --muted:#8b949e;
+  --accent:#1f6feb; --ok:#10b981; --warn:#f59e0b; --err:#ef4444;
+  --rp:#f97316; --rp-dark:#c2410c;
+}
+html,body { background:#0a1628; color:var(--text);
+  font-family:-apple-system,"Segoe UI",Roboto,sans-serif;
+  font-size:14px; line-height:1.5; min-height:100vh; }
+body::before {
+  content:''; position:fixed; inset:0; z-index:0; pointer-events:none;
+  background:
+    radial-gradient(ellipse 80% 50% at 20% 10%,rgba(249,115,22,.09) 0%,transparent 60%),
+    radial-gradient(ellipse 60% 40% at 80% 80%,rgba(10,40,100,.2) 0%,transparent 55%),
+    #0a1628;
+}
+.wrap { max-width:1600px; margin:0 auto; padding:24px 28px; position:relative; z-index:1; }
+
+/* ── Header ── */
+.page-header {
+  display:flex; align-items:center; gap:14px; flex-wrap:wrap;
+  margin-bottom:24px; padding-bottom:18px; position:relative;
+  border-bottom:1px solid rgba(48,54,61,.6);
+}
+.page-header::after {
+  content:''; position:absolute; bottom:-1px; left:0; right:0; height:1px;
+  background:linear-gradient(90deg,transparent,rgba(249,115,22,.5) 40%,rgba(31,111,235,.4) 70%,transparent);
+}
+.hdr-icon { width:40px; height:40px; border-radius:12px; flex-shrink:0;
+  display:flex; align-items:center; justify-content:center; font-size:20px;
+  background:linear-gradient(135deg,#c2410c,#f97316); }
+.hdr-title  { font-size:19px; font-weight:700; letter-spacing:-.3px; }
+.hdr-sub    { font-size:11px; color:var(--muted); margin-top:1px; }
+
+/* ── Import Selector Tabs ── */
+.src-tabs {
+  display:flex; gap:0; border-bottom:2px solid var(--border); margin-bottom:20px;
+}
+.src-tab {
+  padding:10px 22px; font-size:13px; font-weight:600; cursor:pointer;
+  border:none; background:none; color:var(--muted);
+  border-bottom:3px solid transparent; margin-bottom:-2px; transition:all .15s;
+}
+.src-tab.active { color:var(--rp); border-bottom-color:var(--rp); }
+.src-tab:hover:not(.active) { color:var(--text); }
+
+/* ── SAP Import Form ── */
+.sap-form {
+  background:var(--bg2); border:1px solid var(--border); border-radius:14px;
+  padding:24px 28px; margin-bottom:20px;
+}
+.form-title {
+  font-size:14px; font-weight:700; margin-bottom:18px;
+  display:flex; align-items:center; gap:8px; color:var(--rp);
+}
+.form-grid { display:grid; grid-template-columns:repeat(3,1fr) auto; gap:14px 20px; align-items:end; }
+@media(max-width:900px){ .form-grid { grid-template-columns:1fr 1fr; } }
+.form-group { display:flex; flex-direction:column; gap:5px; }
+.form-label { font-size:11px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; }
+.form-input, .form-select {
+  padding:8px 12px; border-radius:8px; border:1px solid var(--border);
+  background:var(--bg3); color:var(--text); font-size:13px;
+  transition:border-color .15s;
+}
+.form-input:focus, .form-select:focus { outline:none; border-color:var(--rp); }
+.form-input[type=date] { font-family:inherit; }
+
+/* Checkboxes */
+.checks-row { display:flex; gap:18px; align-items:center; flex-wrap:wrap; }
+.check-item { display:flex; align-items:center; gap:7px; cursor:pointer; }
+.check-item input[type=checkbox] {
+  width:15px; height:15px; accent-color:var(--rp); cursor:pointer;
+}
+.check-label { font-size:12px; font-weight:600; }
+
+/* Buchungskreis Multi-Select */
+.bukrs-grid {
+  display:flex; flex-wrap:wrap; gap:8px; padding:10px;
+  background:var(--bg3); border:1px solid var(--border); border-radius:8px;
+}
+.bukrs-chip {
+  display:flex; align-items:center; gap:5px;
+  padding:4px 12px; border-radius:999px; font-size:11px; font-weight:700;
+  border:1px solid var(--border); background:var(--bg2); cursor:pointer;
+  transition:all .15s; user-select:none;
+}
+.bukrs-chip.sel {
+  background:rgba(249,115,22,.18); border-color:var(--rp); color:var(--rp);
+}
+.bukrs-chip-all {
+  background:rgba(31,111,235,.12); border-color:rgba(31,111,235,.5); color:#79b8ff;
+}
+.bukrs-chip-all.sel {
+  background:rgba(31,111,235,.28); border-color:#388bfd; color:#79b8ff;
+}
+
+/* Btn */
+.btn {
+  padding:9px 18px; border-radius:8px; border:none; font-size:13px; font-weight:600;
+  cursor:pointer; display:inline-flex; align-items:center; gap:7px; transition:all .15s;
+  white-space:nowrap;
+}
+.btn-primary { background:var(--rp); color:#fff; }
+.btn-primary:hover { background:#ea6c11; }
+.btn-primary:disabled { opacity:.5; cursor:not-allowed; }
+.btn-ghost  { background:var(--bg3); color:var(--text); border:1px solid var(--border); }
+.btn-ghost:hover { border-color:var(--muted); }
+.btn-green  { background:rgba(16,185,129,.15); color:var(--ok); border:1px solid rgba(16,185,129,.4); }
+.btn-green:hover { background:rgba(16,185,129,.25); }
+.btn-sm { padding:5px 12px; font-size:11px; }
+
+/* ── Upload Zone ── */
+.upload-zone {
+  border:2px dashed rgba(249,115,22,.45); border-radius:14px;
+  background:rgba(249,115,22,.04); padding:40px 28px; text-align:center;
+  cursor:pointer; transition:all .2s; margin-bottom:20px; position:relative;
+}
+.upload-zone:hover, .upload-zone.drag-over {
+  border-color:var(--rp); background:rgba(249,115,22,.1);
+}
+.upload-zone input[type=file] {
+  position:absolute; inset:0; opacity:0; cursor:pointer; width:100%; height:100%;
+}
+.upload-icon { font-size:44px; margin-bottom:10px; }
+.upload-title { font-size:16px; font-weight:700; }
+.upload-sub   { font-size:12px; color:var(--muted); margin-top:5px; }
+
+/* ── Progress ── */
+.progress-wrap { margin-bottom:16px; display:none; }
+.progress-label { font-size:12px; color:var(--muted); margin-bottom:5px; }
+.progress-bar { height:5px; border-radius:5px; background:var(--bg3); }
+.progress-fill { height:100%; border-radius:5px; background:var(--rp); width:0; transition:width .3s; }
+
+/* ── Status Tag ── */
+.status-tag {
+  display:inline-flex; align-items:center; gap:6px;
+  padding:6px 14px; border-radius:999px; font-size:12px; font-weight:600; border:1px solid;
+}
+.st-ok   { color:var(--ok);  border-color:rgba(16,185,129,.4);  background:rgba(16,185,129,.1); }
+.st-warn { color:var(--warn);border-color:rgba(245,158,11,.4);  background:rgba(245,158,11,.1); }
+.st-err  { color:var(--err); border-color:rgba(239,68,68,.4);   background:rgba(239,68,68,.1);  }
+.st-info { color:#79b8ff;    border-color:rgba(31,111,235,.4);  background:rgba(31,111,235,.08);}
+
+/* ── KPI Bar ── */
+.kpi-grid {
+  display:grid; grid-template-columns:repeat(5,1fr); gap:12px; margin-bottom:20px; display:none;
+}
+.kpi-card {
+  background:linear-gradient(145deg,rgba(40,48,60,.95),rgba(28,35,45,.95));
+  border:1px solid rgba(80,95,115,.6); border-radius:12px; padding:14px 16px;
+  position:relative; overflow:hidden;
+}
+.kpi-card::before {
+  content:''; position:absolute; top:0; left:0; right:0; height:3px;
+  background:var(--kc,var(--accent)); border-radius:12px 12px 0 0;
+}
+.kpi-label { font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; font-weight:600; }
+.kpi-value { font-size:20px; font-weight:800; margin-top:4px; letter-spacing:-.5px; }
+.kpi-sub   { font-size:10px; color:var(--muted); margin-top:1px; }
+
+/* ── Report Toolbar ── */
+.report-bar {
+  display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+  margin-bottom:18px; padding:12px 16px;
+  background:var(--bg2); border:1px solid var(--border); border-radius:10px;
+  display:none;
+}
+.report-bar select {
+  padding:5px 10px; border-radius:7px; border:1px solid var(--border);
+  background:var(--bg3); color:var(--text); font-size:12px;
+}
+.report-bar select:focus { outline:none; border-color:var(--rp); }
+
+/* ── Result Tabs ── */
+.tab-bar {
+  display:flex; gap:0; border-bottom:2px solid var(--border); margin-bottom:18px; display:none;
+}
+.tab-btn {
+  padding:9px 20px; font-size:13px; font-weight:600; cursor:pointer;
+  border:none; background:none; color:var(--muted);
+  border-bottom:3px solid transparent; margin-bottom:-2px; transition:all .15s;
+}
+.tab-btn.active { color:var(--rp); border-bottom-color:var(--rp); }
+.tab-btn:hover:not(.active) { color:var(--text); }
+.tab-cnt {
+  display:inline-flex; align-items:center; justify-content:center;
+  background:rgba(249,115,22,.18); color:var(--rp);
+  border-radius:999px; font-size:10px; font-weight:700; padding:1px 7px; margin-left:5px;
+}
+
+/* ── Table ── */
+.tbl-wrap { background:var(--bg2); border:1px solid var(--border); border-radius:12px; overflow:hidden; }
+.tbl-toolbar {
+  display:flex; align-items:center; gap:10px; padding:11px 15px;
+  border-bottom:1px solid var(--border);
+}
+.tbl-title  { font-size:12px; font-weight:700; flex:1; }
+.search-box {
+  padding:5px 11px; border-radius:7px; border:1px solid var(--border);
+  background:var(--bg3); color:var(--text); font-size:12px; width:200px;
+}
+.search-box:focus { outline:none; border-color:var(--rp); }
+.tbl-scroll { overflow-x:auto; max-height:480px; overflow-y:auto; }
+table { width:100%; border-collapse:collapse; font-size:12px; }
+thead th {
+  position:sticky; top:0; z-index:2;
+  background:var(--bg3); padding:9px 11px;
+  text-align:left; font-weight:700; font-size:11px; color:var(--muted);
+  white-space:nowrap; cursor:pointer; user-select:none;
+  border-bottom:1px solid var(--border); transition:color .12s;
+}
+thead th:hover { color:var(--text); }
+thead th.num { text-align:right; }
+thead th.sort-asc::after  { content:' ↑'; color:var(--rp); }
+thead th.sort-desc::after { content:' ↓'; color:var(--rp); }
+tbody tr { border-bottom:1px solid rgba(48,54,61,.35); transition:background .1s; }
+tbody tr:hover { background:rgba(249,115,22,.04); }
+tbody tr.total-row { background:rgba(249,115,22,.08); font-weight:700; border-top:2px solid rgba(249,115,22,.3); }
+tbody td { padding:7px 11px; white-space:nowrap; }
+tbody td.num { text-align:right; font-variant-numeric:tabular-nums; }
+.neg  { color:#f87171; }
+.pos  { color:#10b981; }
+.zero { color:var(--muted); }
+.gl-badge {
+  display:inline-block; padding:1px 7px; border-radius:4px;
+  background:rgba(249,115,22,.15); color:var(--rp); font-weight:700; font-size:11px;
+}
+.remark-tag {
+  display:inline-block; padding:1px 6px; border-radius:4px;
+  background:rgba(139,92,246,.15); color:#a78bfa; font-size:10px; font-weight:600;
+}
+.remark-catensys {
+  display:inline-block; padding:2px 8px; border-radius:4px; font-size:10px; font-weight:700;
+  background:#dbeafe; color:#1d4ed8; border:1px solid #93c5fd; letter-spacing:.3px;
+}
+.remark-schaeffler {
+  display:inline-block; padding:2px 8px; border-radius:4px; font-size:10px; font-weight:700;
+  background:#fff7ed; color:#c2410c; border:1px solid #fdba74; letter-spacing:.3px;
+}
+
+/* ── Placeholder ── */
+.placeholder { padding:50px 20px; text-align:center; color:var(--muted); }
+.placeholder-icon { font-size:44px; margin-bottom:10px; }
+</style>
+<script src="auth.js"></script>
+<script src="bukrs.js"></script>
+<script src="cockpit-bar.js"></script>
+</head>
+<body>
+<div class="wrap">
+
+<!-- ── Header ── -->
+<div class="page-header">
+  <div class="hdr-icon">📊</div>
+  <div style="flex:1;">
+    <div class="hdr-title">AP-Aging Report</div>
+    <div class="hdr-sub">Reporting · Kreditoren-Fälligkeitsanalyse · FBL1N · ohne Catensys-Intern &amp; Schaeffler</div>
+  </div>
+  <div id="statusTag"></div>
+</div>
+
+<!-- ── Source Selector ── -->
+<div class="src-tabs">
+  <button class="src-tab active" onclick="switchSource('sap')" id="srcSap">
+    🔌 SAP Direktimport (FBL1N)
+  </button>
+  <button class="src-tab" onclick="switchSource('excel')" id="srcExcel">
+    📂 Excel-Upload
+  </button>
+  <button class="src-tab" onclick="switchSource('hist')" id="srcHist">
+    📚 Importhistorie
+  </button>
+</div>
+
+<!-- ═══════ SAP IMPORT PANEL ═══════════════════════════════════════════════ -->
+<div id="panelSap">
+  <div class="sap-form">
+    <div class="form-title">🔌 FBL1N Selektionsparameter</div>
+
+    <!-- Row 1: Buchungskreise -->
+    <div style="margin-bottom:16px;">
+      <div class="form-label" style="margin-bottom:8px;">Buchungskreis</div>
+      <div class="bukrs-grid" id="bukrsGrid"></div>
+    </div>
+
+    <!-- Row 2: Stichtag + Optionen -->
+    <div class="form-grid" style="margin-bottom:18px;">
+      <div class="form-group">
+        <label class="form-label">Stichtag (Open at key date)</label>
+        <input class="form-input" type="date" id="sapKeyDate" value="2026-06-30">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Layout</label>
+        <select class="form-select" id="sapLayout">
+          <option value="/Catensys">/Catensys (Standard)</option>
+          <option value="default">Standard SAP</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Zeitraum (Monate zurück)</label>
+        <select class="form-select" id="sapMonthsBack">
+          <option value="12">12 Monate</option>
+          <option value="24">24 Monate</option>
+          <option value="36" selected>36 Monate (Standard)</option>
+          <option value="60">60 Monate</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">&nbsp;</label>
+        <button class="btn btn-primary" id="btnSapImport" onclick="startSapImport()">
+          ▶ SAP Import starten
+        </button>
+      </div>
+    </div>
+
+    <!-- Row 3: Type checkboxes (wie FBL1N) -->
+    <div style="border-top:1px solid var(--border);padding-top:14px;">
+      <div class="form-label" style="margin-bottom:8px;">Typ (Type)</div>
+      <div class="checks-row">
+        <label class="check-item">
+          <input type="checkbox" id="chkNormal" checked>
+          <span class="check-label">☑ Normal items</span>
+        </label>
+        <label class="check-item">
+          <input type="checkbox" id="chkSpecialGL" checked>
+          <span class="check-label">☑ Special G/L transactions</span>
+        </label>
+        <label class="check-item">
+          <input type="checkbox" id="chkNoted" disabled>
+          <span class="check-label" style="color:var(--muted);">Noted items (n/a)</span>
+        </label>
+        <label class="check-item">
+          <input type="checkbox" id="chkParked" disabled>
+          <span class="check-label" style="color:var(--muted);">Parked items (n/a)</span>
+        </label>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════ EXCEL UPLOAD PANEL ═══════════════════════════════════════════════ -->
+<div id="panelExcel" style="display:none;">
+  <div class="upload-zone" id="uploadZone">
+    <input type="file" id="fileInput" accept=".xlsx,.xls" onchange="handleFile(this.files[0])">
+    <div class="upload-icon">📂</div>
+    <div class="upload-title">Excel-Datei hochladen</div>
+    <div class="upload-sub">Benötigt Sheet <strong>AP-Kreditoren-30-06-2026</strong> (+ optional <strong>Suppliers</strong>)</div>
+    <div style="margin-top:12px;padding:5px 14px;display:inline-flex;align-items:center;gap:6px;
+                border-radius:7px;border:1px solid rgba(249,115,22,.4);background:rgba(249,115,22,.1);
+                font-size:12px;font-weight:600;color:var(--rp);">
+      📎 Datei hierher ziehen oder klicken
+    </div>
+  </div>
+</div>
+
+<!-- ═══════ HISTORIEN-PANEL ═══════════════════════════════════════════════════ -->
+<div id="panelHist" style="display:none;margin-bottom:16px;">
+  <div class="tbl-wrap">
+    <div class="tbl-toolbar">
+      <div class="tbl-title">📚 Gespeicherte AP-Aging Importe</div>
+      <button class="btn btn-ghost btn-sm" onclick="loadHistory()">↺ Aktualisieren</button>
+    </div>
+    <div class="tbl-scroll">
+      <table id="tblHist">
+        <thead><tr>
+          <th>ID</th>
+          <th>Stichtag</th>
+          <th>Buchungskreise</th>
+          <th class="num">Posten</th>
+          <th>SAP-System</th>
+          <th>Benutzer</th>
+          <th>Gespeichert am</th>
+          <th></th>
+        </tr></thead>
+        <tbody id="bodyHist">
+          <tr><td colspan="8"><div class="placeholder"><div class="placeholder-icon">📚</div>Noch keine gespeicherten Importe</div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ── Progress ── -->
+<div class="progress-wrap" id="progressWrap">
+  <div class="progress-label" id="progressLabel">Importiere...</div>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+</div>
+
+<!-- ── Report Toolbar (Filter + Export) ── -->
+<div class="report-bar" id="reportBar">
+  <label style="font-size:11px;color:var(--muted);font-weight:600;">BuKr:</label>
+  <select id="filterBukrs" onchange="applyFilters()">
+    <option value="">Alle</option>
+  </select>
+  <label style="font-size:11px;color:var(--muted);font-weight:600;">G/L:</label>
+  <select id="filterGl" onchange="applyFilters()">
+    <option value="">Alle</option>
+  </select>
+  <label style="font-size:11px;color:var(--muted);font-weight:600;">Stichtag:</label>
+  <input type="text" id="showStichtag" readonly
+    style="width:90px;padding:5px 9px;border-radius:7px;border:1px solid var(--border);
+           background:var(--bg3);color:var(--text);font-size:12px;">
+  <div style="flex:1;"></div>
+  <button class="btn btn-primary btn-sm" id="btnSaveDb" onclick="saveToDb()" style="display:none;">💾 In DB speichern</button>
+  <button class="btn btn-green btn-sm" onclick="exportExcel()">⬇ Excel exportieren</button>
+  <button class="btn btn-ghost btn-sm" onclick="resetAll()">↺ Neu laden</button>
+</div>
+
+<!-- ── KPI Grid ── -->
+<div class="kpi-grid" id="kpiGrid">
+  <div class="kpi-card" style="--kc:#f97316">
+    <div class="kpi-label">Offene Posten</div>
+    <div class="kpi-value" id="kpiRows">—</div>
+    <div class="kpi-sub">ohne Catensys-Intern</div>
+  </div>
+  <div class="kpi-card" style="--kc:#3b82f6">
+    <div class="kpi-label">Fällig &lt;30 Tage</div>
+    <div class="kpi-value" id="kpiD30">—</div>
+    <div class="kpi-sub">EUR</div>
+  </div>
+  <div class="kpi-card" style="--kc:#f59e0b">
+    <div class="kpi-label">Fällig ≥30 Tage</div>
+    <div class="kpi-value" id="kpiD60">—</div>
+    <div class="kpi-sub">EUR</div>
+  </div>
+  <div class="kpi-card" style="--kc:#ef4444">
+    <div class="kpi-label">Fällig &gt;60 Tage</div>
+    <div class="kpi-value" id="kpiD90">—</div>
+    <div class="kpi-sub">EUR</div>
+  </div>
+  <div class="kpi-card" style="--kc:#8b5cf6">
+    <div class="kpi-label">Fällig &gt;90 Tage</div>
+    <div class="kpi-value" id="kpiD90p">—</div>
+    <div class="kpi-sub">EUR</div>
+  </div>
+</div>
+
+<!-- ── Result Tabs ── -->
+<div class="tab-bar" id="tabBar">
+  <button class="tab-btn active" onclick="switchTab('gl')" id="tabGl">
+    📋 GL-Abstimmung <span class="tab-cnt" id="cntGl">0</span>
+  </button>
+  <button class="tab-btn" onclick="switchTab('sup')" id="tabSup">
+    🏭 Kreditoren <span class="tab-cnt" id="cntSup">0</span>
+  </button>
+  <button class="tab-btn" onclick="switchTab('raw')" id="tabRaw">
+    🗃 Einzelposten <span class="tab-cnt" id="cntRaw">0</span>
+  </button>
+</div>
+
+<!-- ── GL-Abstimmung ── -->
+<div id="panelGl">
+  <div class="tbl-wrap">
+    <div class="tbl-toolbar">
+      <div class="tbl-title">Aging AP — GL-Abstimmung per <span id="titleGlDate">—</span></div>
+      <input class="search-box" placeholder="G/L-Konto suchen…" oninput="filterGlTable(this.value)">
+    </div>
+    <div class="tbl-scroll">
+      <table id="tblGl">
+        <thead><tr>
+          <th onclick="sortTable('gl',0)">G/L-Konto</th>
+          <th onclick="sortTable('gl',1)">Währung</th>
+          <th class="num" onclick="sortTable('gl',2)">Fällig &lt;30 Tage</th>
+          <th class="num" onclick="sortTable('gl',3)">Fällig ≥30 Tage</th>
+          <th class="num" onclick="sortTable('gl',4)">Fällig &gt;60 Tage</th>
+          <th class="num" onclick="sortTable('gl',5)">Fällig &gt;90 Tage</th>
+          <th class="num" onclick="sortTable('gl',6)">Gesamt</th>
+        </tr></thead>
+        <tbody id="bodyGl"><tr><td colspan="7"><div class="placeholder"><div class="placeholder-icon">🔌</div>Daten aus SAP importieren oder Excel-Datei hochladen</div></td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ── Kreditoren ── -->
+<div id="panelSup" style="display:none;">
+  <div class="tbl-wrap">
+    <div class="tbl-toolbar">
+      <div class="tbl-title">Aging AP — Kreditoren per <span id="titleSupDate">—</span></div>
+      <input class="search-box" placeholder="Lieferant suchen…" oninput="filterSupTable(this.value)">
+    </div>
+    <div class="tbl-scroll">
+      <table id="tblSup">
+        <thead><tr>
+          <th onclick="sortTable('sup',0)">Lieferant</th>
+          <th onclick="sortTable('sup',1)">Währung</th>
+          <th class="num" onclick="sortTable('sup',2)">Fällig &lt;30 Tage</th>
+          <th class="num" onclick="sortTable('sup',3)">Fällig ≥30 Tage</th>
+          <th class="num" onclick="sortTable('sup',4)">Fällig &gt;60 Tage</th>
+          <th class="num" onclick="sortTable('sup',5)">Fällig &gt;90 Tage</th>
+          <th class="num" onclick="sortTable('sup',6)">Gesamt</th>
+        </tr></thead>
+        <tbody id="bodySup"><tr><td colspan="7"><div class="placeholder">Daten importieren</div></td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ── Einzelposten ── -->
+<div id="panelRaw" style="display:none;">
+  <div class="tbl-wrap">
+    <div class="tbl-toolbar">
+      <div class="tbl-title">Einzelposten — Alle AP-Posten (inkl. Catensys-Intern &amp; Schaeffler-Group)</div>
+      <input class="search-box" placeholder="Suchen…" oninput="filterRawTable(this.value)">
+    </div>
+    <div class="tbl-scroll">
+      <table id="tblRaw">
+        <thead><tr>
+          <th onclick="sortTable('raw',0)">BuKr</th>
+          <th onclick="sortTable('raw',1)">G/L</th>
+          <th onclick="sortTable('raw',2)">Konto</th>
+          <th onclick="sortTable('raw',3)">Lieferant</th>
+          <th onclick="sortTable('raw',4)">Belegnr.</th>
+          <th onclick="sortTable('raw',5)">Art</th>
+          <th onclick="sortTable('raw',6)">Belegdatum</th>
+          <th onclick="sortTable('raw',7)">Fällig Dat.</th>
+          <th class="num" onclick="sortTable('raw',8)">Tage</th>
+          <th class="num" onclick="sortTable('raw',9)">&lt;30 Tage</th>
+          <th class="num" onclick="sortTable('raw',10)">≥30 Tage</th>
+          <th class="num" onclick="sortTable('raw',11)">&gt;60 Tage</th>
+          <th class="num" onclick="sortTable('raw',12)">&gt;90 Tage</th>
+          <th onclick="sortTable('raw',13)">Bemerkung</th>
+        </tr></thead>
+        <tbody id="bodyRaw"><tr><td colspan="14"><div class="placeholder">Daten importieren</div></td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+</div><!-- /wrap -->
+<script>
+var ORC = window.location.origin;
+
+// ── State ─────────────────────────────────────────────────────────────────────
+var _rawData = [], _glData = [], _supData = [];
+var _glFilt  = [], _supFilt = [], _rawFilt = [];
+var _stichtag = '';
+var _activeTab = 'gl';
+var _sorts = { gl:{col:-1,asc:true}, sup:{col:-1,asc:true}, raw:{col:-1,asc:true} };
+var _currentSrc = 'sap';
+var _sapParams   = {};       // SAP-Importparameter des aktuellen Laufs
+var _isSapImport = false;    // true wenn aktuelle Daten frisch aus SAP (→ speicherbar)
+
+// ── Buchungskreis-Chips (aus bukrs.js) ────────────────────────────────────────
+var BUKRS_CODES = ['VV9','0334','0435','0436','0437','0438','0439','0440','0441'];
+var _selBukrs = new Set(BUKRS_CODES);
+
+function buildBukrsGrid() {
+  var grid = document.getElementById('bukrsGrid');
+  if (!grid) return;
+  var allSel = _selBukrs.size === BUKRS_CODES.length;
+  var html = '<span class="bukrs-chip bukrs-chip-all ' + (allSel?'sel':'') + '" onclick="toggleAllBukrs()">' +
+    (allSel ? '✓' : '○') + ' Alle</span>';
+  BUKRS_CODES.forEach(function(b) {
+    var name = '';
+    if (window.YCONN && YCONN.getBukrsName) name = YCONN.getBukrsName(b);
+    var sel = _selBukrs.has(b);
+    html += '<span class="bukrs-chip ' + (sel?'sel':'') + '" onclick="toggleBukrs(\'' + b + '\')" title="' + name + '">' +
+      (sel ? '✓' : '○') + ' ' + b + '</span>';
+  });
+  grid.innerHTML = html;
+}
+
+function toggleBukrs(code) {
+  if (_selBukrs.has(code)) _selBukrs.delete(code); else _selBukrs.add(code);
+  buildBukrsGrid();
+}
+function toggleAllBukrs() {
+  if (_selBukrs.size === BUKRS_CODES.length) _selBukrs.clear();
+  else BUKRS_CODES.forEach(function(b){ _selBukrs.add(b); });
+  buildBukrsGrid();
+}
+
+// Init chips
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', buildBukrsGrid);
+} else {
+  buildBukrsGrid();
+}
+
+// ── Source Switch ─────────────────────────────────────────────────────────────
+function switchSource(src) {
+  _currentSrc = src;
+  document.getElementById('panelSap').style.display   = src==='sap'   ? '' : 'none';
+  document.getElementById('panelExcel').style.display = src==='excel' ? '' : 'none';
+  document.getElementById('panelHist').style.display  = src==='hist'  ? '' : 'none';
+  document.getElementById('srcSap').classList.toggle('active',   src==='sap');
+  document.getElementById('srcExcel').classList.toggle('active', src==='excel');
+  document.getElementById('srcHist').classList.toggle('active',  src==='hist');
+  if (src === 'hist') loadHistory();
+}
+
+// ── SAP Import ────────────────────────────────────────────────────────────────
+function startSapImport() {
+  var keyDate = document.getElementById('sapKeyDate').value;
+  if (!keyDate) { alert('Bitte Stichtag eingeben.'); return; }
+  if (_selBukrs.size === 0) { alert('Bitte mindestens einen Buchungskreis wählen.'); return; }
+
+  var normal   = document.getElementById('chkNormal').checked;
+  var specialGl= document.getElementById('chkSpecialGL').checked;
+  var monthsBack = parseInt(document.getElementById('sapMonthsBack').value, 10);
+
+  if (!normal && !specialGl) { alert('Bitte mindestens einen Typ auswählen (Normal / Special G/L).'); return; }
+
+  setProgress(true, 'Verbindung zu SAP wird hergestellt…', 5);
+  setStatus('SAP-Import läuft…', 'warn');
+  document.getElementById('btnSapImport').disabled = true;
+
+  // Parameter für späteren DB-Save merken
+  _sapParams = {
+    bukrs_list:   Array.from(_selBukrs).join(','),
+    key_date:     keyDate,
+    normal_items: normal,
+    special_gl:   specialGl,
+    months_back:  monthsBack,
+  };
+
+  var body = JSON.stringify({
+    bukrs:        _sapParams.bukrs_list,
+    key_date:     keyDate,
+    normal_items: normal,
+    special_gl:   specialGl,
+    months_back:  monthsBack,
+  });
+
+  // Simulated progress steps
+  var pTicker = 0;
+  var pInterval = setInterval(function() {
+    pTicker += 3;
+    var p = Math.min(85, 10 + pTicker);
+    var labels = [
+      'Verbindung zu SAP…','Lese BSIK (offene Posten)…','Lese BSAK (historisch offen)…',
+      'Lieferantennamen aus LFA1…','Berechne Aging-Buckets…','Daten werden aufbereitet…'
+    ];
+    var li = Math.min(Math.floor(pTicker/15), labels.length-1);
+    setProgress(true, labels[li], p);
+  }, 800);
+
+  fetch(ORC + '/ap-aging/import', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: body,
+  })
+  .then(function(r) {
+    clearInterval(pInterval);
+    if (!r.ok) return r.text().then(function(t){ throw new Error(t); });
+    return r.json();
+  })
+  .then(function(data) {
+    setProgress(true, 'Daten werden aufbereitet…', 95);
+    setTimeout(function() {
+      setProgress(false, '', 0);
+      _isSapImport = true;
+      processSapData(data);
+      document.getElementById('btnSapImport').disabled = false;
+    }, 300);
+  })
+  .catch(function(err) {
+    clearInterval(pInterval);
+    setProgress(false, '', 0);
+    document.getElementById('btnSapImport').disabled = false;
+    setStatus('SAP-Fehler: ' + err.message, 'err');
+    alert('SAP-Import fehlgeschlagen:\n' + err.message);
+  });
+}
+
+function processSapData(data) {
+  _stichtag = data.stichtag || data.key_date || '';
+  var items = data.items || [];
+
+  _rawData = items.map(function(r) {
+    return {
+      bukrs:   r.bukrs||'', gl: r.hkont||r.gl||'',
+      account: r.lifnr||r.account||'',
+      sup:     r.supplier_name||r.sup||'',
+      docnum:  r.belnr||r.docnum||'',
+      dtype:   r.blart||r.dtype||'',
+      docdate: r.bldat||r.docdate||'',
+      duedate: r.zfbdt||r.duedate||'',
+      days:    numOrZero(r.days),
+      bemerkung: (function(s,rem){var sl=String(s||'').toLowerCase(),rl=String(rem||'').toLowerCase();if(sl.indexOf('schaeffler')>=0||rl.indexOf('schaeffler')>=0)return 'Schaeffler-Group';if(sl.indexOf('catensys')>=0||rl.indexOf('catensys')>=0)return 'Catensys-Intern';return null;})(r.supplier||'',r.remark||''),
+      d30:     numOrZero(r.d30), d60: numOrZero(r.d60),
+      d90:     numOrZero(r.d90), d90p: numOrZero(r.d90p),
+    };
+  });
+
+  // Filter: remark = null (offene Posten, ohne Catensys-intern/Schaeffler)
+  _rawData = _rawData.filter(function(r){ return !r.remark; });
+
+  finishProcessing('SAP', data.count || items.length);
+}
+
+// ── Excel Upload ──────────────────────────────────────────────────────────────
+var zone = document.getElementById('uploadZone');
+if (zone) {
+  zone.addEventListener('dragover',  function(e){ e.preventDefault(); zone.classList.add('drag-over'); });
+  zone.addEventListener('dragleave', function()  { zone.classList.remove('drag-over'); });
+  zone.addEventListener('drop', function(e) {
+    e.preventDefault(); zone.classList.remove('drag-over');
+    var f = e.dataTransfer.files[0]; if (f) handleFile(f);
+  });
+}
+
+function handleFile(file) {
+  if (!file) return;
+  setProgress(true, 'Excel-Datei wird gelesen…', 10);
+  setStatus('Datei wird verarbeitet…','warn');
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    setProgress(true, 'Sheets werden geparst…', 50);
+    try {
+      var wb = XLSX.read(e.target.result, {type:'array', cellDates:true});
+      var apName = wb.SheetNames.find(function(n){
+        return n.toLowerCase().replace(/[^a-z0-9]/g,'').indexOf('apkreditoren') >= 0
+            || n.toLowerCase().indexOf('kreditoren') >= 0;
+      });
+      if (!apName) throw new Error('Sheet "AP-Kreditoren-30-06-2026" nicht gefunden.\nSheets: '+wb.SheetNames.join(', '));
+      setProgress(true, 'Daten werden berechnet…', 75);
+      var rows = XLSX.utils.sheet_to_json(wb.Sheets[apName], {header:1,raw:true,defval:null});
+      processExcelRows(rows, file.name);
+    } catch(err) {
+      setProgress(false,'',0);
+      setStatus('Fehler: '+err.message,'err');
+      alert('Fehler:\n'+err.message);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// COL wird dynamisch aus dem Header der Excel-Datei ermittelt (kein fixer Index)
+var COL = {};
+
+function _buildColMap(headerRow) {
+  // Normiert Spaltennamen: Leerzeichen, Sonderzeichen, Groß/Klein ignorieren
+  var norm = function(s){ return String(s||'').toLowerCase().replace(/[^a-z0-9]/g,''); };
+  var map = {};
+  headerRow.forEach(function(v, i){ map[norm(v)] = i; });
+  // Mapping: interner Schlüssel → normierter SAP-Spaltenname (Alternativen)
+  var NAMES = {
+    BUKRS:    ['companycode','buchungskreis'],
+    GL:       ['glaccount','sachkonto'],
+    ACCOUNT:  ['account'],
+    SUPPLIER: ['suppliername','kreditorname','lieferantname'],
+    DOCNUM:   ['documentnumber','belegnummer'],
+    DOCTYPE:  ['documenttype','belegart'],
+    DOCDATE:  ['documentdate','belegdatum'],
+    DUEDATE:  ['netduedate','faelligkeitsdatum'],
+    DAYS:     ['days','tage'],
+    REMARK:   ['remark','bemerkung'],
+    AMT2:     ['amountinloccurr2','betraginhauswhr2','amountinlocalcurrency2'],
+    CURR2:    ['localcurrency2','hauswhrung2','localcurrency2'],
+    D30:      ['30days','fällig30days','30tage'],
+    D60:      ['30days','30days'],   // wird unten überschrieben
+    D90:      ['60days'],
+    D90P:     ['90days'],
+    STICHTAG: ['stichtag','keydate'],
+  };
+  // Direkte Suche nach bekannten SAP-Exportnamen
+  function findCol(aliases) {
+    for (var a = 0; a < aliases.length; a++) {
+      var k = aliases[a].replace(/[^a-z0-9]/g,'');
+      if (map[k] !== undefined) return map[k];
+    }
+    return -1;
+  }
+  // Aging-Bucket Spalten anhand exakter Spaltennamen
+  var d30=-1, d60=-1, d90=-1, d90p=-1;
+  headerRow.forEach(function(v, i){
+    var n = norm(v);
+    if (n === '30days')  { d30 = i; }
+    if (n === '30days')  { /* >=30 wird separat erkannt */ }
+    if (n === '60days')  { d90 = i; }
+    if (n === '90days')  { d90p = i; }
+  });
+  // Präzisere Erkennung über den Originalwert (< vs. >= Präfix)
+  headerRow.forEach(function(v, i){
+    var s = String(v||'').trim();
+    if (/^[<＜]\s*30/i.test(s))  d30  = i;
+    if (/^[=>]{1,2}\s*30/i.test(s) && !/^[<＜]/i.test(s)) d60 = i;
+    if (/^>\s*60/i.test(s))      d90  = i;
+    if (/^>\s*90/i.test(s))      d90p = i;
+  });
+  return {
+    BUKRS:    findCol(['companycode','buchungskreis']),
+    GL:       findCol(['glaccount','glaccount','sachkonto']),
+    ACCOUNT:  findCol(['account']),
+    SUPPLIER: findCol(['suppliername','lieferantname']),
+    DOCNUM:   findCol(['documentnumber','belegnummer']),
+    DOCTYPE:  findCol(['documenttype','belegart']),
+    DOCDATE:  findCol(['documentdate','belegdatum']),
+    DUEDATE:  findCol(['netduedate','netduedate']),
+    DAYS:     findCol(['days','tage']),
+    REMARK:   findCol(['remark','bemerkung']),
+    AMT2:     findCol(['amountinloccurr2','amountinlocalcurrency2']),
+    CURR2:    findCol(['localcurrency2','hauswhrung2']),
+    D30:  d30,
+    D60:  d60,
+    D90:  d90,
+    D90P: d90p,
+  };
+}
+
+function processExcelRows(rows, filename) {
+  _isSapImport = false;
+
+  var hdr = rows[0] || [];
+
+  // Spalten dynamisch ermitteln
+  COL = _buildColMap(hdr);
+
+  // Stichtag: suche Datum im Header (Spalte 38–45)
+  _stichtag = '';
+  for (var c = 35; c < Math.min(hdr.length, 50); c++) {
+    var v = hdr[c];
+    if (v instanceof Date) { _stichtag = fmtDate(v); break; }
+    if (typeof v === 'number' && v > 40000) { _stichtag = fmtExcelDate(v); break; }
+    if (typeof v === 'string' && /\d{4}-\d{2}-\d{2}/.test(v)) {
+      var m = v.match(/(\d{4})-(\d{2})-(\d{2})/);
+      if (m) { _stichtag = m[3]+'.'+m[2]+'.'+m[1]; break; }
+    }
+  }
+  if (!_stichtag) _stichtag = '30.06.2026';
+
+  // Warnung wenn kritische Spalten nicht gefunden
+  var missing = [];
+  ['BUKRS','GL','ACCOUNT','SUPPLIER','DOCNUM','REMARK','D30','D60','D90','D90P'].forEach(function(k){
+    if (COL[k] < 0) missing.push(k);
+  });
+  if (missing.length) {
+    console.warn('AP-Aging: Spalten nicht gefunden:', missing, '\nHeader:', hdr.slice(0,42));
+  }
+
+  var totalRows = 0, filteredCurr = 0;
+  _rawData = [];
+
+  // Hilfsfunktion: Bemerkung aus Lieferantenname ableiten
+  function _calcBemerkung(supName, sapRemark) {
+    var s = String(supName||'').toLowerCase();
+    var r = String(sapRemark||'').toLowerCase();
+    if (s.indexOf('schaeffler') >= 0 || r.indexOf('schaeffler') >= 0) return 'Schaeffler-Group';
+    if (s.indexOf('catensys')   >= 0 || r.indexOf('catensys')   >= 0) return 'Catensys-Intern';
+    return null;
+  }
+
+  for (var i = 1; i < rows.length; i++) {
+    var row = rows[i];
+    if (!row || row.every(function(x){ return x===null||x===undefined||x===''; })) continue;
+    totalRows++;
+
+    // Währungsfilter: nur Currency 2 = EUR
+    var curr2 = COL.CURR2 >= 0 ? String(row[COL.CURR2]||'').trim() : 'EUR';
+    if (curr2 && curr2 !== 'EUR') { filteredCurr++; continue; }
+
+    var supName = COL.SUPPLIER >= 0 ? String(row[COL.SUPPLIER]||'').trim() : '';
+    var sapRem  = COL.REMARK   >= 0 ? row[COL.REMARK] : null;
+    var bemerkung = _calcBemerkung(supName, sapRem);
+
+    var docnum = COL.DOCNUM >= 0 ? String(row[COL.DOCNUM]||'').trim() : '';
+    var acct   = COL.ACCOUNT >= 0 ? String(row[COL.ACCOUNT]||'').trim() : '';
+    var d30v = COL.D30 >= 0 ? numOrZero(row[COL.D30]) : 0;
+    var d60v = COL.D60 >= 0 ? numOrZero(row[COL.D60]) : 0;
+    var d90v = COL.D90 >= 0 ? numOrZero(row[COL.D90]) : 0;
+    var d90pv= COL.D90P>= 0 ? numOrZero(row[COL.D90P]): 0;
+
+    _rawData.push({
+      bukrs:    COL.BUKRS   >= 0 ? String(row[COL.BUKRS]  ||'').trim() : '',
+      gl:       COL.GL      >= 0 ? String(row[COL.GL]     ||'').trim() : '',
+      account:  acct,
+      sup:      supName,
+      docnum:   docnum,
+      dtype:    COL.DOCTYPE >= 0 ? String(row[COL.DOCTYPE]||'').trim() : '',
+      docdate:  COL.DOCDATE >= 0 ? fmtDateVal(row[COL.DOCDATE]) : '',
+      duedate:  COL.DUEDATE >= 0 ? fmtDateVal(row[COL.DUEDATE]) : '',
+      days:     COL.DAYS    >= 0 ? numOrZero(row[COL.DAYS]) : 0,
+      amt2:     COL.AMT2    >= 0 ? numOrZero(row[COL.AMT2]) : 0,
+      bemerkung: bemerkung,
+      d30: d30v, d60: d60v, d90: d90v, d90p: d90pv,
+    });
+  }
+
+  var openCount = _rawData.filter(function(r){return !r.bemerkung;}).length;
+  console.log('AP-Aging Import: total='+totalRows+' curr-gefiltert='+filteredCurr+
+    ' gesamt='+_rawData.length+' offene='+openCount);
+
+  setProgress(true, 'Reports werden erstellt…', 90);
+  setTimeout(function() {
+    setProgress(false,'',0);
+    finishProcessing(filename, totalRows);
+  }, 200);
+}
+
+// ── Common: finishProcessing ──────────────────────────────────────────────────
+function finishProcessing(source, totalCount) {
+  // Pivot GL + Supplier: nur offene Posten (ohne Catensys/Schaeffler)
+  var _openData = _rawData.filter(function(r){ return !r.bemerkung; });
+  var glMap = {}, supMap = {};
+  _openData.forEach(function(r) {
+    if (r.gl) {
+      if (!glMap[r.gl]) glMap[r.gl] = {gl:r.gl,cur:'EUR',d30:0,d60:0,d90:0,d90p:0};
+      glMap[r.gl].d30+=r.d30; glMap[r.gl].d60+=r.d60; glMap[r.gl].d90+=r.d90; glMap[r.gl].d90p+=r.d90p;
+    }
+    if (r.sup) {
+      if (!supMap[r.sup]) supMap[r.sup] = {sup:r.sup,cur:'EUR',d30:0,d60:0,d90:0,d90p:0};
+      supMap[r.sup].d30+=r.d30; supMap[r.sup].d60+=r.d60; supMap[r.sup].d90+=r.d90; supMap[r.sup].d90p+=r.d90p;
+    }
+  });
+  _glData  = Object.values(glMap).sort(function(a,b){ return a.gl.localeCompare(b.gl); });
+  _supData = Object.values(supMap).sort(function(a,b){ return a.sup.localeCompare(b.sup); });
+  _glFilt  = _glData.slice();
+  _supFilt = _supData.slice();
+  _rawFilt = _rawData.slice();  // raw zeigt ALLE Zeilen (inkl. Catensys/Schaeffler)
+
+  // Populate filter dropdowns
+  var bukrsSet = {};
+  _openData.forEach(function(r){ bukrsSet[r.bukrs]=1; });
+  var fb = document.getElementById('filterBukrs');
+  fb.innerHTML = '<option value="">Alle Buchungskreise</option>';
+  Object.keys(bukrsSet).sort().forEach(function(b){ fb.innerHTML+='<option>'+b+'</option>'; });
+
+  var fg = document.getElementById('filterGl');
+  fg.innerHTML = '<option value="">Alle G/L-Konten</option>';
+  _glData.forEach(function(r){ fg.innerHTML+='<option>'+r.gl+'</option>'; });
+
+  document.getElementById('showStichtag').value = _stichtag;
+  document.getElementById('titleGlDate').textContent  = _stichtag;
+  document.getElementById('titleSupDate').textContent = _stichtag;
+
+  // Show UI
+  document.getElementById('reportBar').style.display = 'flex';
+  document.getElementById('kpiGrid').style.display   = 'grid';
+  document.getElementById('tabBar').style.display    = 'flex';
+  document.getElementById('btnSaveDb').style.display = _isSapImport ? '' : 'none';
+
+  var _openData2 = _rawData.filter(function(r){ return !r.bemerkung; });
+  updateKPIs(_openData2);
+  renderGl(_glData); renderSup(_supData); renderRaw(_rawData);
+  document.getElementById('cntGl').textContent  = _glData.length;
+  document.getElementById('cntSup').textContent = _supData.length;
+  document.getElementById('cntRaw').textContent = _rawData.length;
+
+  setStatus('✓ ' + source + ' — ' + _openData2.length + ' offene Posten + ' +
+    (_rawData.length - _openData2.length) + ' Intercompany (gesamt: '+_rawData.length+')', 'ok');
+}
+
+// ── Filters ───────────────────────────────────────────────────────────────────
+function applyFilters() {
+  var bukrs = document.getElementById('filterBukrs').value;
+  var gl    = document.getElementById('filterGl').value;
+
+  _rawFilt = _rawData.filter(function(r){
+    return (!bukrs||r.bukrs===bukrs) && (!gl||r.gl===gl);
+  });
+
+  var glMap={},supMap={};
+  _rawFilt.forEach(function(r){
+    if(r.gl){ if(!glMap[r.gl]) glMap[r.gl]={gl:r.gl,cur:'EUR',d30:0,d60:0,d90:0,d90p:0}; glMap[r.gl].d30+=r.d30;glMap[r.gl].d60+=r.d60;glMap[r.gl].d90+=r.d90;glMap[r.gl].d90p+=r.d90p; }
+    if(r.sup){ if(!supMap[r.sup]) supMap[r.sup]={sup:r.sup,cur:'EUR',d30:0,d60:0,d90:0,d90p:0}; supMap[r.sup].d30+=r.d30;supMap[r.sup].d60+=r.d60;supMap[r.sup].d90+=r.d90;supMap[r.sup].d90p+=r.d90p; }
+  });
+  _glFilt  = Object.values(glMap).sort(function(a,b){return a.gl.localeCompare(b.gl);});
+  _supFilt = Object.values(supMap).sort(function(a,b){return a.sup.localeCompare(b.sup);});
+  updateKPIs(_rawFilt);
+  renderGl(_glFilt); renderSup(_supFilt); renderRaw(_rawFilt);
+  document.getElementById('cntGl').textContent  = _glFilt.length;
+  document.getElementById('cntSup').textContent = _supFilt.length;
+  document.getElementById('cntRaw').textContent = _rawFilt.length;
+}
+
+// ── KPIs ──────────────────────────────────────────────────────────────────────
+function updateKPIs(data) {
+  var t30=0,t60=0,t90=0,t90p=0;
+  data.forEach(function(r){t30+=r.d30;t60+=r.d60;t90+=r.d90;t90p+=r.d90p;});
+  document.getElementById('kpiRows').textContent = data.length.toLocaleString('de-DE');
+  document.getElementById('kpiD30').textContent  = fmtKpi(t30);
+  document.getElementById('kpiD60').textContent  = fmtKpi(t60);
+  document.getElementById('kpiD90').textContent  = fmtKpi(t90);
+  document.getElementById('kpiD90p').textContent = fmtKpi(t90p);
+}
+
+// ── Render GL ─────────────────────────────────────────────────────────────────
+function renderGl(data) {
+  var body = document.getElementById('bodyGl');
+  if (!data.length) { body.innerHTML='<tr><td colspan="7"><div class="placeholder"><div class="placeholder-icon">🔍</div>Keine Daten</div></td></tr>'; return; }
+  var tot={d30:0,d60:0,d90:0,d90p:0};
+  var html = data.map(function(r){
+    var t=r.d30+r.d60+r.d90+r.d90p;
+    tot.d30+=r.d30;tot.d60+=r.d60;tot.d90+=r.d90;tot.d90p+=r.d90p;
+    return '<tr><td><span class="gl-badge">'+r.gl+'</span></td><td>'+(r.cur||'EUR')+'</td>'+
+      '<td class="num '+ac(r.d30)+'">'+fa(r.d30)+'</td>'+
+      '<td class="num '+ac(r.d60)+'">'+fa(r.d60)+'</td>'+
+      '<td class="num '+ac(r.d90)+'">'+fa(r.d90)+'</td>'+
+      '<td class="num '+ac(r.d90p)+'">'+fa(r.d90p)+'</td>'+
+      '<td class="num '+ac(t)+'"><strong>'+fa(t)+'</strong></td></tr>';
+  }).join('');
+  var gt=tot.d30+tot.d60+tot.d90+tot.d90p;
+  html+='<tr class="total-row"><td><strong>Gesamtergebnis</strong></td><td>EUR</td>'+
+    '<td class="num '+ac(tot.d30)+'">'+fa(tot.d30)+'</td>'+
+    '<td class="num '+ac(tot.d60)+'">'+fa(tot.d60)+'</td>'+
+    '<td class="num '+ac(tot.d90)+'">'+fa(tot.d90)+'</td>'+
+    '<td class="num '+ac(tot.d90p)+'">'+fa(tot.d90p)+'</td>'+
+    '<td class="num '+ac(gt)+'"><strong>'+fa(gt)+'</strong></td></tr>';
+  body.innerHTML = html;
+}
+
+// ── Render Supplier ───────────────────────────────────────────────────────────
+function renderSup(data) {
+  var body = document.getElementById('bodySup');
+  if (!data.length) { body.innerHTML='<tr><td colspan="7"><div class="placeholder"><div class="placeholder-icon">🔍</div>Keine Daten</div></td></tr>'; return; }
+  var tot={d30:0,d60:0,d90:0,d90p:0};
+  var html = data.map(function(r){
+    var t=r.d30+r.d60+r.d90+r.d90p;
+    tot.d30+=r.d30;tot.d60+=r.d60;tot.d90+=r.d90;tot.d90p+=r.d90p;
+    return '<tr><td style="max-width:260px;overflow:hidden;text-overflow:ellipsis;" title="'+esc(r.sup)+'">'+esc(r.sup)+'</td>'+
+      '<td>'+(r.cur||'EUR')+'</td>'+
+      '<td class="num '+ac(r.d30)+'">'+fa(r.d30)+'</td>'+
+      '<td class="num '+ac(r.d60)+'">'+fa(r.d60)+'</td>'+
+      '<td class="num '+ac(r.d90)+'">'+fa(r.d90)+'</td>'+
+      '<td class="num '+ac(r.d90p)+'">'+fa(r.d90p)+'</td>'+
+      '<td class="num '+ac(t)+'"><strong>'+fa(t)+'</strong></td></tr>';
+  }).join('');
+  var gt=tot.d30+tot.d60+tot.d90+tot.d90p;
+  html+='<tr class="total-row"><td><strong>Gesamtergebnis</strong></td><td>EUR</td>'+
+    '<td class="num '+ac(tot.d30)+'">'+fa(tot.d30)+'</td>'+
+    '<td class="num '+ac(tot.d60)+'">'+fa(tot.d60)+'</td>'+
+    '<td class="num '+ac(tot.d90)+'">'+fa(tot.d90)+'</td>'+
+    '<td class="num '+ac(tot.d90p)+'">'+fa(tot.d90p)+'</td>'+
+    '<td class="num '+ac(gt)+'"><strong>'+fa(gt)+'</strong></td></tr>';
+  body.innerHTML = html;
+}
+
+// ── Render Raw ────────────────────────────────────────────────────────────────
+function renderRaw(data) {
+  var body = document.getElementById('bodyRaw');
+  if (!data.length) { body.innerHTML='<tr><td colspan="14"><div class="placeholder"><div class="placeholder-icon">🔍</div>Keine Daten</div></td></tr>'; return; }
+  body.innerHTML = data.map(function(r){
+    var remarkHtml;
+    if (!r.bemerkung) {
+      remarkHtml = '<span class="zero">—</span>';
+    } else if (r.bemerkung.toLowerCase().indexOf('catensys') >= 0) {
+      remarkHtml = '<span class="remark-catensys">Catensys-Intern</span>';
+    } else if (r.bemerkung.toLowerCase().indexOf('schaeffler') >= 0) {
+      remarkHtml = '<span class="remark-schaeffler">Schaeffler-Group</span>';
+    } else {
+      remarkHtml = '<span class="remark-tag">'+esc(r.bemerkung)+'</span>';
+    }
+    return '<tr'+( r.bemerkung ? ' style="background:rgba(0,0,0,.03)"' : '')+'>'+
+      '<td>'+r.bukrs+'</td>'+
+      '<td><span class="gl-badge">'+r.gl+'</span></td>'+
+      '<td>'+r.account+'</td>'+
+      '<td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;" title="'+esc(r.sup)+'">'+esc(r.sup)+'</td>'+
+      '<td>'+r.docnum+'</td>'+
+      '<td>'+r.dtype+'</td>'+
+      '<td>'+r.docdate+'</td>'+
+      '<td>'+r.duedate+'</td>'+
+      '<td class="num">'+r.days+'</td>'+
+      '<td class="num '+ac(r.d30)+'">'+fa(r.d30)+'</td>'+
+      '<td class="num '+ac(r.d60)+'">'+fa(r.d60)+'</td>'+
+      '<td class="num '+ac(r.d90)+'">'+fa(r.d90)+'</td>'+
+      '<td class="num '+ac(r.d90p)+'">'+fa(r.d90p)+'</td>'+
+      '<td>'+remarkHtml+'</td>'+
+    '</tr>';
+  }).join('');
+}
+
+// ── Search ────────────────────────────────────────────────────────────────────
+function filterGlTable(q)  { q=q.toLowerCase(); renderGl(q?_glFilt.filter(function(r){return r.gl.toLowerCase().includes(q);}):_glFilt); }
+function filterSupTable(q) { q=q.toLowerCase(); renderSup(q?_supFilt.filter(function(r){return r.sup.toLowerCase().includes(q);}):_supFilt); }
+function filterRawTable(q) {
+  q=q.toLowerCase();
+  renderRaw(q?_rawFilt.filter(function(r){return r.sup.toLowerCase().includes(q)||r.gl.includes(q)||r.docnum.includes(q)||r.bukrs.includes(q)||(r.bemerkung&&r.bemerkung.toLowerCase().includes(q));}):_rawFilt);
+}
+
+// ── Sort ──────────────────────────────────────────────────────────────────────
+function sortTable(tbl, col) {
+  var st = _sorts[tbl];
+  if (st.col===col) st.asc=!st.asc; else {st.col=col;st.asc=true;}
+  var tblEl = document.getElementById('tbl'+tbl.charAt(0).toUpperCase()+tbl.slice(1));
+  tblEl.querySelectorAll('thead th').forEach(function(th,i){
+    th.className = th.className.replace(' sort-asc','').replace(' sort-desc','');
+    if (i===col) th.className += st.asc?' sort-asc':' sort-desc';
+  });
+  if (tbl==='gl') {
+    var d=_glFilt.slice(), keys=['gl','cur','d30','d60','d90','d90p'];
+    d.sort(function(a,b){return cmp(col<6?a[keys[col]]:a.d30+a.d60+a.d90+a.d90p, col<6?b[keys[col]]:b.d30+b.d60+b.d90+b.d90p,st.asc);});
+    renderGl(d);
+  } else if (tbl==='sup') {
+    var d2=_supFilt.slice(), keys2=['sup','cur','d30','d60','d90','d90p'];
+    d2.sort(function(a,b){return cmp(col<6?a[keys2[col]]:a.d30+a.d60+a.d90+a.d90p, col<6?b[keys2[col]]:b.d30+b.d60+b.d90+b.d90p,st.asc);});
+    renderSup(d2);
+  } else {
+    var d3=_rawFilt.slice(), rk=['bukrs','gl','account','sup','docnum','dtype','docdate','duedate','days','d30','d60','d90','d90p','remark'];
+    d3.sort(function(a,b){return cmp(a[rk[col]],b[rk[col]],st.asc);});
+    renderRaw(d3);
+  }
+}
+function cmp(a,b,asc){var r=(typeof a==='number'&&typeof b==='number')?a-b:String(a||'').localeCompare(String(b||''));return asc?r:-r;}
+
+// ── Tab Switch ────────────────────────────────────────────────────────────────
+function switchTab(tab) {
+  _activeTab=tab;
+  ['gl','sup','raw'].forEach(function(t){
+    var id=t.charAt(0).toUpperCase()+t.slice(1);
+    document.getElementById('tab'+id).classList.toggle('active',t===tab);
+    document.getElementById('panel'+id).style.display=t===tab?'block':'none';
+  });
+}
+
+// ── Excel Export (via Backend – openpyxl mit Farben) ─────────────────────────
+function exportExcel() {
+  if (!_glFilt.length && !_supFilt.length) { alert('Keine Daten zum Exportieren.'); return; }
+  var stichtag = _stichtag || '30.06.2026';
+  var bukrsVal = document.getElementById('filterBukrs').value || '(Mehrere Elemente)';
+
+  setStatus('⏳ Excel wird erstellt …', 'info');
+
+  var payload = {
+    stichtag: stichtag,
+    bukrs:    bukrsVal,
+    glData:   _glFilt,
+    supData:  _supFilt,
+    rawData:  _rawFilt
+  };
+
+  fetch(_ORCH + '/ap-aging/export-excel', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  })
+  .then(function(resp) {
+    if (!resp.ok) return resp.text().then(function(t){ throw new Error(t); });
+    return resp.blob();
+  })
+  .then(function(blob) {
+    var url  = URL.createObjectURL(blob);
+    var link = document.createElement('a');
+    link.href = url;
+    link.download = 'Aging_AP_' + stichtag.replace(/\./g,'-') + '_YCONN.xlsx';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    setStatus('✓ Excel exportiert (mit Formatierung)', 'ok');
+  })
+  .catch(function(err) {
+    console.error('Export-Fehler:', err);
+    setStatus('✗ Export fehlgeschlagen: ' + err.message, 'error');
+  });
+}
+
+// ── Reset ─────────────────────────────────────────────────────────────────────
+function resetAll() {
+  _rawData=[];_glData=[];_supData=[];_glFilt=[];_supFilt=[];_rawFilt=[];
+  _isSapImport=false; _sapParams={};
+  document.getElementById('reportBar').style.display='none';
+  document.getElementById('kpiGrid').style.display='none';
+  document.getElementById('tabBar').style.display='none';
+  document.getElementById('btnSaveDb').style.display='none';
+  document.getElementById('fileInput').value='';
+  document.getElementById('statusTag').innerHTML='';
+  renderGl([]);renderSup([]);renderRaw([]);
+  switchTab('gl');
+}
+
+
+// ── DB: In Datenbank speichern ────────────────────────────────────────────────
+function saveToDb() {
+  if (!_isSapImport || !_rawData.length) {
+    alert('Nur frisch aus SAP importierte Daten koennen gespeichert werden.'); return;
+  }
+  var btn = document.getElementById('btnSaveDb');
+  btn.disabled = true; btn.textContent = 'Speichern...';
+
+  var user = 'admin';
+  try { user = (window.AUTH && AUTH.getUser) ? AUTH.getUser() : (localStorage.getItem('yconn_user')||'admin'); } catch(e){}
+  var sapSystem = '';
+  try { var badge = document.getElementById('sapSystemBadge'); if(badge) sapSystem = badge.textContent.trim(); } catch(e){}
+
+  var body = JSON.stringify({
+    stichtag:     _sapParams.key_date || '',
+    stichtag_fmt: _stichtag || _sapParams.key_date || '',
+    bukrs_list:   _sapParams.bukrs_list || '',
+    normal_items: _sapParams.normal_items !== false,
+    special_gl:   _sapParams.special_gl !== false,
+    months_back:  _sapParams.months_back || 36,
+    sap_system:   sapSystem,
+    created_by:   user,
+    items:        _rawData,
+  });
+
+  fetch(ORC + '/ap-aging/imports', {method:'POST', headers:{'Content-Type':'application/json'}, body:body})
+  .then(function(r){ if(!r.ok) return r.text().then(function(t){throw new Error(t);}); return r.json(); })
+  .then(function(d) {
+    btn.disabled=false; btn.textContent='✓ Gespeichert';
+    setTimeout(function(){ btn.textContent='💾 In DB speichern'; }, 3000);
+    setStatus('✓ Import gespeichert — ' + (d.item_count||0) + ' Posten (ID: ' + d.id + ')', 'ok');
+  })
+  .catch(function(err) {
+    btn.disabled=false; btn.textContent='💾 In DB speichern';
+    alert('Speichern fehlgeschlagen:\n' + err.message);
+  });
+}
+
+// ── DB: Importhistorie laden ──────────────────────────────────────────────────
+function loadHistory() {
+  document.getElementById('bodyHist').innerHTML =
+    '<tr><td colspan="8" style="text-align:center;padding:20px;color:var(--muted);">Lade Historien...</td></tr>';
+
+  fetch(ORC + '/ap-aging/imports')
+  .then(function(r){ return r.json(); })
+  .then(function(runs) {
+    if (!runs || !runs.length) {
+      document.getElementById('bodyHist').innerHTML =
+        '<tr><td colspan="8"><div class="placeholder"><div class="placeholder-icon">📚</div>Noch keine gespeicherten Importe</div></td></tr>';
+      return;
+    }
+    var html = '';
+    runs.forEach(function(run) {
+      var dt = run.created_at ? String(run.created_at).slice(0,16).replace('T',' ') : '';
+      html += '<tr>' +
+        '<td style="font-variant-numeric:tabular-nums;">' + run.id + '</td>' +
+        '<td style="font-weight:600;">' + esc(run.stichtag_fmt || run.stichtag) + '</td>' +
+        '<td style="font-size:11px;">' + esc(run.bukrs_list||'') + '</td>' +
+        '<td class="num">' + (run.item_count||0).toLocaleString('de-DE') + '</td>' +
+        '<td>' + esc(run.sap_system||'') + '</td>' +
+        '<td>' + esc(run.created_by||'') + '</td>' +
+        '<td style="font-size:11px;color:var(--muted);">' + dt + '</td>' +
+        '<td style="white-space:nowrap;text-align:right;">' +
+          '<button class="btn btn-ghost btn-sm" onclick="loadHistoryRun(' + run.id + ')" ' +
+            'style="font-size:11px;padding:2px 9px;margin-right:4px;">📂 Laden</button>' +
+          '<button onclick="deleteHistoryRun(' + run.id + ')" ' +
+            'style="padding:2px 8px;font-size:11px;border-radius:6px;border:1px solid rgba(239,68,68,.3);' +
+            'background:rgba(239,68,68,.08);color:#ef4444;cursor:pointer;">🗑</button>' +
+        '</td>' +
+      '</tr>';
+    });
+    document.getElementById('bodyHist').innerHTML = html;
+  })
+  .catch(function(err) {
+    document.getElementById('bodyHist').innerHTML =
+      '<tr><td colspan="8" style="color:#ef4444;padding:16px;">Fehler: ' + esc(err.message) + '</td></tr>';
+  });
+}
+
+function loadHistoryRun(id) {
+  setStatus('Lade Import #' + id + ' aus Datenbank...', 'warn');
+  fetch(ORC + '/ap-aging/imports/' + id)
+  .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
+  .then(function(run) {
+    _sapParams = {
+      bukrs_list:   run.bukrs_list,
+      key_date:     run.stichtag,
+      normal_items: run.normal_items,
+      special_gl:   run.special_gl,
+      months_back:  run.months_back,
+    };
+    _isSapImport = false;
+    processSapData({
+      stichtag: run.stichtag_fmt || run.stichtag,
+      key_date: run.stichtag,
+      items:    run.items,
+      count:    run.item_count,
+    });
+    document.getElementById('btnSaveDb').style.display = 'none';
+    switchSource('sap');
+    switchTab('gl');
+    setStatus('✓ Import #' + id + ' geladen — Stichtag ' + (run.stichtag_fmt||run.stichtag) + ' (' + (run.item_count||0) + ' Posten)', 'ok');
+  })
+  .catch(function(err) {
+    setStatus('Fehler beim Laden: ' + err.message, 'err');
+    alert('Laden fehlgeschlagen:\n' + err.message);
+  });
+}
+
+function deleteHistoryRun(id) {
+  if (!confirm('Import #' + id + ' wirklich loeschen?')) return;
+  fetch(ORC + '/ap-aging/imports/' + id, {method:'DELETE'})
+  .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
+  .then(function(){ loadHistory(); })
+  .catch(function(err){ alert('Loeschen fehlgeschlagen:\n' + err.message); });
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function numOrZero(v){var n=parseFloat(v);return isNaN(n)?0:n;}
+function fa(v){
+  if(v===0)return '<span class="zero">—</span>';
+  var abs=Math.abs(v);
+  var s=abs.toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2});
+  return v<0?'('+s+')':s;
+}
+function fmtKpi(v){
+  var abs=Math.abs(v);
+  if(abs>=1e6)return (v/1e6).toLocaleString('de-DE',{maximumFractionDigits:1})+' Mio';
+  if(abs>=1e3)return (v/1e3).toLocaleString('de-DE',{maximumFractionDigits:0})+' T';
+  return v.toLocaleString('de-DE',{maximumFractionDigits:0});
+}
+function ac(v){return v<0?'neg':v>0?'pos':'zero';}
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function fmtDate(d){if(!d||!(d instanceof Date))return String(d||''); return d.getDate().toString().padStart(2,'0')+'.'+(d.getMonth()+1).toString().padStart(2,'0')+'.'+d.getFullYear();}
+function fmtExcelDate(n){return fmtDate(new Date(Math.round((n-25569)*86400*1000)));}
+function fmtDateVal(v){if(!v)return '';if(v instanceof Date)return fmtDate(v);if(typeof v==='number'&&v>40000)return fmtExcelDate(v);return String(v).slice(0,10);}
+function setProgress(show, label, pct) {
+  var w=document.getElementById('progressWrap');
+  if(show){w.style.display='block';document.getElementById('progressLabel').textContent=label;document.getElementById('progressFill').style.width=pct+'%';}
+  else{w.style.display='none';document.getElementById('progressFill').style.width='0';}
+}
+function setStatus(msg, cls) {
+  document.getElementById('statusTag').innerHTML='<div class="status-tag st-'+cls+'">'+msg+'</div>';
+}
+
+</script>
+</body>
+</html>

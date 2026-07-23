@@ -67,10 +67,10 @@ from __future__ import annotations
 
 import calendar
 import contextlib
+import ctypes
 import logging
 import os
 import re
-import subprocess
 import threading
 import time
 import zipfile
@@ -83,33 +83,38 @@ log = logging.getLogger("gui.sd_invoice")
 # ---------------------------------------------------------------------------
 # Windows-Druckdialog automatisch schließen
 # ---------------------------------------------------------------------------
-def _close_windows_print_dialog(timeout: float = 10.0) -> None:
-    """Läuft im Background-Thread; schließt das Windows-'Drucken'-Fenster via PowerShell."""
+def _close_windows_print_dialog(timeout: float = 15.0) -> None:
+    """
+    Läuft im Background-Thread; schließt das Windows-Druckdialog-Fenster.
+    Methode: ctypes FindWindowW + WM_CLOSE (kein PowerShell, kein win32gui nötig).
+    Sucht nach Fenstertiteln 'Drucken' (DE) und 'Print' (EN).
+    """
     try:
-        # PowerShell: AppActivate('Drucken') + ESC — funktioniert ohne win32gui
-        ps_cmd = (
-            "$ws = New-Object -ComObject WScript.Shell; "
-            f"$t = (Get-Date).AddSeconds({int(timeout)}); "
-            "while ((Get-Date) -lt $t) { "
-            "  if ($ws.AppActivate('Drucken')) { "
-            "    Start-Sleep -Milliseconds 400; "
-            "    $ws.SendKeys('{ESC}'); "
-            "    Write-Host 'DRUCKDIALOG_GESCHLOSSEN'; break "
-            "  } "
-            "  Start-Sleep -Milliseconds 200 "
-            "}"
-        )
-        result = subprocess.run(
-            ["powershell", "-NonInteractive", "-WindowStyle", "Hidden", "-Command", ps_cmd],
-            capture_output=True, text=True, timeout=timeout + 3,
-            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000),
-        )
-        if "DRUCKDIALOG_GESCHLOSSEN" in (result.stdout or ""):
-            log.info("BILL: Windows-Druckdialog per PowerShell geschlossen")
-        else:
-            log.warning("BILL: Windows-Druckdialog nicht gefunden (stdout=%s)", result.stdout.strip())
-    except Exception as e:
-        log.warning("BILL: _close_windows_print_dialog: %s", e)
+        user32   = ctypes.WinDLL('user32', use_last_error=True)
+        WM_CLOSE = 0x0010
+        TITLES   = ["Drucken", "Print"]
+        deadline = time.time() + timeout
+
+        while time.time() < deadline:
+            for title in TITLES:
+                hwnd = user32.FindWindowW(None, title)
+                if hwnd:
+                    # Kurz warten bis Dialog vollständig gerendert ist
+                    time.sleep(0.4)
+                    user32.SetForegroundWindow(hwnd)
+                    time.sleep(0.1)
+                    user32.PostMessageW(hwnd, WM_CLOSE, 0, 0)
+                    log.info(
+                        "BILL: Windows-Druckdialog '%s' per WM_CLOSE geschlossen (hwnd=%d)",
+                        title, hwnd,
+                    )
+                    return
+            time.sleep(0.15)
+
+        log.warning("BILL: Windows-Druckdialog nach %.1fs nicht gefunden", timeout)
+
+    except Exception as exc:
+        log.warning("BILL: _close_windows_print_dialog Fehler: %s", exc)
 
 
 # ---------------------------------------------------------------------------

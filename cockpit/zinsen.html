@@ -484,6 +484,9 @@ td.mono{font-family:monospace;font-size:12px;}
 .btn-row-book.btn-seq:hover{background:rgba(16,185,129,.35);}
 </style>
 <script src="auth.js"></script>
+<script src="bukrs.js"></script>
+<script src="booking-history.js"></script>
+<script src="cockpit-bar.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="i18n.js"></script>
 </head>
@@ -514,11 +517,16 @@ td.mono{font-family:monospace;font-size:12px;}
   <div class="cfg-item">
     <span class="cfg-label">Buchungskreis</span>
     <select class="bukrs-sel" id="selBukrs" onchange="onBukrsChange()">
-      <option value="0435">0435 – Catensys Germany GmbH</option>
       <option value="VV9">VV9 – Catensys Holding GmbH</option>
       <option value="VV6">VV6 – Catensys Holding GmbH</option>
+      <option value="0334">0334 – Catensys France S.A.S.</option>
+      <option value="0435">0435 – Catensys Germany GmbH</option>
       <option value="0436">0436 – Catensys China Co. Ltd.</option>
+      <option value="0437">0437 – Catensys Slovakia s.r.o.</option>
       <option value="0438">0438 – Catensys Korea Co. Ltd.</option>
+      <option value="0439">0439 – Catensys India Pvt. Ltd.</option>
+      <option value="0440">0440 – Catensys US Inc.</option>
+      <option value="0441">0441 – Catensys Japan K.K.</option>
     </select>
   </div>
   <div class="cfg-sep"></div>
@@ -827,9 +835,14 @@ td.mono{font-family:monospace;font-size:12px;}
           <select id="dlCocode" onchange="dlOnCocodeChange()">
             <option value="VV9">VV9 – Catensys Holding</option>
             <option value="VV6">VV6 – Catensys Holding</option>
+            <option value="0334">0334 – Catensys France</option>
             <option value="0435">0435 – Catensys Germany</option>
             <option value="0436">0436 – Catensys China</option>
+            <option value="0437">0437 – Catensys Slovakia</option>
             <option value="0438">0438 – Catensys Korea</option>
+            <option value="0439">0439 – Catensys India</option>
+            <option value="0440">0440 – Catensys US</option>
+            <option value="0441">0441 – Catensys Japan</option>
           </select>
         </div>
         <div class="full">
@@ -897,11 +910,16 @@ td.mono{font-family:monospace;font-size:12px;}
         <div>
           <label>Buchungskreis DG *</label>
           <select id="dlDgCocode" onchange="dlOnDgCocodeChange()">
-            <option value="0435">0435 – Catensys Germany GmbH</option>
             <option value="VV9">VV9 – Catensys Holding</option>
             <option value="VV6">VV6 – Catensys Holding</option>
+            <option value="0334">0334 – Catensys France</option>
+            <option value="0435">0435 – Catensys Germany</option>
             <option value="0436">0436 – Catensys China</option>
+            <option value="0437">0437 – Catensys Slovakia</option>
             <option value="0438">0438 – Catensys Korea</option>
+            <option value="0439">0439 – Catensys India</option>
+            <option value="0440">0440 – Catensys US</option>
+            <option value="0441">0441 – Catensys Japan</option>
           </select>
         </div>
         <div>
@@ -1417,8 +1435,7 @@ td.mono{font-family:monospace;font-size:12px;}
     <div class="sd-toolbar">
       <div class="sd-fg">
         <label>Buchungskreis</label>
-        <select id="sdBukrs" onchange="sdOnBukrsChange()">
-          <option value="0435">0435 – Catensys GmbH</option>
+        <select id="sdBukrs" onchange="sdOnBukrsChange()" data-bukrs data-bukrs-selected="0435">
         </select>
       </div>
       <div class="sd-fg">
@@ -2063,6 +2080,32 @@ function addBookingHistory(entry) {
   if (dup) { Object.assign(dup, entry); }
   else { hist.push({ id: 'h' + Date.now() + Math.random().toString(36).slice(2,6), ...entry }); }
   saveBookingHistory(hist);
+  // Globale Buchungshistorie (DB) — nur App-Buchungen (nicht static/scheduler)
+  if (entry.source === 'app' && typeof saveGlobalBooking === 'function') {
+    try {
+      var yr   = String(entry.yr || '');
+      var mi   = parseInt(entry.mi || 0, 10);
+      var date = yr + '-' + String(mi+1).padStart(2,'0') + '-30';
+      saveGlobalBooking({
+        module:      'zinsen',
+        bukrs:       entry.bukrs  || '',
+        sap_system:  entry.system || '',
+        doc_date:    date,
+        yr:          yr,
+        period:      String(mi+1),
+        belnr:       entry.docNr  || '',
+        obj_key:     entry.docNr  || '',
+        ref_doc_no:  entry.nr     || '',
+        header_txt:  entry.text   || '',
+        amount:      parseFloat(entry.amount) || 0,
+        currency:    entry.curr   || 'EUR',
+        description: entry.text   || ('Zinsen ' + (entry.company || '') + ' ' + yr + '/' + String(mi+1).padStart(2,'0')),
+        booked_by:   typeof entry.user === 'object' ? (entry.user.username || entry.user.sap_username || 'unknown') : (entry.user || 'unknown'),
+        status:      entry.status === 'ok' ? 'booked' : entry.status,
+        source:      'app',
+      });
+    } catch(e) { console.warn('[GlobalBookingHistory] zinsen hook:', e.message); }
+  }
 }
 
 // Historische SAP-Buchungen aus statischen Arrays in die Historie einpflegen

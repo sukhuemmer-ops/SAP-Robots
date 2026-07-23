@@ -1,7 +1,7 @@
 {
-  "db_path": "Z:\\DB\\orchestrator.db",
-  "db_dir": "Z:\\DB",
-  "previous_path": "C:\\WF\\sap-robots\\orchestrator\\orchestrator.db",
-  "updated_at": "2026-07-02T14:39:51.920794",
-  "updated_by": "Selko"
+  "db_path": "C:\\WF\\sap-robots\\orchestrator\\orchestrator.db",
+  "db_dir": "C:\\WF\\sap-robots\\orchestrator",
+  "previous_path": "Z:\\DB\\orchestrator.db",
+  "updated_at": "2026-07-10T10:22:18.849824",
+  "updated_by": "db_migrate_lokal.py"
 }

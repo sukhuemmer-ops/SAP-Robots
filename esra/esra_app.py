@@ -86,15 +86,25 @@ CLAUDE_MODEL  = _cfg.get("claude_model", os.getenv("CLAUDE_MODEL", "claude-haiku
 TTS_VOICE     = os.getenv("ESRA_VOICE",  "de-DE-AmalaNeural")
 TTS_ENABLED   = os.getenv("ESRA_TTS",    "1") == "1"
 
-_DEFAULT_GREETING = "Hallo! Ich bin Esra 2.0 aus Catensys – Ihre intelligente SAP Finance-Assistentin."
-_DEFAULT_SYSTEM_PROMPT = """Du bist Esra, eine intelligente Assistentin für das YCONN SAP Finance-Cockpit.
-Du hilfst dem Benutzer mit Fragen zu Rechnungen, Buchungen, SAP-Daten und dem Cockpit-System.
-Antworte immer auf Deutsch, präzise, freundlich und kompakt (max. 3-4 Sätze wenn möglich).
+_DEFAULT_GREETING = "Hallo! Ich bin Esra aus Catensys – Ihre SAP Finance-Assistentin und IFRS-Expertin."
+_DEFAULT_SYSTEM_PROMPT = """Du bist Esra, die intelligente Finance-Assistentin der Catensys Group im YCONN SAP Cockpit.
+Du hilfst mit Fragen zu SAP-Buchungen, Rechnungen, Cockpit-Funktionen UND zur Catensys Accounting Guideline (IFRS).
 
-Wenn der Benutzer nach Rechnungsdaten fragt, werden dir automatisch aktuelle Daten aus YCONN
-im Kontext mitgegeben – nutze diese für eine präzise Antwort.
+ACCOUNTING GUIDELINE:
+Du kennst die Catensys Group Accounting Guideline V6 vollständig. Sie enthält IFRS-Regeln,
+Bilanzierungsgrundsätze und Kontenzuordnungsregeln für alle Gesellschaften der Gruppe.
+Wenn Fragen zu IFRS-Standards (IAS 16, IAS 38, IFRS 16, IFRS 9, IAS 37, IAS 12 usw.),
+Bilanzierung, Abschreibung, Rückstellungen, Leasing, Forderungsbewertung, Intercompany,
+Währungsumrechnung, Steuern oder ähnlichen Themen gestellt werden, erhältst du automatisch
+die relevanten Guideline-Abschnitte als Kontext. Beantworte Accounting-Fragen ausschließlich
+auf Basis dieser Richtlinien – vollständig, präzise und auf Deutsch.
 
-Vermeide lange Listen – antworte in natürlicher Sprache."""
+LIVE-DATEN:
+Wenn der Benutzer nach Rechnungen oder Buchungsstatus fragt, erhältst du automatisch
+aktuelle YCONN-Daten als Kontext – nutze diese für eine präzise Antwort.
+
+Antworte immer auf Deutsch. Für komplexe Accounting-Fragen darfst du ausführlicher antworten.
+Für einfache Fragen bleibe kompakt (2-4 Sätze). Vermeide unnötige Aufzählungen."""
 
 GREETING_TEXT = _cfg.get("greeting_text", _DEFAULT_GREETING)
 SYSTEM_PROMPT = _cfg.get("system_prompt", _DEFAULT_SYSTEM_PROMPT)
@@ -291,23 +301,88 @@ class YCONNClient:
         except Exception as e:
             return {"ok": False, "error": str(e)}
 
+    def search_knowledge(self, query: str, limit: int = 6) -> list:
+        """Sucht in knowledge_universe nach Accounting-Guideline-Abschnitten."""
+        try:
+            r = requests.get(
+                f"{ORCH_URL}/knowledge",
+                params={
+                    "search":        query,
+                    "source_module": "accounting_guideline",
+                    "limit":         limit,
+                },
+                timeout=8,
+            )
+            if r.ok:
+                return r.json()
+        except Exception:
+            pass
+        return []
+
+    # ── Keyword-Sets für Kontext-Erkennung ────────────────────────────
+    _INVOICE_KW = {
+        "rechnung", "offen", "erstellt", "betrag", "invoice",
+        "buchen", "buchung", "periode", "kunden",
+    }
+    _ACCOUNTING_KW = {
+        "ifrs", "ias", "bilanz", "buchhalter", "bilanzier", "rückstellung",
+        "rueckstellung", "accrual", "provision", "goodwill", "abschreibung",
+        "afa", "leasing", "ifrs16", "forderung", "verbindlichkeit",
+        "eigenkapital", "umsatz", "aufwand", "ertrag", "accounting",
+        "guideline", "richtlinie", "bewertung", "konsolidier", "intercompany",
+        "fremdwährung", "waehrung", "währung", "steuer", "ias12", "ias16",
+        "ias38", "ias37", "ifrs9", "ias28", "impairment", "wertminderung",
+        "wertberichtigung", "finanzinstrument", "hedge", "anlagevermögen",
+        "anlage", "sachanlagen", "vorraete", "vorräte", "inventory", "cash",
+        "liquidität", "saldoabstimmung", "saldobestätigung", "archivierung",
+        "gewährleistung", "gewaehrleistung", "warranty", "onerous",
+        "clearing", "verrechnungskonto", "intercompany", "ic-buchung",
+        "intangible", "immateriell", "goodwill", "research", "development",
+        "kostenstelle", "kontenzuordnung", "buchungsregel", "jahresabschluss",
+    }
+
     def build_context(self, user_msg: str) -> str:
-        """Hängt Live-Daten an den Prompt wenn der User nach Rechnungen fragt."""
-        keywords = ["rechnung", "offen", "erstellt", "betrag", "invoice",
-                    "buchen", "buchung", "periode", "kunden"]
-        if not any(k in user_msg.lower() for k in keywords):
+        """Hängt Live-Daten und Accounting-Wissen an den Prompt."""
+        msg_lower = user_msg.lower()
+        context_parts = []
+
+        # ── 1. Rechnungs-Live-Daten ───────────────────────────────────
+        if any(k in msg_lower for k in self._INVOICE_KW):
+            stats = self.invoice_stats()
+            if stats.get("ok"):
+                p = ", ".join(stats["perioden_offen"]) or "–"
+                context_parts.append(
+                    f"[Live-Daten aus YCONN – {datetime.now().strftime('%H:%M')}]\n"
+                    f"• Rechnungen gesamt: {stats['total']}\n"
+                    f"• Offen: {stats['offen']} Stück  |  Summe: {stats['sum_offen_eur']:,.2f} EUR\n"
+                    f"• Erstellt: {stats['erstellt']} Stück  |  Summe: {stats['sum_erstellt_eur']:,.2f} EUR\n"
+                    f"• Offene Perioden: {p}"
+                )
+
+        # ── 2. Accounting-Guideline-Wissen ────────────────────────────
+        if any(k in msg_lower for k in self._ACCOUNTING_KW):
+            entries = self.search_knowledge(user_msg, limit=5)
+            if entries:
+                lines = ["[Catensys Accounting Guideline – relevante Abschnitte]"]
+                for entry in entries:
+                    body = {}
+                    try:
+                        body = json.loads(entry.get("body_json", "{}"))
+                    except Exception:
+                        pass
+                    full_text = body.get("full_text", entry.get("summary", ""))
+                    # Max. 700 Zeichen pro Abschnitt
+                    snippet = full_text[:700].strip()
+                    if len(full_text) > 700:
+                        snippet += "…"
+                    refs = body.get("ifrs_references", [])
+                    refs_str = f" [{', '.join(refs)}]" if refs else ""
+                    lines.append(f"\n▶ {entry['title']}{refs_str}\n{snippet}")
+                context_parts.append("\n".join(lines))
+
+        if not context_parts:
             return ""
-        stats = self.invoice_stats()
-        if not stats["ok"]:
-            return f"\n\n[YCONN nicht erreichbar: {stats['error']}]"
-        p = ", ".join(stats["perioden_offen"]) or "–"
-        return (
-            f"\n\n[Live-Daten aus YCONN – {datetime.now().strftime('%H:%M')}]\n"
-            f"• Rechnungen gesamt: {stats['total']}\n"
-            f"• Offen: {stats['offen']} Stück  |  Summe: {stats['sum_offen_eur']:,.2f} EUR\n"
-            f"• Erstellt: {stats['erstellt']} Stück  |  Summe: {stats['sum_erstellt_eur']:,.2f} EUR\n"
-            f"• Offene Perioden: {p}"
-        )
+        return "\n\n" + "\n\n".join(context_parts)
 
 
 # ══════════════════════════════════════════════════════════════
@@ -1058,10 +1133,14 @@ class EsraApp(ctk.CTk):
             f"{greeting} 👋\n\n"
             f"Status: KI = {llm}  |  YCONN = {yconn}\n\n"
             f"Stelle mir eine Frage oder drücke 🎤 zum Sprechen.\n"
-            f"Beispiele:\n"
+            f"Beispiele SAP & Cockpit:\n"
             f"  • \"Wie viele Rechnungen gibt es diesen Monat?\"\n"
-            f"  • \"Öffne die Zinsbuchungen\"\n"
             f"  • \"Was ist der Payroll-Status?\"\n"
+            f"Beispiele Accounting Guideline (IFRS):\n"
+            f"  • \"Wie werden immaterielle Vermögenswerte nach IAS 38 bilanziert?\"\n"
+            f"  • \"Was gilt für Leasing nach IFRS 16?\"\n"
+            f"  • \"Wie berechnen wir Rückstellungen nach IAS 37?\"\n"
+            f"  • \"Welche Regeln gelten für Intercompany-Buchungen?\"\n"
         )
         self.tts.speak(greeting)
 

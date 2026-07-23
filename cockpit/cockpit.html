@@ -651,7 +651,16 @@ code{background:var(--bg3);padding:1px 6px;border-radius:4px;font-size:12px;colo
       <option value="app">App-Buchungen</option>
       <option value="static">SAP historisch</option>
     </select>
+    <select id="hFilterModule" onchange="renderHistorie()" style="min-width:130px">
+      <option value="all">Alle Module</option>
+      <option value="zinsen">💰 Zinsen</option>
+      <option value="payroll">👥 PayRoll</option>
+      <option value="reisekosten">🚗 Reisekosten</option>
+      <option value="rechnung">🧾 Rechnung</option>
+      <option value="afa">📉 Afa-Lauf</option>
+    </select>
     <button onclick="resetHistFilters()" style="padding:4px 10px">✕</button>
+    <button onclick="refreshHistorieFromDB()" style="padding:4px 10px;background:rgba(31,111,235,.12);color:var(--acc);border:1px solid var(--acc);border-radius:4px;cursor:pointer">↻ DB laden</button>
     <span id="hCount" style="color:var(--sub);font-size:12px"></span>
     <button onclick="exportHistorieCsv()" style="margin-left:auto;padding:4px 12px;background:#0c2a1a;color:#10b981;border:1px solid #10b981;border-radius:4px;cursor:pointer">⬇ CSV Export</button>
   </div>
@@ -659,6 +668,7 @@ code{background:var(--bg3);padding:1px 6px;border-radius:4px;font-size:12px;colo
   <table id="histTable" style="width:100%;border-collapse:collapse;font-size:12px">
     <thead>
       <tr style="color:var(--sub);border-bottom:1px solid var(--bdr)">
+        <th style="text-align:left;padding:6px 8px">Modul</th>
         <th style="text-align:left;padding:6px 8px;white-space:nowrap">Datum</th>
         <th style="text-align:left;padding:6px 8px">Jahr</th>
         <th style="text-align:left;padding:6px 8px">Monat</th>
@@ -1088,7 +1098,7 @@ function show(name, btn){
   if (name==="uebersicht") renderOverview();
   if (name==="reports") refreshReports();
   if (name==="darlehen") renderLoans();
-  if (name==="historie") renderHistorie();
+  if (name==="historie") refreshHistorieFromDB();
 }
 
 function toast(msg, level){
@@ -2315,8 +2325,65 @@ function renderConns(){
 }
 
 // ── Logs rendern ──────────────────────────────────────────────
+var _globalHistCache = null;
+
 function loadBookingHistoryCC() {
+  // Primär: DB-Cache (gesetzt durch refreshHistorieFromDB)
+  if (_globalHistCache) return _globalHistCache;
+  // Fallback: localStorage
   try { return JSON.parse(localStorage.getItem('yconn_booking_history') || '[]'); } catch(e) { return []; }
+}
+
+async function refreshHistorieFromDB() {
+  var tbody = document.getElementById('histBody');
+  if (tbody) tbody.innerHTML = '<tr><td colspan="18" style="padding:16px;text-align:center;color:var(--sub)">⏳ Lade aus Datenbank…</td></tr>';
+  try {
+    var dbRows = await loadGlobalBookingHistory();
+    // DB-Einträge auf das locale Format normalisieren
+    var dbNorm = dbRows.map(function(r) {
+      var mi = parseInt(r.period||'1',10) - 1;
+      return {
+        id:        'db-' + r.id,
+        ts:        r.booked_at || r.doc_date || '',
+        yr:        r.yr || (r.doc_date||'').slice(0,4),
+        mi:        mi,
+        monthName: ['Januar','Februar','März','April','Mai','Juni',
+                    'Juli','August','September','Oktober','November','Dezember'][mi] || r.period,
+        nr:        r.ref_doc_no || '',
+        bukrs:     r.bukrs,
+        cocode:    r.bukrs,
+        company:   '',
+        account:   '',
+        offset:    '',
+        dtyp:      'SA',
+        curr:      r.currency || 'EUR',
+        amount:    r.amount || 0,
+        docNr:     r.belnr || '',
+        system:    r.sap_system || '',
+        status:    r.status === 'booked' ? 'ok' : r.status,
+        source:    r.source || 'app',
+        user:      r.booked_by || '',
+        text:      r.description || r.header_txt || '',
+        module:    r.module || '',
+        date:      r.doc_date || '',
+        storno:    '',
+      };
+    });
+    // localStorage (statische + ältere Einträge)
+    var lsRows = [];
+    try { lsRows = JSON.parse(localStorage.getItem('yconn_booking_history') || '[]'); } catch(_){}
+    // Merge: DB-Einträge haben Vorrang; localStorage-Einträge nur wenn kein DB-Duplikat
+    var seen = new Set(dbNorm.map(function(r){ return r.module+'|'+r.yr+'|'+r.mi+'|'+r.docNr; }));
+    var lsExtra = lsRows.filter(function(r){
+      var key = (r.module||r.source||'')+'|'+r.yr+'|'+r.mi+'|'+(r.docNr||'');
+      return !seen.has(key);
+    });
+    _globalHistCache = dbNorm.concat(lsExtra);
+  } catch(e) {
+    console.warn('refreshHistorieFromDB:', e);
+    try { _globalHistCache = JSON.parse(localStorage.getItem('yconn_booking_history') || '[]'); } catch(_){ _globalHistCache = []; }
+  }
+  renderHistorie();
 }
 
 function populateHistFilters(hist) {
@@ -2338,7 +2405,7 @@ function populateHistFilters(hist) {
 }
 
 function resetHistFilters() {
-  ['hFilterYr','hFilterMon','hFilterBukrs','hFilterStatus','hFilterSource'].forEach(function(id){
+  ['hFilterYr','hFilterMon','hFilterBukrs','hFilterStatus','hFilterSource','hFilterModule'].forEach(function(id){
     var el = document.getElementById(id); if (el) el.value = 'all';
   });
   renderHistorie();
@@ -2353,6 +2420,7 @@ function renderHistorie() {
   var fBk  = (document.getElementById('hFilterBukrs')  || {}).value || 'all';
   var fSt  = (document.getElementById('hFilterStatus') || {}).value || 'all';
   var fSrc = (document.getElementById('hFilterSource') || {}).value || 'all';
+  var fMod = (document.getElementById('hFilterModule') || {}).value || 'all';
 
   var list = hist.filter(function(h){
     if (fYr  !== 'all' && h.yr !== fYr) return false;
@@ -2363,6 +2431,7 @@ function renderHistorie() {
     if (fBk  !== 'all' && (h.bukrs || h.cocode) !== fBk) return false;
     if (fSt  !== 'all' && h.status !== fSt) return false;
     if (fSrc !== 'all' && h.source !== fSrc) return false;
+    if (fMod !== 'all' && (h.module || '') !== fMod) return false;
     return true;
   });
 
@@ -2393,10 +2462,13 @@ function renderHistorie() {
 
   tbody.innerHTML = list.map(function(h) {
     var amt = typeof h.amount === 'number' ? h.amount.toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2}) : (h.amount||'');
+    var modLabels = window.BOOKING_MODULE_LABELS || {zinsen:'💰 Zinsen',payroll:'👥 PayRoll',reisekosten:'🚗 Reisekst.',rechnung:'🧾 Rechnung',afa:'📉 Afa',rueckstellung:'📦 Rückstlg.'};
+    var modBadge = h.module ? '<span style="font-size:10px;padding:1px 5px;border-radius:3px;background:rgba(99,102,241,.15);color:#818cf8">' + (modLabels[h.module]||h.module) + '</span>' : '';
     var ccls = currCls[h.curr] || '';
     var docCell = h.docNr && h.docNr !== '(SAP)' ? '<span style="font-family:monospace;font-size:11px">' + h.docNr + '</span>' : '<span style="color:var(--sub)">–</span>';
     var ts = h.ts ? h.ts.replace('T',' ').slice(0,16) : h.date || '';
     return '<tr style="border-bottom:1px solid rgba(255,255,255,.05)">' +
+      '<td style="padding:5px 8px">' + modBadge + '</td>' +
       '<td style="padding:5px 8px;color:var(--sub);white-space:nowrap">' + ts + '</td>' +
       '<td style="padding:5px 8px">' + (h.yr||'') + '</td>' +
       '<td style="padding:5px 8px">' + (h.monthName||'') + '</td>' +
@@ -2519,6 +2591,8 @@ function refreshReports(){
 })();
 </script>
 <script src="auth.js"></script>
+<script src="booking-history.js"></script>
+<script src="cockpit-bar.js"></script>
 <script>
   // AUTH is now defined (auth.js just ran)
   if (window.AUTH && AUTH.renderHeader) AUTH.renderHeader('headerRight');

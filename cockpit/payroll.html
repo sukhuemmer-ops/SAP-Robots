@@ -2,11 +2,16 @@
 <html lang="de">
 <head>
 <meta charset="utf-8">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <script>
-/* file:// → localhost: Browser merkt sich Mikrofon-Erlaubnis nur für localhost */
+/* Immer über Orchestrator (8000) laden — nie über Bridge (8765) */
 if (location.protocol === 'file:') {
   var _fn = (location.pathname.split('/').pop() || location.pathname.split('\\').pop());
   location.replace('http://localhost:8000/cockpit/' + _fn + location.search + location.hash);
+} else if (location.port === '8765') {
+  location.replace(location.href.replace(':8765', ':8000'));
 }
 </script>
 <title>YCONN – PayRoll-Buchungen</title>
@@ -229,7 +234,7 @@ tr:hover td{background:rgba(255,255,255,.025);}
 .status-banner.warn{background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.3);color:var(--warn);}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-  <script src="i18n.js"></script>
+  <script src="i18n.js?v=20260706"></script>
 </head>
 <body>
 
@@ -297,6 +302,8 @@ tr:hover td{background:rgba(255,255,255,.025);}
     <button class="tab-btn"        id="tabBtn-plaus"   onclick="switchTab('plaus',this)">✅ Plausibilität</button>
     <button class="tab-btn"        id="tabBtn-sap"     onclick="switchTab('sap',this)">🔌 SAP-Übergabe</button>
     <button class="tab-btn active" id="tabBtn-history" onclick="switchTab('history',this);loadImportHistory()">📂 Importhistorie</button>
+    <button class="tab-btn" id="tabBtn-rk" onclick="switchTab('rk',this)">🚗 Reisekosten</button>
+    <button class="tab-btn" id="tabBtn-uw" onclick="switchTab('uw',this)">🚙 USt-Firmenwagen</button>
   </div>
 
   <!-- ══════════════════════════════════
@@ -789,6 +796,316 @@ tr:hover td{background:rgba(255,255,255,.025);}
 
   </div><!-- pane-history -->
 
+  <!-- TAB 6 - REISEKOSTEN -->
+  <div class="tab-pane" id="pane-rk">
+    <div style="max-width:960px;">
+
+      <!-- Buchungsparameter -->
+      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:20px 24px;margin-bottom:18px;">
+        <div style="font-size:13px;font-weight:700;color:var(--accent);margin-bottom:16px;">
+          🚗 Reisekosten unter PayRoll — Buchungsparameter
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px 16px;align-items:end;">
+          <div>
+            <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:4px;">Buchungsdatum</label>
+            <input type="date" id="rkPostDate" value="2026-06-30"
+              style="width:100%;padding:7px 10px;border-radius:7px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:12px;">
+          </div>
+          <div>
+            <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:4px;">Buchungskreis</label>
+            <input type="text" id="rkBukrs" value="0435"
+              style="width:100%;padding:7px 10px;border-radius:7px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:12px;">
+          </div>
+          <div>
+            <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:4px;">Kostenstelle</label>
+            <input type="text" id="rkKst" value="0435-5013" onchange="updateRkPreview()"
+              style="width:100%;padding:7px 10px;border-radius:7px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:12px;">
+          </div>
+          <div>
+            <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:4px;">Zuordnung</label>
+            <input type="text" id="rkZuord" value="900" onchange="updateRkPreview()"
+              style="width:100%;padding:7px 10px;border-radius:7px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:12px;">
+          </div>
+          <div>
+            <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:4px;">Referenz</label>
+            <input type="text" id="rkRefDoc" value="REISEKOSTEN_6.26"
+              style="width:100%;padding:7px 10px;border-radius:7px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:12px;">
+          </div>
+          <div>
+            <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:4px;">Belegkopftext</label>
+            <input type="text" id="rkHeaderTxt" value="RK PayRoll 06/2026"
+              style="width:100%;padding:7px 10px;border-radius:7px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:12px;">
+          </div>
+          <div>
+            <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:4px;">Geschaeftsjahr</label>
+            <input type="text" id="rkFiscYear" value="2026"
+              style="width:100%;padding:7px 10px;border-radius:7px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:12px;">
+          </div>
+          <div>
+            <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:4px;">Periode</label>
+            <input type="text" id="rkPeriod" value="6"
+              style="width:100%;padding:7px 10px;border-radius:7px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:12px;">
+          </div>
+          <div>
+            <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:4px;">SAP-System</label>
+            <select id="rkSysId" style="width:100%;padding:7px 10px;border-radius:7px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:12px;">
+              <option value="SEP">SEP — Produktion (172.28.189.8)</option>
+              <option value="SEQ">SEQ — Test (172.28.189.11)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Buchungspositionen -->
+      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:20px 24px;margin-bottom:18px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+          <div style="font-size:13px;font-weight:700;">Buchungspositionen (editierbar)</div>
+          <button onclick="rkAddRow()"
+            style="padding:4px 12px;font-size:11px;border-radius:6px;border:1px solid var(--accent);
+                   background:rgba(31,111,235,.1);color:var(--accent);cursor:pointer;">+ Zeile</button>
+        </div>
+        <table style="width:100%;border-collapse:collapse;font-size:12px;">
+          <thead>
+            <tr style="border-bottom:1px solid var(--border);">
+              <th style="padding:6px 8px;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;text-align:left;">#</th>
+              <th style="padding:6px 8px;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;text-align:left;">Soll-Konto</th>
+              <th style="padding:6px 8px;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;text-align:left;">Haben-Konto</th>
+              <th style="padding:6px 8px;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;text-align:right;">Brutto EUR</th>
+              <th style="padding:6px 8px;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;text-align:center;">Steuer</th>
+              <th style="padding:6px 8px;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;text-align:left;">Text</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="rkRowsTbody"></tbody>
+        </table>
+      </div>
+
+      <!-- Buchungsvorschau -->
+      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:20px 24px;margin-bottom:18px;">
+        <div style="font-size:13px;font-weight:700;margin-bottom:12px;">Buchungsliste (BAPI-Positionen nach Steueraufteilung)</div>
+        <div id="rkPreview"></div>
+      </div>
+
+      <!-- Buchen -->
+      <div style="display:flex;align-items:center;gap:16px;padding:4px 0 24px;">
+        <button id="btnRkPost" onclick="postRkToSap()"
+          style="padding:11px 28px;border-radius:8px;background:linear-gradient(135deg,#b91c1c,#ef4444);
+                 color:#fff;border:none;font-size:13px;font-weight:700;cursor:pointer;letter-spacing:.02em;">
+          ⚡ Jetzt an SAP SEP buchen
+        </button>
+        <div id="rkStatus" style="font-size:12px;"></div>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:4px;padding-top:12px;border-top:1px solid var(--border);">
+          <span style="font-size:11px;color:var(--muted);">Bereits in SAP gebucht?</span>
+          <input type="text" id="rkManualBelnr" placeholder="Belegnr. aus SAP (optional)"
+            style="width:180px;padding:5px 9px;border-radius:6px;border:1px solid var(--border);
+                   background:var(--bg3);color:var(--text);font-size:12px;font-family:monospace;">
+          <button onclick="rkSaveManualHistory()"
+            style="padding:5px 14px;border-radius:6px;border:1px solid rgba(99,102,241,.5);
+                   background:rgba(99,102,241,.12);color:#818cf8;font-size:12px;cursor:pointer;font-weight:600;">
+            📋 In Historie erfassen
+          </button>
+          <span id="rkHistStatus" style="font-size:11px;"></span>
+        </div>
+      </div>
+
+    </div>
+  </div><!-- pane-rk -->
+
+  <!-- ═══ USt-Firmenwagen Tab ═══════════════════════════════════════════ -->
+  <div class="tab-pane" id="pane-uw">
+    <div style="max-width:1040px;">
+
+      <!-- 1. Import-Bereich -->
+      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:20px 24px;margin-bottom:18px;">
+        <div style="font-size:13px;font-weight:700;color:var(--accent);margin-bottom:14px;">
+          🚙 USt-Firmenwagen — Excel-Import
+        </div>
+        <div id="uwDropZone"
+             style="border:2px dashed var(--border);border-radius:10px;padding:28px;text-align:center;
+                    cursor:pointer;transition:border-color .2s;"
+             onclick="document.getElementById('uwFileInput').click()"
+             ondragover="event.preventDefault();this.style.borderColor='var(--accent)';"
+             ondragleave="this.style.borderColor='var(--border)';"
+             ondrop="uwHandleDrop(event)">
+          <div style="font-size:26px;margin-bottom:8px;">📂</div>
+          <div style="font-size:12px;color:var(--text);">Excel-Datei ablegen oder klicken</div>
+          <div style="font-size:10px;color:var(--muted);margin-top:4px;">
+            *.xlsx / *.xlsm — liest automatisch die aktuelle Abrechnungsperiode pro Person
+          </div>
+        </div>
+        <input type="file" id="uwFileInput" accept=".xlsx,.xlsm" style="display:none"
+               onchange="uwHandleFile(this.files[0])">
+        <div id="uwImportStatus" style="margin-top:8px;font-size:12px;min-height:18px;"></div>
+      </div>
+
+      <!-- 2. Buchungsparameter -->
+      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:20px 24px;margin-bottom:18px;">
+        <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:14px;">
+          Buchungsparameter
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px 16px;align-items:end;">
+          <div>
+            <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:4px;">Buchungsdatum</label>
+            <input type="date" id="uwPostDate" value="2026-06-30"
+              style="width:100%;padding:7px 10px;border-radius:7px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:12px;">
+          </div>
+          <div>
+            <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:4px;">Buchungskreis</label>
+            <input type="text" id="uwBukrs" value="0435"
+              style="width:100%;padding:7px 10px;border-radius:7px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:12px;">
+          </div>
+          <div>
+            <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:4px;"
+                   title="SAP-Buchungsperiode — 0435: Okt=1, Nov=2, … Jun=9, Jul=10">SAP-Periode ①</label>
+            <input type="text" id="uwPeriod" value="9"
+              style="width:100%;padding:7px 10px;border-radius:7px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:12px;">
+          </div>
+          <div>
+            <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:4px;">Geschäftsjahr</label>
+            <input type="text" id="uwFiscYear" value="2026"
+              style="width:100%;padding:7px 10px;border-radius:7px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:12px;">
+          </div>
+          <div>
+            <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:4px;">Referenz</label>
+            <input type="text" id="uwRefDoc" value="UST_FW_06.2026"
+              style="width:100%;padding:7px 10px;border-radius:7px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:12px;">
+          </div>
+          <div>
+            <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:4px;">Belegkopftext</label>
+            <input type="text" id="uwHeaderTxt" value="USt-Firmenwagen 06/2026"
+              style="width:100%;padding:7px 10px;border-radius:7px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:12px;">
+          </div>
+          <div>
+            <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:4px;">SAP-System</label>
+            <select id="uwSysId" style="width:100%;padding:7px 10px;border-radius:7px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:12px;">
+              <option value="SEP">SEP — Produktion (172.28.189.8)</option>
+              <option value="SEQ">SEQ — Test (172.28.189.11)</option>
+            </select>
+          </div>
+        </div>
+        <div id="uwParamInfo" style="margin-top:10px;font-size:10px;color:var(--muted);">
+          ① Periode – wird beim Laden gesetzt (Kalenderjahr); Soll: 639000 | Haben: 540000 | Dtyp: SA | je 1 Beleg pro Person
+        </div>
+      </div>
+
+      <!-- 3. Buchungsliste -->
+      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:20px 24px;margin-bottom:18px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
+          <div style="font-size:13px;font-weight:700;">
+            Buchungsliste
+            <span id="uwRowCount" style="font-size:11px;color:var(--muted);margin-left:8px;"></span>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button onclick="uwAddRow()"
+              style="padding:5px 12px;font-size:11px;border-radius:6px;border:1px solid var(--border);
+                     background:var(--bg3);color:var(--text);cursor:pointer;">+ Zeile</button>
+            <button onclick="uwLoadDefault06()"
+              style="padding:5px 12px;font-size:11px;border-radius:6px;border:1px solid rgba(99,102,241,.5);
+                     background:rgba(99,102,241,.12);color:#818cf8;cursor:pointer;font-weight:600;">
+              📋 06/2026 Vorbelegung
+            </button>
+          </div>
+        </div>
+        <div style="overflow-x:auto;">
+          <table style="width:100%;border-collapse:collapse;font-size:12px;">
+            <thead>
+              <tr style="border-bottom:2px solid var(--border);">
+                <th style="padding:6px 8px;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;text-align:left;">#</th>
+                <th style="padding:6px 8px;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;text-align:left;">Nachname</th>
+                <th style="padding:6px 8px;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;text-align:left;">Kostenstelle</th>
+                <th style="padding:6px 8px;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;text-align:right;">GWV (507)</th>
+                <th style="padding:6px 8px;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;text-align:right;">Fahrten (509)</th>
+                <th style="padding:6px 8px;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;text-align:right;">Betrag ×1.19</th>
+                <th style="padding:6px 8px;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;text-align:left;">Status</th>
+                <th style="padding:6px 8px;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;text-align:left;">Belegnr.</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="uwTbody">
+              <tr><td colspan="9" style="text-align:center;color:var(--muted);padding:24px;font-size:12px;">
+                Excel importieren oder "06/2026 Vorbelegung" verwenden
+              </td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div id="uwSummary" style="display:none;margin-top:12px;padding:10px 14px;background:var(--bg3);border-radius:8px;font-size:12px;">
+          <span style="color:var(--muted);">Gesamt: </span>
+          <span id="uwTotalAmount" style="font-weight:700;"></span>
+          <span style="color:var(--muted);margin-left:16px;">BuKr: </span>
+          <span id="uwTotalBukrs" style="font-weight:600;"></span>
+          <span style="color:var(--muted);margin-left:16px;">Soll 540000 → Haben 639000 | SA | 1 Beleg/Person</span>
+        </div>
+      </div>
+
+
+      <!-- 3b. Buchungsvorschau (SAP) -->
+      <div id="uwBuchungslisteWrap" style="display:none;background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:20px 24px;margin-bottom:18px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+          <div style="font-size:13px;font-weight:700;">
+            📊 Buchungsvorschau
+            <span id="uwBlCount" style="font-size:11px;color:var(--muted);margin-left:8px;"></span>
+          </div>
+        </div>
+        <div style="overflow-x:auto;">
+          <table style="width:100%;border-collapse:collapse;font-size:11px;">
+            <thead>
+              <tr style="border-bottom:2px solid var(--border);background:var(--bg3);">
+                <th style="padding:5px 8px;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;text-align:left;white-space:nowrap;">Datum</th>
+                <th style="padding:5px 8px;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;text-align:left;white-space:nowrap;">Kostenstelle</th>
+                <th style="padding:5px 8px;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;text-align:center;white-space:nowrap;">Soll 639000</th>
+                <th style="padding:5px 8px;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;text-align:left;white-space:nowrap;">Person</th>
+                <th style="padding:5px 8px;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;text-align:center;white-space:nowrap;">Haben 540000</th>
+                <th style="padding:5px 8px;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;text-align:left;">Text</th>
+                <th style="padding:5px 8px;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;text-align:center;white-space:nowrap;">Dtyp</th>
+                <th style="padding:5px 8px;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;text-align:center;white-space:nowrap;">Tax</th>
+                <th style="padding:5px 8px;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;text-align:center;white-space:nowrap;">Profit Ctr</th>
+                <th style="padding:5px 8px;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;text-align:center;white-space:nowrap;">Monat</th>
+                <th style="padding:5px 8px;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;text-align:right;white-space:nowrap;">Betrag</th>
+                <th style="padding:5px 8px;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;text-align:left;white-space:nowrap;">Posting Nr.</th>
+              </tr>
+            </thead>
+            <tbody id="uwBlTbody">
+              <tr><td colspan="12" style="text-align:center;color:var(--muted);padding:20px;font-size:12px;">
+                Buchungsvorschau erscheint nach Import oder Vorbelegung
+              </td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 4. Aktionen -->
+      <div style="display:flex;align-items:center;gap:16px;padding:4px 0 12px;flex-wrap:wrap;">
+        <button id="btnUwBookAll" onclick="uwBookAll()"
+          style="padding:11px 28px;border-radius:8px;background:linear-gradient(135deg,#b91c1c,#ef4444);
+                 color:#fff;border:none;font-size:13px;font-weight:700;cursor:pointer;letter-spacing:.02em;">
+          ⚡ Alle an SAP buchen
+        </button>
+        <button id="btnUwSave" onclick="uwSaveToDb()"
+          style="padding:11px 22px;border-radius:8px;background:rgba(16,185,129,.15);
+                 border:1px solid rgba(16,185,129,.5);color:#10b981;
+                 font-size:13px;font-weight:700;cursor:pointer;">
+          💾 In DB speichern
+        </button>
+        <div id="uwStatus" style="font-size:12px;"></div>
+      </div>
+
+      <!-- 5. Verlauf gespeicherter Läufe -->
+      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:16px 20px;margin-bottom:18px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+          <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;">
+            📋 Gespeicherte Läufe
+          </div>
+          <button onclick="uwLoadHistory()" style="padding:4px 10px;font-size:11px;border-radius:5px;
+            border:1px solid var(--border);background:var(--bg3);color:var(--text);cursor:pointer;">
+            🔄 Aktualisieren
+          </button>
+        </div>
+        <div id="uwHistoryBody" style="font-size:12px;color:var(--muted);">Lädt…</div>
+      </div>
+
+    </div>
+  </div><!-- pane-uw -->
+
 </div><!-- .wrap -->
 
 <!-- Inline-Edit Change Badge (fixiert unten rechts) -->
@@ -906,6 +1223,8 @@ tr:hover td{background:rgba(255,255,255,.025);}
 </div>
 
 <script src="auth.js"></script>
+<script src="booking-history.js"></script>
+<script src="cockpit-bar.js"></script>
 <script>
 AUTH.renderHeader('headerRight');
 
@@ -1104,8 +1423,9 @@ var SAP_SYSTEMS = {
   SEQ: { ashost:'172.28.189.11', sysnr:'05', client:'600', lang:'DE', user:'RFC_COFACE' },
   SEP: { ashost:'172.28.189.8',  sysnr:'06', client:'600', lang:'DE', user:'RFC_COFACE' }
 };
-var _ORCH = window.location.origin;
-var BRIDGE_URL = _ORCH.replace(':8000',':8765');
+// _ORCH zeigt immer auf Orchestrator (8000), auch wenn Seite über Bridge (8765) geladen wird
+var _ORCH = window.location.origin.replace(':8765',':8000');
+var BRIDGE_URL = window.location.origin.replace(':8000',':8765');
 
 // ─── Tab switching ─────────────────────────────────────────
 function switchTab(name, btn) {
@@ -2211,6 +2531,24 @@ async function postToSap() {
       }
       // Buchungshistorie (cockpit.html) aktualisieren
       _savePayrollBookingToHistory(docNr, sysId, 'ok');
+      // Globale Buchungshistorie (DB)
+      saveGlobalBooking({
+        module:      'payroll',
+        bukrs:       payload.DOCUMENTHEADER.COMP_CODE || '',
+        sap_system:  sysId || getUserSapSystemId(),
+        doc_date:    payload.DOCUMENTHEADER.PSTNG_DATE || '',
+        yr:          payload.DOCUMENTHEADER.FISC_YEAR  || '',
+        period:      String(payload.DOCUMENTHEADER.FIS_PERIOD || ''),
+        belnr:       docNrDisplay,
+        obj_key:     docNr,
+        ref_doc_no:  payload.DOCUMENTHEADER.REF_DOC_NO  || '',
+        header_txt:  payload.DOCUMENTHEADER.HEADER_TXT  || '',
+        amount:      payload.CURRENCYAMOUNT.filter(function(c){return c.AMT_DOCCUR>0;})
+                       .reduce(function(s,c){return s+c.AMT_DOCCUR;},0),
+        currency:    'EUR',
+        description: 'PayRoll ' + (payload.DOCUMENTHEADER.REF_DOC_NO || payload.DOCUMENTHEADER.HEADER_TXT || ''),
+        status:      'booked',
+      });
     } else {
       var errDetail = data.error || data.message ||
         (hasErr ? msgs.filter(function(m){return m.TYPE==='E'||m.TYPE==='A';})
@@ -3463,20 +3801,1026 @@ async function saveResySplit() {
 
 // ─────────────────────────────────────────────────────────────
 
-function copyPayload() {
-  var el = document.getElementById('jsonPreview');
-  navigator.clipboard.writeText(el.innerText).catch(function(){});
+// ─── Reisekosten unter PayRoll ─────────────────────────────────────────────────
+// Brutto→Netto-Satz: V7 und V4 beide 7%; V7 ist Eingabeformat, V4 ist SAP-Buchungsformat
+var RK_MWST    = { 'V1': 0.19, 'V7': 0.07, 'V4': 0.07 };
+// Steuerkennzeichen-Normalisierung für BAPI (BuKr 0435: V7 → V4)
+var RK_TAX_NORM = { 'V7': 'V4' };
+
+var _rkRows = [
+  { soll:'685100', haben:'485000', brutto:1282.48, tax:'V0', text:'Reisekosten V0 (steuerfrei)' },
+  { soll:'685100', haben:'485000', brutto:95.54,   tax:'V7', text:'Reisekosten V7 (7% VSt)' },
+  { soll:'685100', haben:'485000', brutto:296.94,  tax:'V1', text:'Reisekosten V1 (19% VSt)' },
+];
+
+function rkInitRows() {
+  var tbody = document.getElementById('rkRowsTbody');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+  _rkRows.forEach(function(_,i){ rkRenderRow(i); });
+  updateRkPreview();
 }
 
-function downloadPayload() {
-  var el   = document.getElementById('jsonPreview');
-  var blob = new Blob([el.innerText], {type:'application/json'});
-  var a    = document.createElement('a');
-  a.href   = URL.createObjectURL(blob);
-  a.download = 'payroll_sap_payload.json';
-  a.click();
+function rkRenderRow(i) {
+  var tbody = document.getElementById('rkRowsTbody');
+  var row   = _rkRows[i];
+  var taxOptions = ['V0','V1','V4','V7','V2','V5',''];
+  var opts = taxOptions.map(function(t){
+    return '<option value="'+t+'"'+(row.tax===t?' selected':'')+'>'+( t||'—')+'</option>';
+  }).join('');
+  var inp = 'style="width:88px;padding:4px 7px;border-radius:5px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:12px;font-family:monospace;"';
+  var sel = 'style="padding:4px 7px;border-radius:5px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:12px;"';
+  var tr = document.createElement('tr');
+  tr.id = 'rkRow-'+i;
+  tr.style.borderBottom = '1px solid var(--border)';
+  tr.innerHTML =
+    '<td style="padding:5px 8px;color:var(--muted);">'+(i+1)+'</td>'+
+    '<td style="padding:5px 8px;"><input type="text" value="'+row.soll+'" '+inp+' onchange="_rkRows['+i+'].soll=this.value;updateRkPreview()"></td>'+
+    '<td style="padding:5px 8px;"><input type="text" value="'+row.haben+'" '+inp+' onchange="_rkRows['+i+'].haben=this.value;updateRkPreview()"></td>'+
+    '<td style="padding:5px 8px;text-align:right;"><input type="number" value="'+row.brutto+'" step="0.01" style="width:110px;padding:4px 7px;border-radius:5px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:12px;text-align:right;" onchange="_rkRows['+i+'].brutto=parseFloat(this.value)||0;updateRkPreview()"></td>'+
+    '<td style="padding:5px 8px;text-align:center;"><select '+sel+' onchange="_rkRows['+i+'].tax=this.value;updateRkPreview()">'+opts+'</select></td>'+
+    '<td style="padding:5px 8px;"><input type="text" value="'+esc(row.text)+'" style="width:200px;padding:4px 7px;border-radius:5px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:12px;" onchange="_rkRows['+i+'].text=this.value"></td>'+
+    '<td style="padding:5px 8px;"><button onclick="rkRemoveRow('+i+')" style="padding:2px 8px;font-size:11px;border-radius:5px;border:1px solid rgba(239,68,68,.4);background:rgba(239,68,68,.08);color:#ef4444;cursor:pointer;">x</button></td>';
+  tbody.appendChild(tr);
 }
 
+function rkAddRow() {
+  _rkRows.push({ soll:'685100', haben:'485000', brutto:0, tax:'V0', text:'' });
+  rkRenderRow(_rkRows.length-1);
+  updateRkPreview();
+}
+function rkRemoveRow(i) { _rkRows.splice(i,1); rkInitRows(); }
+
+function fmt2(n) { return n.toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+
+function updateRkPreview() {
+  var el = document.getElementById('rkPreview');
+  if (!el) return;
+  var kst       = (document.getElementById('rkKst')       || {value:'0435-5013'}).value;
+  var zuord     = (document.getElementById('rkZuord')     || {value:'900'}).value;
+  var headerTxt = (document.getElementById('rkHeaderTxt') || {value:''}).value;
+  var sollRows = [], taxRows = [];
+  var totalNet = 0, totalGross = 0, totalTax = 0;
+  var nr = 0;
+  _rkRows.forEach(function(row){
+    var brutto  = parseFloat(row.brutto)||0;
+    var rate    = RK_MWST[row.tax];
+    var net     = (rate!==undefined) ? Math.round(brutto/(1+rate)*100)/100 : brutto;
+    var taxAmt  = (rate!==undefined) ? Math.round((brutto-net)*100)/100 : 0;
+    var sapTax  = RK_TAX_NORM[row.tax] || row.tax;
+    var taxNote = (RK_TAX_NORM[row.tax]) ? row.tax+'→'+sapTax : row.tax;
+    totalNet   += net;
+    totalGross += brutto;
+    totalTax   += taxAmt;
+    nr++;
+    sollRows.push({nr:nr,kto:row.soll,amt:net,taxDisp:taxNote,sapTax:sapTax,kst:kst,text:row.text});
+    if(taxAmt>0) taxRows.push({code:sapTax,dispCode:row.tax,net:net,tax:taxAmt});
+  });
+  // Combined Haben position
+  nr++;
+  var habenNr = nr;
+
+  var th = '<th style="padding:5px 8px;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;';
+  var html = '<table style="width:100%;border-collapse:collapse;font-size:11.5px;"><thead><tr style="border-bottom:1px solid var(--border);">';
+  html += th+'text-align:left;">Pos</th>';
+  html += th+'text-align:left;">Schluessel</th>';
+  html += th+'text-align:left;">Konto</th>';
+  html += th+'text-align:right;">Betrag EUR</th>';
+  html += th+'text-align:center;">SAP-Steuerkz</th>';
+  html += th+'text-align:left;">KST</th>';
+  html += th+'text-align:left;">Text</th>';
+  html += '</tr></thead><tbody>';
+
+  // Soll-Zeilen: 685100 Netto
+  sollRows.forEach(function(r){
+    var taxBadge = r.taxDisp
+      ? '<span style="padding:1px 6px;border-radius:4px;background:rgba(245,158,11,.2);color:#f59e0b;font-weight:700;font-size:10px;">'+esc(r.taxDisp)+'</span>'
+      : '';
+    html += '<tr style="border-bottom:1px solid rgba(48,54,61,.4);">';
+    html += '<td style="padding:5px 8px;color:var(--muted);">'+r.nr+'</td>';
+    html += '<td style="padding:5px 8px;color:var(--accent);">40 - Soll</td>';
+    html += '<td style="padding:5px 8px;font-family:monospace;">'+String(r.kto).padStart(10,'0')+'</td>';
+    html += '<td style="padding:5px 8px;text-align:right;font-family:monospace;color:var(--ok);">'+fmt2(r.amt)+'</td>';
+    html += '<td style="padding:5px 8px;text-align:center;">'+taxBadge+'</td>';
+    html += '<td style="padding:5px 8px;font-size:11px;">'+esc(r.kst)+'</td>';
+    html += '<td style="padding:5px 8px;color:var(--muted);">'+esc(r.text)+'</td>';
+    html += '</tr>';
+  });
+
+  // Kombinierte Haben-Zeile: 485000 Gesamtbrutto
+  html += '<tr style="border-bottom:2px solid var(--border);background:rgba(239,68,68,.04);">';
+  html += '<td style="padding:5px 8px;color:var(--muted);">'+habenNr+'</td>';
+  html += '<td style="padding:5px 8px;color:#f87171;">50 - Haben</td>';
+  html += '<td style="padding:5px 8px;font-family:monospace;">0000485000</td>';
+  html += '<td style="padding:5px 8px;text-align:right;font-family:monospace;color:var(--err);">'+fmt2(-totalGross)+'</td>';
+  html += '<td style="padding:5px 8px;text-align:center;font-size:10px;color:var(--muted);">—</td>';
+  html += '<td style="padding:5px 8px;font-size:10px;color:var(--muted);">—</td>';
+  html += '<td style="padding:5px 8px;color:var(--muted);font-size:11px;">'+esc(headerTxt||'Reisekosten')+'</td>';
+  html += '</tr>';
+
+  // ACCOUNTTAX
+  if(taxRows.length){
+    html += '<tr><td colspan="7" style="padding:4px 8px;font-size:10px;color:var(--muted);background:rgba(0,0,0,.2);">'
+          + 'Steuerposten (ACCOUNTTAX) — SAP bucht automatisch auf Vorsteuerkonten (260000/260001):</td></tr>';
+    taxRows.forEach(function(t,i){
+      var badge = '<span style="padding:1px 6px;border-radius:4px;background:rgba(245,158,11,.2);color:#f59e0b;font-weight:700;font-size:10px;">'+t.code+'</span>';
+      html += '<tr style="background:rgba(0,0,0,.15);">';
+      html += '<td style="padding:4px 8px;color:var(--muted);font-size:10px;">TAX'+(i+1)+'</td>';
+      html += '<td style="padding:4px 8px;font-size:10px;color:var(--muted);">ACCOUNTTAX</td>';
+      html += '<td style="padding:4px 8px;font-size:10px;color:var(--muted);">— (SAP-intern: 260000/260001)</td>';
+      html += '<td style="padding:4px 8px;text-align:right;font-size:10px;font-family:monospace;color:#f59e0b;">'+fmt2(t.tax)+'</td>';
+      html += '<td style="padding:4px 8px;text-align:center;">'+badge+'</td>';
+      html += '<td colspan="2" style="padding:4px 8px;font-size:10px;color:var(--muted);">Nettobasis: '+fmt2(t.net)+' EUR</td>';
+      html += '</tr>';
+    });
+  }
+
+  // Saldo-Zeile: Netto+Steuer = Brutto → immer 0
+  var saldo = Math.round((totalNet + totalTax - totalGross)*100)/100;
+  var dc    = Math.abs(saldo)<0.01 ? 'color:var(--ok)' : 'color:var(--err)';
+  html += '<tr style="border-top:2px solid var(--border);font-weight:700;">';
+  html += '<td colspan="3" style="padding:7px 8px;">Netto Soll + Steuer = Brutto Haben</td>';
+  html += '<td style="padding:7px 8px;text-align:right;font-family:monospace;color:var(--ok);">'+fmt2(totalNet)+' + '+fmt2(totalTax)+'</td>';
+  html += '<td colspan="3" style="padding:7px 8px;font-size:12px;">= '+fmt2(totalGross)+' | <span style="'+dc+'">'
+        + (Math.abs(saldo)<0.01 ? '✓ Belegsaldo ausgeglichen' : 'Diff: '+fmt2(saldo))
+        +'</span></td>';
+  html += '</tr></tbody></table>';
+  el.innerHTML = html;
+}
+
+function buildRkPayload() {
+  var creds  = AUTH.user || {};
+  var sysId  = (document.getElementById('rkSysId')||{value:getUserSapSystemId()}).value || getUserSapSystemId();
+  var cfg    = SAP_SYSTEMS[sysId] || SAP_SYSTEMS.SEQ;
+  var postDate  = (document.getElementById('rkPostDate')  ||{value:''}).value;
+  var bukrs     = (document.getElementById('rkBukrs')     ||{value:'0435'}).value;
+  var kst       = (document.getElementById('rkKst')       ||{value:'0435-5013'}).value;
+  var zuord     = (document.getElementById('rkZuord')     ||{value:'900'}).value;
+  var refDoc    = (document.getElementById('rkRefDoc')    ||{value:''}).value;
+  var headerTxt = (document.getElementById('rkHeaderTxt') ||{value:''}).value;
+  var fiscYear  = (document.getElementById('rkFiscYear')  ||{value:'2026'}).value;
+  var period    = (document.getElementById('rkPeriod')    ||{value:'6'}).value;
+  var header = {
+    BUS_ACT:'RFBU', USERNAME:creds.sap_username||'ANONYMOUS',
+    COMP_CODE:bukrs, DOC_DATE:postDate, PSTNG_DATE:postDate,
+    FISC_YEAR:fiscYear, FIS_PERIOD:period, DOC_TYPE:'SA',
+    REF_DOC_NO:refDoc, HEADER_TXT:headerTxt,
+  };
+  var accountgl=[], accounttax=[], currencyamount=[];
+  var totalGross = 0, taxIdx = 0, nr = 0;
+  _rkRows.forEach(function(row){
+    var brutto = parseFloat(row.brutto)||0;
+    var rate   = RK_MWST[row.tax];
+    var net    = (rate!==undefined) ? Math.round(brutto/(1+rate)*100)/100 : brutto;
+    var taxAmt = (rate!==undefined) ? Math.round((brutto-net)*100)/100 : 0;
+    var sapTax = RK_TAX_NORM[row.tax] || row.tax;
+    totalGross += brutto;
+    nr++;
+    var nrS = String(nr).padStart(10,'0');
+    var gl = {ITEMNO_ACC:nrS, GL_ACCOUNT:row.soll.padStart(10,'0'), COMP_CODE:bukrs,
+              ITEM_TEXT:row.text||'', ALLOC_NMBR:zuord, COSTCENTER:kst};
+    if(sapTax) gl.TAX_CODE = sapTax;
+    accountgl.push(gl);
+    currencyamount.push({ITEMNO_ACC:nrS, CURRENCY:'EUR', AMT_DOCCUR:net});
+    if(taxAmt>0){
+      taxIdx++;
+      var nrT = String(100+taxIdx).padStart(10,'0');
+      accounttax.push({ITEMNO_ACC:nrT, TAX_CODE:sapTax, TAX_BASE_AMOUNT:net, TAX_AMOUNT:taxAmt});
+      currencyamount.push({ITEMNO_ACC:nrT, CURRENCY:'EUR', AMT_DOCCUR:taxAmt, AMT_BASE:net});
+    }
+  });
+  nr++;
+  var nrH = String(nr).padStart(10,'0');
+  var habenGross = Math.round(totalGross*100)/100;
+  accountgl.push({ITEMNO_ACC:nrH, GL_ACCOUNT:'0000485000', COMP_CODE:bukrs,
+                  ITEM_TEXT:headerTxt||'Reisekosten', ALLOC_NMBR:zuord});
+  currencyamount.push({ITEMNO_ACC:nrH, CURRENCY:'EUR', AMT_DOCCUR:-habenGross});
+  return {
+    _sap_auth:{ashost:creds.ashost||cfg.ashost, sysnr:creds.sysnr||cfg.sysnr,
+               client:creds.client||cfg.client, lang:creds.lang||cfg.lang,
+               user:creds.sap_username||cfg.user, passwd:creds.passwd||''},
+    DOCUMENTHEADER:header, ACCOUNTGL:accountgl,
+    ACCOUNTTAX:accounttax, CURRENCYAMOUNT:currencyamount,
+  };
+}
+
+async function postRkToSap() {
+  if(!_rkRows.length){alert('Keine Buchungspositionen.'); return;}
+  var creds = AUTH.user||{};
+  if(!creds.passwd){
+    var pw = prompt('SAP-Passwort fuer '+(creds.sap_username||'?')+' eingeben:');
+    if(!pw) return;
+    creds.passwd = pw;
+  }
+  var btn = document.getElementById('btnRkPost');
+  btn.disabled = true;
+  document.getElementById('rkStatus').innerHTML =
+    '<span style="color:var(--warn);font-size:12px;">Buchung laeuft... BAPI_ACC_DOCUMENT_POST</span>';
+  var payload = buildRkPayload();
+  payload._sap_auth.passwd = creds.passwd;
+  try {
+    var ctrl  = new AbortController();
+    var timer = setTimeout(function(){ctrl.abort();}, 60000);
+    var resp  = await fetch(BRIDGE_URL+'/run',{
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({method:'BAPI',tcode:'BAPI_ACC_DOCUMENT_POST',payload:payload}),
+      signal:ctrl.signal
+    });
+    clearTimeout(timer);
+    var rawText = await resp.text();
+    var data;
+    try{data=JSON.parse(rawText);}
+    catch(_){throw new Error('Bridge nicht erreichbar: '+rawText.slice(0,200));}
+    if(!resp.ok||data.error) throw new Error(data.error||data.detail||JSON.stringify(data));
+    var docNr = data.doc_number || '';
+    if (!docNr && data.result && data.result.OBJ_KEY)
+      docNr = String(data.result.OBJ_KEY).replace(/\D/g,'') || data.result.OBJ_KEY;
+    if (!docNr && data.message) {
+      var m18 = String(data.message).match(/\b(\d{18})\b/);
+      var m10 = String(data.message).match(/\b(\d{7,10})\b/);
+      docNr = (m18&&m18[1]) || (m10&&m10[1]) || '';
+    }
+    var ret    = data.result || {};
+    var msgs   = Array.isArray(ret.RETURN) ? ret.RETURN : [];
+    if (!msgs.length && data.message)
+      msgs = [{ TYPE: data.status==='ok'?'S':'E', MESSAGE: data.message }];
+    var hasErr = msgs.some(function(m){ return m.TYPE==='E'||m.TYPE==='A'; });
+    var isOk   = data.status === 'ok';
+    if (!isOk && !hasErr && docNr) isOk = true;
+    var sysUsed = (document.getElementById('rkSysId')||{value:'?'}).value;
+    if (hasErr && !isOk) {
+      var em = msgs.filter(function(m){return m.TYPE==='E'||m.TYPE==='A';}).map(function(m){return m.MESSAGE;}).join(' | ');
+      document.getElementById('rkStatus').innerHTML='<span style="color:var(--err);font-size:12px;">BAPI-Fehler ['+esc(sysUsed)+']: '+esc(em)+'</span>';
+      btn.disabled=false;
+    } else {
+      var docDisp = docNr.length===18 ? docNr.substring(0,10) : docNr;
+      document.getElementById('rkStatus').innerHTML=
+        '<span style="color:var(--ok);font-size:13px;font-weight:700;">'+
+        'Buchung erfolgreich ['+esc(sysUsed)+'] — Belegnr.: '+esc(docDisp||'(siehe SAP)')+
+        (docNr.length===18?' <span style="color:var(--muted);font-size:11px">(OBJ_KEY: '+esc(docNr)+')</span>':'')+
+        '</span>';
+      if(AUTH.user) AUTH.user.passwd=creds.passwd;
+      var rkBukrs = (document.getElementById('rkBukrs')||{value:'0435'}).value;
+      var rkDate  = (document.getElementById('rkPostDate')||{value:''}).value;
+      var rkFy    = (document.getElementById('rkFiscYear')||{value:'2026'}).value;
+      var rkPer   = (document.getElementById('rkPeriod')  ||{value:'6'}).value;
+      var rkRef   = (document.getElementById('rkRefDoc')  ||{value:''}).value;
+      var rkHdr   = (document.getElementById('rkHeaderTxt')||{value:''}).value;
+      var rkTotal = _rkRows.reduce(function(s,r){return s+parseFloat(r.brutto||0);},0);
+      saveGlobalBooking({
+        module:'reisekosten', bukrs:rkBukrs, sap_system:sysUsed,
+        doc_date:rkDate, yr:rkFy, period:rkPer,
+        belnr:docDisp, obj_key:docNr, ref_doc_no:rkRef, header_txt:rkHdr,
+        amount:Math.round(rkTotal*100)/100, currency:'EUR',
+        description:'Reisekosten ' + (rkRef || rkHdr || ''),
+        status:'booked',
+      });
+    }
+  } catch(err) {
+    document.getElementById('rkStatus').innerHTML='<span style="color:var(--err);font-size:12px;">Fehler: '+esc(err.message)+'</span>';
+    btn.disabled=false;
+  }
+}
+
+// Reisekosten-Tab-Init beim Tab-Wechsel
+(function(){
+  var _origSwitch = switchTab;
+  switchTab = function(name,btn){
+    _origSwitch(name,btn);
+    if(name==='rk'){
+      setTimeout(function(){
+        var sel=document.getElementById('rkSysId');
+        if(sel&&!sel._rk_init){sel.value=getUserSapSystemId();sel._rk_init=true;}
+        var tbody=document.getElementById('rkRowsTbody');
+        if(tbody&&!tbody.children.length) rkInitRows();
+        else updateRkPreview();
+      },50);
+    }
+  };
+})();
+
+function rkSaveManualHistory() {
+  var belnr   = (document.getElementById('rkManualBelnr') ||{value:''}).value.trim();
+  var bukrs   = (document.getElementById('rkBukrs')       ||{value:'0435'}).value;
+  var sysId   = (document.getElementById('rkSysId')       ||{value:'SEP'}).value;
+  var rkDate  = (document.getElementById('rkPostDate')    ||{value:''}).value;
+  var rkFy    = (document.getElementById('rkFiscYear')    ||{value:'2026'}).value;
+  var rkPer   = (document.getElementById('rkPeriod')      ||{value:'6'}).value;
+  var rkRef   = (document.getElementById('rkRefDoc')      ||{value:''}).value;
+  var rkHdr   = (document.getElementById('rkHeaderTxt')   ||{value:''}).value;
+  var statusEl= document.getElementById('rkHistStatus');
+  var rkTotal = _rkRows.reduce(function(s,r){return s+parseFloat(r.brutto||0);},0);
+  saveGlobalBooking({
+    module:'reisekosten', bukrs:bukrs, sap_system:sysId,
+    doc_date:rkDate, yr:rkFy, period:rkPer,
+    belnr:belnr, obj_key:belnr, ref_doc_no:rkRef, header_txt:rkHdr,
+    amount:Math.round(rkTotal*100)/100, currency:'EUR',
+    description:'Reisekosten (manuell) ' + (rkRef || rkHdr || ''),
+    status:'booked', source:'manual',
+  });
+  statusEl.innerHTML = '<span style="color:var(--ok);">✓ Eintrag gespeichert' + (belnr ? ' (Belegnr. ' + esc(belnr) + ')' : ' (ohne Belegnr.)') + '</span>';
+  setTimeout(function(){ if(statusEl) statusEl.innerHTML=''; }, 5000);
+}
+
+
+// ─── USt-Firmenwagen ─────────────────────────────────────────────────────────
+var _uwRows = [];
+var _uwRunId = null;
+
+// Mitarbeiter-Stammdaten (Quelle: 0435_Kostenstellen.xlsx)
+var UW_MITARBEITER = [
+  {persnr:'627577', nachname:'Ullein',      vorname:'Thomas',    abteilung:'Einkauf',                   kostenstelle:'0435-2009'},
+  {persnr:'998981', nachname:'Pagel',       vorname:'Christian', abteilung:'Einkauf',                   kostenstelle:'0435-2009'},
+  {persnr:'701238', nachname:'Sass',        vorname:'Dirk',      abteilung:'Global System Eng. TPM',    kostenstelle:'0435-3121'},
+  {persnr:'998940', nachname:'von Bauer',   vorname:'Axel',      abteilung:'Finance',                   kostenstelle:'0435-5013'},
+  {persnr:'998949', nachname:'Grillmeier',  vorname:'Markus',    abteilung:'Global Sales',              kostenstelle:'0435-4022'},
+  {persnr:'998950', nachname:'Steininger',  vorname:'Sebastian', abteilung:'Global Sales',              kostenstelle:'0435-4022'},
+  {persnr:'998957', nachname:'Bodenstein',  vorname:'Bjoern',    abteilung:'IT',                        kostenstelle:'0435-5090'},
+  {persnr:'998965', nachname:'Fellmann',    vorname:'Uwe',       abteilung:'Global Sales',              kostenstelle:'0435-4022'},
+  {persnr:'998969', nachname:'Janik',       vorname:'Karsten',   abteilung:'Global Sales',              kostenstelle:'0435-4022'},
+  {persnr:'357089', nachname:'Thiam',       vorname:'Racine',    abteilung:'Management & Op Execution', kostenstelle:'0435-5019'},
+];
+
+function uwGetMitarbeiter(persnr){
+  return UW_MITARBEITER.find(function(m){return m.persnr===String(persnr);})||null;
+}
+function uwGetKst(persnr){var m=uwGetMitarbeiter(persnr);return m?m.kostenstelle:'';}
+
+// Parse "Abrechnungsmonat" → {month,year} or null
+function uwParseAbrechnungsmonat(val){
+  if(val===null||val===undefined||val==='') return null;
+  var s=String(val).trim(), m;
+  m=s.match(/^(\d{1,2})\.(\d{4})$/); if(m) return{month:parseInt(m[1]),year:parseInt(m[2])};
+  m=s.match(/^(\d{4})-(\d{1,2})$/);  if(m) return{month:parseInt(m[2]),year:parseInt(m[1])};
+  m=s.match(/^(\d{1,2})\/(\d{4})$/); if(m) return{month:parseInt(m[1]),year:parseInt(m[2])};
+  m=s.match(/^(\d{4})\/(\d{1,2})$/); if(m) return{month:parseInt(m[2]),year:parseInt(m[1])};
+  return null;
+}
+
+// Auto-fill booking params from calendar month/year
+function uwApplyAbrechnungsmonat(month, year){
+  // BuKr 0435: Kalenderjahr-Perioden — Jan=1, Feb=2 … Jun=6 … Dez=12
+  var sapPeriod=month;
+  var fiscYear=year;
+  var ld=new Date(year,month,0); // letzter Tag des Monats
+  var yyyy=ld.getFullYear();
+  var mm=String(ld.getMonth()+1).padStart(2,'0');
+  var dd=String(ld.getDate()).padStart(2,'0');
+  var postDate=yyyy+'-'+mm+'-'+dd;
+  var mStr=String(month).padStart(2,'0');
+  var refDoc='UST_FW_'+mStr+'.'+year;
+  var headerTxt='USt-Firmenwagen '+mStr+'/'+year;
+  var set=function(id,v){var el=document.getElementById(id);if(el)el.value=v;};
+  set('uwPostDate',postDate); set('uwPeriod',String(sapPeriod));
+  set('uwFiscYear',String(fiscYear)); set('uwRefDoc',refDoc); set('uwHeaderTxt',headerTxt);
+  // Info-Text dynamisch aktualisieren
+  var infoEl=document.getElementById('uwParamInfo');
+  if(infoEl){
+    var mNames=['Jan','Feb','Mär','Apr','Mai','Jun','Jul','Aug','Sep','Okt','Nov','Dez'];
+    infoEl.textContent='① Periode '+sapPeriod+' = '+mNames[month-1]+' '+year
+      +' (Kalenderjahr); Soll: 639000 | Haben: 540000 | Dtyp: SA | je 1 Beleg pro Person';
+  }
+  return{postDate:postDate,sapPeriod:sapPeriod,fiscYear:fiscYear,
+         refDoc:refDoc,headerTxt:headerTxt,month:month,year:year};
+}
+
+var UW_DEFAULT_06 = [
+  {persnr:'357089', nachname:'Thiam',      gvw:517,  fahrten:93.06},
+  {persnr:'627577', nachname:'Ullein',     gvw:336,  fahrten:211.68},
+  {persnr:'701238', nachname:'Sass',       gvw:668,  fahrten:601.20},
+  {persnr:'998940', nachname:'von Bauer',  gvw:720,  fahrten:0},
+  {persnr:'998949', nachname:'Grillmeier', gvw:343,  fahrten:411.60},
+  {persnr:'998950', nachname:'Steininger', gvw:345,  fahrten:238.05},
+  {persnr:'998957', nachname:'Bodenstein', gvw:691,  fahrten:0},
+  {persnr:'998965', nachname:'Fellmann',   gvw:392,  fahrten:0},
+  {persnr:'998969', nachname:'Janik',      gvw:301,  fahrten:27.09},
+  {persnr:'998981', nachname:'Pagel',      gvw:579,  fahrten:0},
+];
+
+function uwLoadDefault06(){
+  uwApplyAbrechnungsmonat(6,2026);
+  _uwRows=UW_DEFAULT_06.map(function(p){
+    var md=uwGetMitarbeiter(p.persnr);
+    return{persnr:p.persnr,nachname:p.nachname,
+      vorname:md?md.vorname:'',abteilung:md?md.abteilung:'',
+      gvw:p.gvw,fahrten:p.fahrten,
+      amount:Math.round((p.gvw+p.fahrten)*1.19*100)/100,
+      kostenstelle:md?md.kostenstelle:'',status:'pending',belnr:''};
+  });
+  _uwRunId=null;
+  uwRenderTable();
+  var missing=_uwRows.filter(function(r){return !r.kostenstelle;});
+  var warn=missing.length?' | ⚠ Kostenstelle fehlt: '+missing.map(function(r){return r.nachname;}).join(', '):'';
+  document.getElementById('uwImportStatus').innerHTML=
+    '<span style="color:var(--ok);">✓ 06/2026 Vorbelegung — '+_uwRows.length+' Personen'+warn+'</span>';
+}
+
+function uwHandleFile(file){
+  if(!file) return;
+  var st=document.getElementById('uwImportStatus');
+  st.innerHTML='⧗ Lese '+esc(file.name)+'…';
+  var reader=new FileReader();
+  reader.onload=function(e){
+    try{uwImportExcel(new Uint8Array(e.target.result),file.name);}
+    catch(ex){st.innerHTML='<span style="color:var(--err);">Fehler: '+esc(ex.message)+'</span>';}
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function uwHandleDrop(e){
+  e.preventDefault();
+  var dt=e.dataTransfer;
+  if(dt&&dt.files&&dt.files[0]) uwHandleFile(dt.files[0]);
+  var dz=document.getElementById('uwDropZone');
+  if(dz) dz.style.borderColor='var(--border)';
+}
+
+function uwImportExcel(ab,filename){
+  var st=document.getElementById('uwImportStatus');
+  if(typeof XLSX==='undefined'){st.innerHTML='<span style="color:var(--err);">SheetJS nicht geladen.</span>';return;}
+  var wb=XLSX.read(ab,{type:'array',cellDates:false});
+  var ws=wb.Sheets[wb.SheetNames[0]];
+  var data=XLSX.utils.sheet_to_json(ws,{raw:true,defval:null});
+  if(!data.length){st.innerHTML='<span style="color:var(--err);">Keine Daten.</span>';return;}
+  var keys=Object.keys(data[0]);
+  function col(pats){
+    for(var i=0;i<pats.length;i++){var p=pats[i].toLowerCase();
+      for(var j=0;j<keys.length;j++) if(keys[j].toLowerCase().includes(p)) return keys[j];}
+    return null;
+  }
+  var cPnr=col(['personalnummer','persnr']),cNn=col(['nachname','name']);
+  var cGvw=col(['507','listenpreis','gwv']),cFt=col(['509','fahrten']);
+  var cAbr=col(['abrechnungsmonat','abr']);
+  if(!cPnr||!cNn){st.innerHTML='<span style="color:var(--err);">Spalten Personalnummer/Nachname nicht gefunden.</span>';return;}
+  // Auto-detect Abrechnungsmonat from first parseable row
+  var parsedAbr=null;
+  if(cAbr){
+    for(var i=0;i<data.length;i++){
+      var pa=uwParseAbrechnungsmonat(data[i][cAbr]);
+      if(pa){parsedAbr=pa;break;}
+    }
+  }
+  if(parsedAbr) uwApplyAbrechnungsmonat(parsedAbr.month,parsedAbr.year);
+  // Build per-person map (latest Abrechnungsmonat wins)
+  var byP={};
+  data.forEach(function(row){
+    var pnr=String(row[cPnr]||'').trim(),nn=String(row[cNn]||'').trim();
+    if(!pnr||!nn) return;
+    var abr=cAbr?String(row[cAbr]||''):'';
+    if(!byP[pnr]||abr>byP[pnr].abr)
+      byP[pnr]={persnr:pnr,nachname:nn,
+        gvw:cGvw?(parseFloat(row[cGvw])||0):0,
+        fahrten:cFt?(parseFloat(row[cFt])||0):0,abr:abr};
+  });
+  var persons=Object.values(byP);
+  if(!persons.length){st.innerHTML='<span style="color:var(--err);">Keine Personen gefunden.</span>';return;}
+  persons.sort(function(a,b){return a.nachname.localeCompare(b.nachname,'de');});
+  _uwRows=persons.map(function(p){
+    var md=uwGetMitarbeiter(p.persnr);
+    return{persnr:p.persnr,nachname:p.nachname,
+      vorname:md?md.vorname:'',abteilung:md?md.abteilung:'',
+      gvw:p.gvw,fahrten:p.fahrten,
+      amount:Math.round((p.gvw+p.fahrten)*1.19*100)/100,
+      kostenstelle:md?md.kostenstelle:'',status:'pending',belnr:''};
+  });
+  _uwRunId=null;
+  uwRenderTable();
+  var missing=_uwRows.filter(function(r){return !r.kostenstelle;});
+  var warn=missing.length?' | ⚠ Kostenstelle fehlt: '+missing.map(function(r){return r.nachname;}).join(', '):'';
+  var abrStr=parsedAbr?' — Periode: '+String(parsedAbr.month).padStart(2,'0')+'/'+parsedAbr.year:'';
+  st.innerHTML='<span style="color:var(--ok);">✓ '+esc(filename)+' — '+_uwRows.length+' Personen'+abrStr+warn+'</span>';
+}
+
+function uwRenderTable(){
+  var tbody=document.getElementById('uwTbody');if(!tbody) return;
+  if(!_uwRows.length){
+    tbody.innerHTML='<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:24px;">Keine Daten</td></tr>';
+    var s=document.getElementById('uwSummary');if(s)s.style.display='none';
+    var c=document.getElementById('uwRowCount');if(c)c.textContent='';
+    var bw=document.getElementById('uwBuchungslisteWrap');if(bw)bw.style.display='none';
+    return;
+  }
+  var total=0;tbody.innerHTML='';
+  _uwRows.forEach(function(row,idx){
+    total+=row.amount||0;
+    var stHtml;
+    if(row.status==='booked')   stHtml='<span style="color:var(--ok);font-weight:700;">✅ Gebucht</span>';
+    else if(row.status==='error')  stHtml='<span style="color:var(--err);">❌ Fehler</span>';
+    else if(row.status==='booking') stHtml='<span style="color:var(--warn);">⧗</span>';
+    else stHtml='<span style="color:var(--muted);">⬜ Offen</span>';
+    var kb=!row.kostenstelle?'border-color:var(--err);':'';
+    var tr=document.createElement('tr');
+    tr.id='uw-row-'+idx;tr.style.borderBottom='1px solid var(--border)';
+    tr.innerHTML=
+      '<td style="padding:5px 8px;color:var(--muted);">'+(idx+1)+'</td>'+
+      '<td style="padding:5px 6px;"><input type="text" value="'+esc(row.nachname)+'"'+
+        ' onchange="_uwRows['+idx+'].nachname=this.value;uwRenderBuchungsliste()"'+
+        ' style="width:100px;padding:4px 7px;border-radius:5px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:12px;"></td>'+
+      '<td style="padding:5px 6px;"><input type="text" value="'+esc(row.kostenstelle)+'" placeholder="0435-XXXX"'+
+        ' onchange="_uwRows['+idx+'].kostenstelle=this.value;uwRenderBuchungsliste()"'+
+        ' style="width:100px;padding:4px 7px;border-radius:5px;border:1px solid var(--border);'+kb+'background:var(--bg3);color:var(--text);font-size:12px;"></td>'+
+      '<td style="padding:5px 6px;text-align:right;"><input type="number" value="'+row.gvw+'" step="0.01"'+
+        ' onchange="_uwRows['+idx+'].gvw=parseFloat(this.value)||0;uwRecalcAmt('+idx+')"'+
+        ' style="width:70px;padding:4px 6px;border-radius:5px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:12px;text-align:right;"></td>'+
+      '<td style="padding:5px 6px;text-align:right;"><input type="number" value="'+row.fahrten+'" step="0.01"'+
+        ' onchange="_uwRows['+idx+'].fahrten=parseFloat(this.value)||0;uwRecalcAmt('+idx+')"'+
+        ' style="width:70px;padding:4px 6px;border-radius:5px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:12px;text-align:right;"></td>'+
+      '<td style="padding:5px 8px;text-align:right;font-weight:700;white-space:nowrap;" id="uw-amt-'+idx+'">'+
+        (row.amount||0).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})+' €</td>'+
+      '<td style="padding:5px 8px;" id="uw-st-'+idx+'">'+stHtml+'</td>'+
+      '<td style="padding:5px 8px;font-family:monospace;font-size:11px;" id="uw-belnr-'+idx+'">'+esc(row.belnr||'')+'</td>'+
+      '<td style="padding:5px 6px;white-space:nowrap;">'+
+        (row.status!=='booked'
+          ?'<button onclick="uwShowUbergabe('+idx+')"'+(row.status==='booking'?' disabled':'')+
+            ' style="padding:3px 10px;border-radius:5px;border:none;background:var(--accent);color:#fff;font-size:11px;cursor:pointer;">▶ SAP</button>'
+          :'✓')+
+        ' <button onclick="_uwRows.splice('+idx+',1);uwRenderTable()" title="Entfernen"'+
+        ' style="padding:3px 7px;border-radius:5px;border:1px solid var(--border);background:var(--bg3);color:var(--muted);font-size:11px;cursor:pointer;margin-left:4px;">✕</button>'+
+      '</td>';
+    tbody.appendChild(tr);
+  });
+  var sumEl=document.getElementById('uwSummary');
+  if(sumEl){sumEl.style.display='block';
+    document.getElementById('uwTotalAmount').textContent=total.toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})+' EUR';
+    var bEl=document.getElementById('uwBukrs');
+    document.getElementById('uwTotalBukrs').textContent=bEl?bEl.value:'0435';
+  }
+  var cEl=document.getElementById('uwRowCount');if(cEl)cEl.textContent='('+_uwRows.length+' Personen)';
+  uwRenderBuchungsliste();
+}
+
+
+// ── Manuelle Belnr-Eingabe in Buchungsvorschau ────────────────────────────
+function _uwBelnrEdit(idx){
+  var row=_uwRows[idx];
+  var cur=row.belnr||'';
+  var val=prompt('SAP-Belegnummer für '+esc(row.nachname||'Zeile '+idx)+' eingeben\n(leer lassen zum Löschen):',cur);
+  if(val===null) return; // Abbrechen
+  val=val.trim();
+  row.belnr=val;
+  row.status=val?'booked':'pending';
+  // Direkt in DB persistieren
+  uwSaveToDb(true);
+  // Vorschau aktualisieren
+  uwRenderBuchungsliste();
+  // Auch Haupttabelle aktualisieren
+  uwRenderTable();
+}
+
+function uwRenderBuchungsliste(){
+  var wrap=document.getElementById('uwBuchungslisteWrap');
+  var tbody=document.getElementById('uwBlTbody');
+  if(!wrap||!tbody) return;
+  if(!_uwRows.length){wrap.style.display='none';return;}
+  wrap.style.display='block';
+  var postDate=(document.getElementById('uwPostDate')||{value:''}).value||'';
+  // Derive calendar month string from postDate (parse parts to avoid UTC timezone shift)
+  var calMonth='';
+  if(postDate&&postDate.length>=7){var parts=postDate.split('-');calMonth=parts[1]||'';}
+  tbody.innerHTML='';
+  // Build YYYY-MM prefix for Text column
+  var yyyymm=postDate.length>=7?postDate.substring(0,7):'';
+  var totalAmt=0;
+  _uwRows.forEach(function(row,idx){
+    var kst=row.kostenstelle||'—';
+    var person=row.nachname+(row.vorname?', '+row.vorname:'');
+    var rowText=(yyyymm?yyyymm+' ':'')+'Ust-Firmenwagen. '+row.nachname;
+    var amt=(row.amount||0).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2});
+    var belnr=row.belnr||'';
+    var belnrDisp=belnr?('<span style="color:var(--ok);font-weight:700;">'+esc(belnr)+'</span>'):'<span style="color:var(--muted);">–</span>';
+    var rowBg=idx%2===0?'':'background:rgba(255,255,255,.025);';
+    var tr=document.createElement('tr');
+    tr.style.cssText='border-bottom:1px solid var(--border);'+rowBg;
+    tr.innerHTML=
+      '<td style="padding:4px 8px;white-space:nowrap;font-size:11px;">'+esc(postDate||'–')+'</td>'+
+      '<td style="padding:4px 8px;font-family:monospace;font-size:11px;font-weight:600;">'+esc(kst)+'</td>'+
+      '<td style="padding:4px 8px;font-family:monospace;font-size:11px;text-align:center;">639000</td>'+
+      '<td style="padding:4px 8px;font-size:11px;white-space:nowrap;">'+esc(person)+'</td>'+
+      '<td style="padding:4px 8px;font-family:monospace;font-size:11px;text-align:center;">540000</td>'+
+      '<td style="padding:4px 8px;font-size:11px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="'+esc(rowText)+'">'+esc(rowText)+'</td>'+
+      '<td style="padding:4px 8px;font-size:11px;text-align:center;">SA</td>'+
+      '<td style="padding:4px 8px;font-family:monospace;font-size:11px;text-align:center;">A1</td>'+
+      '<td style="padding:4px 8px;font-family:monospace;font-size:11px;text-align:center;">A-0101-000</td>'+
+      '<td style="padding:4px 8px;font-size:11px;text-align:center;font-family:monospace;">'+esc(calMonth||'–')+'</td>'+
+      '<td style="padding:4px 8px;text-align:right;font-weight:700;font-size:11px;white-space:nowrap;">'+amt+' €</td>'+
+      '<td style="padding:4px 8px;font-family:monospace;font-size:11px;">' +
+        '<span id="uwbl-disp-'+idx+'">' + belnrDisp + '</span>' +
+        '<button onclick="_uwBelnrEdit('+idx+')" title="Belegnr. manuell nachtragen" ' +
+        'style="margin-left:5px;padding:1px 5px;font-size:10px;border-radius:3px;border:1px solid var(--border);' +
+        'background:var(--bg3);color:var(--muted);cursor:pointer;line-height:1.4;">✎</button>' +
+        '</td>';
+    totalAmt+=(row.amount||0);
+    tbody.appendChild(tr);
+  });
+  // Summenzeile
+  var totRow=document.createElement('tr');
+  totRow.style.cssText='border-top:2px solid var(--border);background:var(--bg3);';
+  totRow.innerHTML=
+    '<td colspan="10" style="padding:6px 10px;font-size:11px;font-weight:700;text-align:right;color:var(--muted);">Gesamt</td>'+
+    '<td style="padding:6px 10px;text-align:right;font-weight:700;font-size:13px;white-space:nowrap;color:var(--accent);">'+
+      totalAmt.toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})+' €</td>'+
+    '<td></td>';
+  tbody.appendChild(totRow);
+  var cEl=document.getElementById('uwBlCount');
+  if(cEl)cEl.textContent='('+_uwRows.length+' Buchungen)';
+}
+
+function uwRecalcAmt(idx){
+  var row=_uwRows[idx];
+  row.amount=Math.round((row.gvw+row.fahrten)*1.19*100)/100;
+  var el=document.getElementById('uw-amt-'+idx);
+  if(el)el.textContent=row.amount.toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})+' €';
+  var tot=_uwRows.reduce(function(s,r){return s+(r.amount||0);},0);
+  var tEl=document.getElementById('uwTotalAmount');
+  if(tEl)tEl.textContent=tot.toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})+' EUR';
+  uwRenderBuchungsliste();
+}
+
+function uwAddRow(){
+  _uwRows.push({persnr:'',nachname:'',vorname:'',abteilung:'',gvw:0,fahrten:0,amount:0,kostenstelle:'',status:'pending',belnr:''});
+  uwRenderTable();
+}
+
+// ── SAP-Übergabe Vorschau ────────────────────────────────────────────────────
+function uwShowUbergabe(idx){
+  var row=_uwRows[idx];
+  if(!row){return;}
+  var payload=uwBuildPayload(idx);
+  var dh=payload.DOCUMENTHEADER;
+  var gl=payload.ACCOUNTGL;
+  var ca=payload.CURRENCYAMOUNT;
+  var tax=payload.ACCOUNTTAX;
+  var esc=function(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');};
+  var tR=function(label,val,mono,color){
+    return'<tr><td style="padding:5px 10px;color:var(--muted);font-size:11px;white-space:nowrap;width:38%;">'+esc(label)+'</td>'
+      +'<td style="padding:5px 10px;font-size:12px;'+(mono?'font-family:monospace;':'')+(color?'color:'+color+';font-weight:700;':'')+'">'+esc(String(val||''))+'</td></tr>';
+  };
+  var tH=function(title){return'<tr><td colspan="2" style="padding:7px 10px;background:var(--bg3);font-weight:700;font-size:11px;color:var(--accent);letter-spacing:.04em;">'+esc(title)+'</td></tr>';};
+  var html='<div style="padding:22px 24px;">';
+  html+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">'
+    +'<h3 style="margin:0;color:var(--text);font-size:15px;">🔍 SAP-Übergabe — '+esc(row.nachname+(row.vorname?' '+row.vorname:''))+'</h3>'
+    +'<button onclick="uwCloseUbergabe()" style="background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;padding:0 4px;">✕</button>'
+    +'</div>';
+  html+='<table style="width:100%;border-collapse:collapse;border:1px solid var(--border);border-radius:8px;overflow:hidden;">';
+  // DOCUMENTHEADER
+  html+=tH('DOCUMENTHEADER');
+  html+=tR('BUS_ACT',dh.BUS_ACT,true)+tR('DOC_TYPE',dh.DOC_TYPE,true)
+    +tR('COMP_CODE (BuKr)',dh.COMP_CODE,true)+tR('USERNAME',dh.USERNAME,true)
+    +tR('DOC_DATE',dh.DOC_DATE,true)+tR('PSTNG_DATE (Buchungsdatum)',dh.PSTNG_DATE,true)
+    +tR('FISC_YEAR (GJ)',dh.FISC_YEAR,true)+tR('FIS_PERIOD (Periode)',dh.FIS_PERIOD,true,'#facc15')
+    +tR('REF_DOC_NO',dh.REF_DOC_NO,true)+tR('HEADER_TXT',dh.HEADER_TXT,false);
+  // ACCOUNTGL
+  html+=tH('ACCOUNTGL (Sachkonten)');
+  gl.forEach(function(g){
+    var isDebit=g.GL_ACCOUNT==='0000639000';
+    html+=tR('Pos '+g.ITEMNO_ACC+' — '+g.GL_ACCOUNT,
+      (isDebit?'Soll — 639000 Aufwand (Brutto)':'Haben — 540000 Erlöse (Netto)'),
+      false,isDebit?'#4ade80':'#f87171');
+    if(g.COSTCENTER) html+=tR('  Kostenstelle',g.COSTCENTER,true);
+    html+=tR('  Profit Center',g.PROFIT_CTR,true)+tR('  Positionstext',g.ITEM_TEXT,false);
+  });
+  // CURRENCYAMOUNT
+  var netAmt=Math.round((row.gvw+row.fahrten)*100)/100;
+  var grossAmt=row.amount||0;
+  var taxAmt=Math.round((grossAmt-netAmt)*100)/100;
+  html+=tH('CURRENCYAMOUNT');
+  ca.forEach(function(c){
+    var amt=Number(c.AMT_DOCCUR);
+    var baseAmt=Number(c.AMT_BASE||0);
+    var isDebit=amt>=0;
+    var label=isDebit
+      ?'Pos '+c.ITEMNO_ACC+' — 639000 Soll (Brutto)'
+      :'Pos '+c.ITEMNO_ACC+' — 540000 Haben (Netto)';
+    html+=tR(label,
+      (amt>=0?'+':'')+amt.toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})+' EUR',
+      true,isDebit?'#4ade80':'#f87171');
+    html+=tR('  AMT_BASE (Steuerbasis)',
+      (baseAmt>=0?'+':'')+baseAmt.toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})+' EUR',
+      true);
+  });
+  // ACCOUNTTAX
+  html+=tH('ACCOUNTTAX (Steuerkennzeichen — Pos 003)');
+  tax.forEach(function(t){
+    html+=tR('Pos '+t.ITEMNO_ACC+' Tax Code',t.TAX_CODE,true)
+      +tR('  Steuerbetrag (AMT_DOCCUR)','−'+taxAmt.toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})+' EUR',true,'#f87171')
+      +tR('  AMT_BASE (Steuerbasis)','−'+netAmt.toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})+' EUR',true)
+      +tR('  → 480000 Output tax','wird von SAP gebucht',false);
+  });
+  // SAP System
+  var sysId=(document.getElementById('uwSysId')||{value:'SEP'}).value;
+  var cfg=SAP_SYSTEMS[sysId]||{};
+  html+=tH('SAP-System');
+  html+=tR('System',sysId+' — '+(cfg.label||''),false)
+    +tR('Host',cfg.host||'',true)+tR('Client',cfg.client||'',true);
+  html+='</table>';
+  // Betrag-Zusammenfassung
+  var amt=row.amount||0;
+  html+='<div style="margin-top:14px;padding:12px 16px;background:var(--bg3);border-radius:8px;display:flex;justify-content:space-between;align-items:center;">'
+    +'<span style="font-size:12px;color:var(--muted);">Buchungsbetrag</span>'
+    +'<span style="font-size:16px;font-weight:700;color:var(--accent);">'+amt.toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})+' EUR</span>'
+    +'</div>';
+  html+='<div style="margin-top:18px;display:flex;gap:10px;justify-content:flex-end;">'
+    +'<button onclick="uwCloseUbergabe()" style="padding:8px 20px;border-radius:7px;border:1px solid var(--border);background:var(--bg3);color:var(--text);cursor:pointer;font-size:13px;">Abbrechen</button>'
+    +'<button onclick="uwCloseUbergabe();uwBookOne('+idx+')" style="padding:8px 22px;border-radius:7px;border:none;background:var(--accent);color:#fff;cursor:pointer;font-size:13px;font-weight:700;">✅ Jetzt buchen</button>'
+    +'</div>';
+  html+='</div>';
+  // Modal aufbauen / wiederverwenden
+  var modal=document.getElementById('uwSapUbergabeModal');
+  if(!modal){
+    modal=document.createElement('div');
+    modal.id='uwSapUbergabeModal';
+    modal.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.72);z-index:10000;display:flex;align-items:center;justify-content:center;';
+    modal.addEventListener('click',function(e){if(e.target===modal)uwCloseUbergabe();});
+    var box=document.createElement('div');
+    box.className='uw-ue-box';
+    box.style.cssText='background:var(--bg2);border:1px solid var(--border);border-radius:14px;max-width:660px;width:92%;max-height:82vh;overflow-y:auto;box-shadow:0 10px 50px rgba(0,0,0,.6);';
+    modal.appendChild(box);
+    document.body.appendChild(modal);
+  }
+  modal.querySelector('.uw-ue-box').innerHTML=html;
+  modal.style.display='flex';
+}
+function uwCloseUbergabe(){
+  var m=document.getElementById('uwSapUbergabeModal');
+  if(m) m.style.display='none';
+}
+
+function uwBuildPayload(idx){
+  var row=_uwRows[idx],creds=AUTH.user||{};
+  var sysId=(document.getElementById('uwSysId')||{value:getUserSapSystemId()}).value;
+  var cfg=SAP_SYSTEMS[sysId]||SAP_SYSTEMS.SEQ;
+  var postDate=(document.getElementById('uwPostDate')||{value:''}).value;
+  var bukrs=(document.getElementById('uwBukrs')||{value:'0435'}).value;
+  var fiscYear=(document.getElementById('uwFiscYear')||{value:'2026'}).value;
+  var period=(document.getElementById('uwPeriod')||{value:'6'}).value;
+  var refDoc=(document.getElementById('uwRefDoc')||{value:''}).value;
+  var hdrTxt=(document.getElementById('uwHeaderTxt')||{value:''}).value;
+  var kst=row.kostenstelle||'';
+  // Netto = GWV + Fahrten (Steuerbasis); Brutto = Netto × 1,19 (= row.amount)
+  var netAmount  = Math.round((row.gvw + row.fahrten) * 100) / 100;  // 540000 Haben
+  var grossAmount= row.amount || 0;                                    // 639000 Soll
+  var taxAmount  = Math.round((grossAmount - netAmount) * 100) / 100; // 480000 via ACCOUNTTAX
+  var posText='USt-FW '+row.nachname+' '+(refDoc||hdrTxt||'');
+  // Pos 1: 639000 Soll (Aufwand, Brutto) — kein Steuerkennzeichen
+  var gl0={ITEMNO_ACC:'0000000001',GL_ACCOUNT:'0000639000',COMP_CODE:bukrs,
+            COSTCENTER:kst,PROFIT_CTR:'A-0101-000',ITEM_TEXT:posText};
+  // Pos 2: 540000 Haben (Erlöse, Netto) — TAX_CODE A1 → ACCOUNTTAX Pos 3
+  var gl1={ITEMNO_ACC:'0000000002',GL_ACCOUNT:'0000540000',COMP_CODE:bukrs,
+            PROFIT_CTR:'A-0101-000',ITEM_TEXT:posText,TAX_CODE:'A1'};
+  // ACCOUNTTAX Pos 3: Steuerposition (wie RESY-Muster P-10)
+  // handlers.py filtert auf {ITEMNO_ACC, TAX_CODE} — TAX_BASE_AMOUNT/TAX_AMOUNT nur für UI/Logging
+  var taxItem={ITEMNO_ACC:'0000000003',TAX_CODE:'A1',
+               TAX_BASE_AMOUNT:netAmount,TAX_AMOUNT:taxAmount};
+  return{
+    _sap_auth:{ashost:cfg.host,sysnr:cfg.sysnr,client:cfg.client,lang:'DE',
+               user:creds.sap_username||'',passwd:creds.passwd||''},
+    DOCUMENTHEADER:{BUS_ACT:'RFBU',USERNAME:creds.sap_username||'ANONYMOUS',
+      COMP_CODE:bukrs,DOC_DATE:postDate,PSTNG_DATE:postDate,
+      FISC_YEAR:fiscYear,FIS_PERIOD:period,DOC_TYPE:'SA',
+      REF_DOC_NO:refDoc,HEADER_TXT:hdrTxt||posText},
+    ACCOUNTGL:[gl0,gl1],
+    ACCOUNTTAX:[taxItem],
+    CURRENCYAMOUNT:[
+      // Pos 1 — 639000 Soll: Bruttobetrag (kein TAX_CODE → AMT_BASE nicht benötigt)
+      {ITEMNO_ACC:'0000000001',CURRENCY:'EUR',AMT_DOCCUR: grossAmount},
+      // Pos 2 — 540000 Haben: Nettobetrag (TAX_CODE → SAP erwartet Netto hier)
+      {ITEMNO_ACC:'0000000002',CURRENCY:'EUR',AMT_DOCCUR:-netAmount, AMT_BASE:-netAmount},
+      // Pos 3 — ACCOUNTTAX (480000 USt): Steuerbetrag + Steuerbasis
+      // Saldo: +grossAmount - netAmount - taxAmount = 0 ✓
+      {ITEMNO_ACC:'0000000003',CURRENCY:'EUR',AMT_DOCCUR:-taxAmount, AMT_BASE:-netAmount},
+    ],
+  };
+}
+
+async function uwBookOne(idx){
+  var row=_uwRows[idx],creds=AUTH.user||{};
+  if(!creds.passwd){
+    var pw=prompt('SAP-Passwort für '+(creds.sap_username||'?')+':');
+    if(!pw) return;
+    creds.passwd=pw;if(AUTH.user)AUTH.user.passwd=pw;
+  }
+  row.status='booking';uwRenderTable();
+  var payload=uwBuildPayload(idx);
+  payload._sap_auth.passwd=creds.passwd;
+  try{
+    var ctrl=new AbortController(),timer=setTimeout(function(){ctrl.abort();},60000);
+    var resp=await fetch(BRIDGE_URL+'/run',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({method:'BAPI',tcode:'BAPI_ACC_DOCUMENT_POST',payload:payload}),signal:ctrl.signal});
+    clearTimeout(timer);
+    var raw=await resp.text(),data;
+    try{data=JSON.parse(raw);}catch(_){throw new Error('Bridge: '+raw.slice(0,200));}
+    if(!resp.ok||data.error) throw new Error(data.error||data.detail||JSON.stringify(data));
+    // Belegnummer: handlers.py liefert {doc_number, obj_key, return_msgs}
+    var docNr=data.doc_number||'';
+    // Fallback: return_msgs aus SAP RETURN-Tabelle
+    if(!docNr&&Array.isArray(data.return_msgs)){
+      for(var ri=0;ri<data.return_msgs.length;ri++){
+        var rm=String(data.return_msgs[ri]||'');
+        var rmatch=rm.match(/\b(\d{7,10})\b/);
+        if(rmatch){docNr=rmatch[1];break;}
+      }
+    }
+    // Fallback: message-Text
+    if(!docNr&&data.message){
+      var mr=String(data.message).match(/\b(\d{7,10})\b/);
+      if(mr) docNr=mr[1];
+    }
+    var docDisp=docNr;
+    var isOk=data.status==='ok'||!!docNr;
+    if(!isOk){
+      row.status='error';
+      row.belnr=(data.message||data.error||JSON.stringify(data)).slice(0,120);
+    } else {
+      row.status='booked'; row.belnr=docDisp||'(SAP prüfen)';
+      var sysU=(document.getElementById('uwSysId')||{value:'SEP'}).value;
+      var bukU=(document.getElementById('uwBukrs')||{value:'0435'}).value;
+      var datV=(document.getElementById('uwPostDate')||{value:''}).value;
+      var fyV =(document.getElementById('uwFiscYear')||{value:'2026'}).value;
+      var perV=(document.getElementById('uwPeriod')||{value:'6'}).value;
+      var refV=(document.getElementById('uwRefDoc')||{value:''}).value;
+      var hdrV=(document.getElementById('uwHeaderTxt')||{value:''}).value;
+      if(typeof saveGlobalBooking==='function') saveGlobalBooking({
+        module:'ust-firmenwagen',bukrs:bukU,sap_system:sysU,doc_date:datV,yr:fyV,period:perV,
+        belnr:docDisp,obj_key:docNr,ref_doc_no:refV,header_txt:hdrV,
+        amount:row.amount,currency:'EUR',
+        description:'USt-Firmenwagen '+row.nachname+' '+(refV||hdrV||''),status:'booked',
+      });
+    }
+  }catch(err){row.status='error';row.belnr=err.message.slice(0,100);}
+  uwRenderTable();
+  // Status + Belegnr. sofort in DB persistieren (auch bei Einzel-Buchung)
+  if(_uwRows.length) uwSaveToDb(true);
+}
+
+// ── DB-Persistenz ─────────────────────────────────────────────────────────
+async function uwSaveToDb(silent){
+  if(!_uwRows.length){if(!silent)alert('Keine Zeilen zum Speichern.');return;}
+  var stEl=document.getElementById('uwStatus');
+  if(stEl)stEl.innerHTML='<span style="color:#facc15">⧗ Speichere…</span>';
+  var sysId=(document.getElementById('uwSysId')||{value:'SEP'}).value;
+  var bukrs=(document.getElementById('uwBukrs')||{value:'0435'}).value;
+  var postDate=(document.getElementById('uwPostDate')||{value:''}).value;
+  var fiscYear=(document.getElementById('uwFiscYear')||{value:''}).value;
+  var period=(document.getElementById('uwPeriod')||{value:''}).value;
+  var refDoc=(document.getElementById('uwRefDoc')||{value:''}).value;
+  var hdrTxt=(document.getElementById('uwHeaderTxt')||{value:''}).value;
+  var mStr=String(period).padStart(2,'0');
+  var body={
+    periode:mStr+'/'+fiscYear,
+    post_date:postDate,bukrs:bukrs,fis_period:period,fisc_year:fiscYear,
+    ref_doc:refDoc,header_txt:hdrTxt,sap_system:sysId,
+    created_by:(AUTH.user&&AUTH.user.username)||'',
+    lines:_uwRows.map(function(r){
+      return{persnr:r.persnr||'',nachname:r.nachname||'',
+        kostenstelle:r.kostenstelle||'',
+        gvw:r.gvw||0,fahrten:r.fahrten||0,amount:r.amount||0,
+        status:r.status||'pending',belnr:r.belnr||''};
+    })
+  };
+  try{
+    var url=_ORCH+'/ust-firmenwagen';
+    var method='POST';
+    if(_uwRunId){url+='/'+_uwRunId;method='PATCH';}
+    var resp=await fetch(url,{method:method,headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    var data=await resp.json();
+    if(!resp.ok) throw new Error(data.detail||JSON.stringify(data));
+    if(!_uwRunId) _uwRunId=data.id;
+    if(!silent&&stEl) stEl.innerHTML='<span style="color:#4ade80">✅ Gespeichert (ID '+_uwRunId+')</span>';
+    uwLoadHistory();
+  }catch(err){
+    if(stEl) stEl.innerHTML='<span style="color:#f87171">⚠ Speichern fehlgeschlagen: '+esc(err.message)+'</span>';
+  }
+}
+
+async function uwLoadHistory(){
+  var el=document.getElementById('uwHistoryBody');
+  if(!el) return;
+  try{
+    var resp=await fetch(_ORCH+'/ust-firmenwagen?limit=30');
+    if(!resp.ok) throw new Error('HTTP '+resp.status);
+    var list=await resp.json();
+    if(!list.length){el.innerHTML='<span style="color:var(--muted)">Keine gespeicherten Läufe.</span>';return;}
+    var html='<table style="width:100%;border-collapse:collapse;font-size:11px;">'
+      +'<tr style="color:var(--muted);border-bottom:1px solid var(--border);">'
+      +'<th style="text-align:left;padding:3px 6px">ID</th>'
+      +'<th style="text-align:left;padding:3px 6px">Periode</th>'
+      +'<th style="text-align:left;padding:3px 6px">Datum</th>'
+      +'<th style="text-align:left;padding:3px 6px">System</th>'
+      +'<th style="text-align:right;padding:3px 6px">Zeilen</th>'
+      +'<th style="text-align:right;padding:3px 6px">Gesamt</th>'
+      +'<th style="text-align:left;padding:3px 6px">Status</th>'
+      +'<th style="padding:3px 6px"></th>'
+      +'</tr>';
+    list.forEach(function(r){
+      var sc=r.status==='booked'?'#4ade80':r.status==='partial'?'#facc15':'#94a3b8';
+      var cur=_uwRunId&&r.id===_uwRunId;
+      html+='<tr style="border-bottom:1px solid var(--border);'+(cur?'background:rgba(99,102,241,.12);':'')+'">'
+        +'<td style="padding:3px 6px;color:var(--muted)">#'+r.id+'</td>'
+        +'<td style="padding:3px 6px">'+esc(r.periode||'')+'</td>'
+        +'<td style="padding:3px 6px">'+esc(r.post_date||'')+'</td>'
+        +'<td style="padding:3px 6px">'+esc(r.sap_system||'')+'</td>'
+        +'<td style="padding:3px 6px;text-align:right">'+(r.row_count||0)+'</td>'
+        +'<td style="padding:3px 6px;text-align:right">'+((r.total_amount||0).toFixed(2))+'&thinsp;€</td>'
+        +'<td style="padding:3px 6px;color:'+sc+'">'+esc(r.status||'')+'</td>'
+        +'<td style="padding:3px 6px"><button onclick="uwLoadRun('+r.id+')" '
+        +'style="padding:2px 8px;font-size:10px;border-radius:4px;border:1px solid var(--border);'
+        +'background:var(--bg3);color:var(--text);cursor:pointer">Laden</button></td>'
+        +'</tr>';
+    });
+    html+='</table>';
+    el.innerHTML=html;
+    // Auto-Load: neuesten gebuchten Lauf laden wenn noch kein Lauf aktiv
+    if(!_uwRunId && !_uwRows.length){
+      var autoRun=list.find(function(r){return r.status==='booked';})
+                 ||list.find(function(r){return r.status==='partial';});
+      if(autoRun) uwLoadRun(autoRun.id);
+    }
+  }catch(err){
+    el.innerHTML='<span style="color:#f87171">Fehler: '+esc(err.message)+'</span>';
+  }
+}
+
+async function uwLoadRun(runId){
+  var stEl=document.getElementById('uwStatus');
+  if(stEl)stEl.innerHTML='<span style="color:#facc15">⧓ Lade Lauf #'+runId+'...</span>';
+  try{
+    var resp=await fetch(_ORCH+'/ust-firmenwagen/'+runId);
+    if(!resp.ok) throw new Error('HTTP '+resp.status);
+    var data=await resp.json();
+    _uwRows=(data.lines||[]).map(function(l){
+      return{persnr:l.persnr||'',nachname:l.nachname||'',vorname:'',abteilung:'',
+        gvw:l.gvw||0,fahrten:l.fahrten||0,amount:l.amount||0,
+        kostenstelle:l.kostenstelle||'',status:l.status||'pending',belnr:l.belnr||''};
+    });
+    _uwRunId=data.id;
+    var set=function(id,v){var el=document.getElementById(id);if(el&&v!=null)el.value=v;};
+    set('uwPostDate',data.post_date);set('uwPeriod',data.fis_period);
+    set('uwFiscYear',data.fisc_year);set('uwRefDoc',data.ref_doc);set('uwHeaderTxt',data.header_txt);
+    var sysEl=document.getElementById('uwSysId');if(sysEl&&data.sap_system)sysEl.value=data.sap_system;
+    uwRenderTable();
+    uwLoadHistory();
+    if(stEl)stEl.innerHTML='<span style="color:#4ade80">✅ Lauf #'+runId+' geladen ('+_uwRows.length+' Zeilen)</span>';
+  }catch(err){
+    if(stEl)stEl.innerHTML='<span style="color:#f87171">Fehler: '+esc(err.message)+'</span>';
+  }
+}
+
+(function(){
+  var _uwOrig=switchTab;
+  switchTab=function(name,btn){
+    _uwOrig(name,btn);
+    if(name==='uw') uwLoadHistory();
+  };
+})();
+
+function copyPayload(){
+  var el=document.getElementById('jsonPreview');
+  if(!el){alert('Kein Payload vorhanden.');return;}
+  var txt=el.innerText||el.textContent||'';
+  navigator.clipboard.writeText(txt).then(function(){
+    var btn=event&&event.target;
+    if(btn){var orig=btn.textContent;btn.textContent='✓ Kopiert!';setTimeout(function(){btn.textContent=orig;},1500);}
+  }).catch(function(){alert('Kopieren fehlgeschlagen.');});
+}
+
+function downloadPayload(){
+  var el=document.getElementById('jsonPreview');
+  if(!el){alert('Kein Payload vorhanden.');return;}
+  var txt=el.innerText||el.textContent||'';
+  var blob=new Blob([txt],{type:'application/json'});
+  var url=URL.createObjectURL(blob);
+  var a=document.createElement('a');
+  a.href=url;a.download='sap_payload_'+new Date().toISOString().slice(0,16).replace(/[T:]/g,'-')+'.json';
+  a.click();URL.revokeObjectURL(url);
+}
+
+async function uwBookAll(){
+  if(!_uwRows.length){alert('Keine Buchungszeilen.');return;}
+  var pending=_uwRows.filter(function(r){return r.status!=='booked';});
+  if(!pending.length){alert('Alle Positionen bereits gebucht.');return;}
+  var creds=AUTH.user||{};
+  if(!creds.passwd){
+    var pw=prompt('SAP-Passwort für '+(creds.sap_username||'?')+' (für alle '+pending.length+' Buchungen):');
+    if(!pw)return;creds.passwd=pw;if(AUTH.user)AUTH.user.passwd=pw;
+  }
+  var btn=document.getElementById('btnUwBookAll');
+  var stEl=document.getElementById('uwStatus');
+  btn.disabled=true;
+  var done=0,errors=0,total=pending.length;
+  for(var i=0;i<_uwRows.length;i++){
+    if(_uwRows[i].status==='booked') continue;
+    stEl.innerHTML='<span style="color:#facc15">⧓ Buchung '+(i+1)+'/'+total+': '+(_uwRows[i].nachname||'?')+'...</span>';
+    await uwBookOne(i);
+    if(_uwRows[i].status==='booked') done++; else errors++;
+  }
+  btn.disabled=false;
+  stEl.innerHTML=errors===0
+    ?'<span style="color:#4ade80">✅ Alle '+done+' Buchungen erfolgreich</span>'
+    :'<span style="color:#f87171">⚠ '+done+' OK / '+errors+' Fehler — bitte Tabelle prüfen</span>';
+  uwRenderTable();
+  if(_uwRows.length) uwSaveToDb(true);
+}
 </script>
 </body>
+</html>
 </html>

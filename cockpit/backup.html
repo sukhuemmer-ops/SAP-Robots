@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<script>
+if (location.protocol === 'file:') {
+  var _fn = (location.pathname.split('/').pop() || location.pathname.split('\\').pop());
+  location.replace('http://localhost:8000/cockpit/' + _fn + location.search + location.hash);
+}
+</script>
+<title>YCONN – Backup</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+*,*::before,*::after{box-sizing:border-box}
+:root{
+  --bg:#0d1117;--bg2:#161b22;--bg3:#21262d;
+  --border:#30363d;--text:#e6edf3;--muted:#8b949e;
+  --acc:#1f6feb;--ok:#10b981;--warn:#f59e0b;--err:#ef4444;
+}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  font-size:14px;line-height:1.5;min-height:100vh}
+/* Header */
+.page-header{background:var(--bg2);border-bottom:1px solid var(--border);
+  padding:12px 24px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:50}
+.page-header h1{margin:0;font-size:16px;font-weight:700;flex:1}
+/* Main */
+.main{max-width:900px;margin:0 auto;padding:28px 20px}
+/* Cards */
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px}
+.card h2{font-size:14px;font-weight:700;margin:0 0 16px;display:flex;align-items:center;gap:8px}
+/* Create section */
+.create-row{display:flex;gap:10px;align-items:flex-end}
+.create-row input{flex:1;padding:9px 12px;background:var(--bg3);border:1px solid var(--border);
+  border-radius:8px;color:var(--text);font-size:13px;font-family:inherit;outline:none}
+.create-row input:focus{border-color:var(--acc)}
+.btn{padding:9px 18px;border-radius:8px;border:none;font-size:13px;font-weight:600;
+  cursor:pointer;font-family:inherit;white-space:nowrap;transition:opacity .15s}
+.btn:hover{opacity:.85}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn-primary{background:var(--acc);color:#fff}
+.btn-danger{background:rgba(239,68,68,.15);color:var(--err);border:1px solid rgba(239,68,68,.3)}
+/* Status */
+.status-msg{margin-top:12px;padding:10px 14px;border-radius:8px;font-size:13px;display:none}
+.status-msg.ok{background:rgba(16,185,129,.1);border:1px solid rgba(16,185,129,.3);color:var(--ok);display:block}
+.status-msg.err{background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.3);color:var(--err);display:block}
+.status-msg.loading{background:rgba(88,166,255,.08);border:1px solid rgba(88,166,255,.2);color:var(--acc);display:flex;align-items:center;gap:10px}
+/* Summary stats */
+.stats{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-bottom:20px}
+.stat{background:var(--bg3);border:1px solid var(--border);border-radius:10px;
+  padding:14px 16px;text-align:center}
+.stat .val{font-size:26px;font-weight:800;color:var(--acc)}
+.stat .lbl{font-size:11px;color:var(--muted);margin-top:4px;font-weight:600;text-transform:uppercase;letter-spacing:.4px}
+/* Table */
+.tbl-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse}
+th{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;
+  padding:8px 12px;border-bottom:1px solid var(--border);text-align:left;white-space:nowrap}
+td{padding:10px 12px;border-bottom:1px solid rgba(48,54,61,.5);font-size:13px;vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:rgba(255,255,255,.02)}
+.badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600}
+.badge-ok{background:rgba(16,185,129,.12);color:var(--ok);border:1px solid rgba(16,185,129,.3)}
+.badge-miss{background:rgba(239,68,68,.1);color:var(--err);border:1px solid rgba(239,68,68,.3)}
+.ver{font-family:monospace;font-size:12px;color:var(--acc);font-weight:700}
+.note-cell{color:var(--muted);font-size:12px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* Spinner */
+@keyframes spin{to{transform:rotate(360deg)}}
+.spinner{width:16px;height:16px;border:2px solid rgba(88,166,255,.25);border-top-color:var(--acc);
+  border-radius:50%;animation:spin .6s linear infinite;flex-shrink:0}
+/* Empty */
+.empty{text-align:center;padding:40px;color:var(--muted)}
+.empty .icon{font-size:40px;margin-bottom:12px}
+</style>
+<script src="i18n.js"></script>
+</head>
+<body>
+
+<div class="page-header">
+  <a href="startseite.html" style="color:var(--muted);text-decoration:none;font-size:13px">← Home</a>
+  <h1>💾 Backup-Verwaltung</h1>
+  <div id="headerUser"></div>
+</div>
+
+<div class="main">
+
+  <!-- Statistik -->
+  <div class="stats" id="statsRow">
+    <div class="stat"><div class="val" id="statCount">–</div><div class="lbl">Backups gesamt</div></div>
+    <div class="stat"><div class="val" id="statLast">–</div><div class="lbl">Letztes Backup</div></div>
+    <div class="stat"><div class="val" id="statSize">–</div><div class="lbl">Gesamtgröße</div></div>
+    <div class="stat"><div class="val" id="statVer">–</div><div class="lbl">Aktuelle Version</div></div>
+  </div>
+
+  <!-- Neues Backup erstellen -->
+  <div class="card">
+    <h2>➕ Neues Backup erstellen</h2>
+    <div class="create-row">
+      <input type="text" id="noteInput" placeholder="Optionale Notiz (z.B. 'vor Update')" maxlength="120">
+      <button class="btn btn-primary" id="createBtn" onclick="doCreate()">💾 Backup starten</button>
+    </div>
+    <div class="status-msg" id="createStatus"></div>
+    <p style="margin:10px 0 0;font-size:12px;color:var(--muted)">
+      Sichert den gesamten App-Code + Datenbank nach <code>C:\WF\sap-robots\backups\</code>.
+      Dauert ca. 5–10 Sekunden. Bis zu 20 Backups werden aufbewahrt, ältere automatisch gelöscht.
+    </p>
+  </div>
+
+  <!-- Backup-Historie -->
+  <div class="card">
+    <h2>📋 Backup-Historie</h2>
+    <div id="historyArea"><div class="empty"><div class="spinner" style="margin:0 auto"></div></div></div>
+  </div>
+
+</div>
+
+<script src="auth.js"></script>
+<script>
+AUTH.requireRole(['Admin']);
+AUTH.renderHeader('headerUser');
+
+const ORC = window.location.origin;
+
+function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// ── Backup-Liste laden ────────────────────────────────────────────────────
+async function loadList() {
+  try {
+    const r = await fetch(ORC + '/backup/list');
+    const d = await r.json();
+    renderStats(d);
+    renderTable(d);
+  } catch(e) {
+    document.getElementById('historyArea').innerHTML =
+      '<div class="empty"><div class="icon">⚠️</div>Orchestrator nicht erreichbar.</div>';
+  }
+}
+
+function renderStats(d) {
+  const backups = d.backups || [];
+  document.getElementById('statCount').textContent = backups.length;
+  document.getElementById('statVer').textContent   = d.version ? 'v' + String(d.version).padStart(3,'0') : '–';
+  if (backups.length) {
+    const last = backups[backups.length - 1];
+    document.getElementById('statLast').textContent = last.date || '–';
+    const total = backups.reduce(function(s,b){ return s + (b.size_mb||0); }, 0);
+    document.getElementById('statSize').textContent = total.toFixed(1) + ' MB';
+  } else {
+    document.getElementById('statLast').textContent = '–';
+    document.getElementById('statSize').textContent = '0 MB';
+  }
+}
+
+function renderTable(d) {
+  const backups = (d.backups || []).slice().reverse(); // neueste zuerst
+  if (!backups.length) {
+    document.getElementById('historyArea').innerHTML =
+      '<div class="empty"><div class="icon">💾</div>Noch keine Backups vorhanden.<br>Erstellen Sie Ihr erstes Backup oben.</div>';
+    return;
+  }
+  var rows = backups.map(function(b) {
+    var badge = b.exists !== false
+      ? '<span class="badge badge-ok">✓ Vorhanden</span>'
+      : '<span class="badge badge-miss">✗ Fehlt</span>';
+    return '<tr>' +
+      '<td><span class="ver">v' + String(b.version).padStart(3,'0') + '</span></td>' +
+      '<td>' + esc(b.date || '–') + '</td>' +
+      '<td>' + (b.size_mb != null ? b.size_mb.toFixed(1) + ' MB' : '–') + '</td>' +
+      '<td>' + (b.files || '–') + '</td>' +
+      '<td class="note-cell" title="' + esc(b.note||'') + '">' + esc(b.note || '') + '</td>' +
+      '<td>' + badge + '</td>' +
+      '<td style="text-align:right">' +
+        '<button onclick="doDelete(\'' + esc(b.filename) + '\',\'' + esc('v' + b.version) + '\')" ' +
+          'class="btn btn-danger" style="padding:5px 10px;font-size:11px">🗑</button>' +
+      '</td>' +
+    '</tr>';
+  }).join('');
+
+  document.getElementById('historyArea').innerHTML =
+    '<div class="tbl-wrap"><table>' +
+    '<thead><tr>' +
+    '<th>Version</th><th>Datum</th><th>Größe</th><th>Dateien</th><th>Notiz</th><th>Status</th><th></th>' +
+    '</tr></thead><tbody>' + rows + '</tbody></table></div>';
+}
+
+// ── Backup erstellen ──────────────────────────────────────────────────────
+async function doCreate() {
+  const btn  = document.getElementById('createBtn');
+  const note = document.getElementById('noteInput').value.trim();
+  const stat = document.getElementById('createStatus');
+
+  btn.disabled = true;
+  stat.className = 'status-msg loading';
+  stat.innerHTML = '<div class="spinner"></div> Backup wird erstellt — bitte warten (ca. 5–10 Sek.)…';
+
+  try {
+    const r = await fetch(ORC + '/backup/create', {
+      method:  'POST',
+      headers: {'Content-Type': 'application/json'},
+      body:    JSON.stringify({ note }),
+      signal:  AbortSignal.timeout(120000),
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.detail || d.message || r.status);
+
+    const b = d.backup || {};
+    stat.className = 'status-msg ok';
+    stat.textContent = '✅ Backup v' + String(b.version||'').padStart(3,'0') +
+      ' erfolgreich erstellt — ' + (b.size_mb||'?') + ' MB, ' + (b.files||'?') + ' Dateien.';
+    document.getElementById('noteInput').value = '';
+    await loadList();
+  } catch(e) {
+    stat.className = 'status-msg err';
+    stat.textContent = '❌ Fehler: ' + e.message;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// ── Backup löschen ────────────────────────────────────────────────────────
+async function doDelete(filename, label) {
+  if (!confirm('Backup ' + label + ' löschen?\n\n' + filename + '\n\nDiese Aktion kann nicht rückgängig gemacht werden.')) return;
+  try {
+    const r = await fetch(ORC + '/backup/' + encodeURIComponent(filename), { method: 'DELETE' });
+    if (!r.ok) { var d = await r.json(); throw new Error(d.detail||r.status); }
+    await loadList();
+  } catch(e) {
+    alert('Fehler: ' + e.message);
+  }
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────
+loadList();
+</script>
+</body>
+</html>

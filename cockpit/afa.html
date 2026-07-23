@@ -1,0 +1,625 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>YCONN — AfA-Lauf</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<script>
+if (location.protocol === 'file:') {
+  var _fn = (location.pathname.split('/').pop() || location.pathname.split('\\').pop());
+  location.replace('http://localhost:8000/cockpit/' + _fn + location.search + location.hash);
+}
+</script>
+<script src="auth.js"></script>
+<script src="bukrs.js"></script>
+<script src="cockpit-bar.js"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg:      #0d1117; --bg2: #161b22; --bg3: #21262d;
+  --border:  #30363d; --text: #e6edf3; --muted: #8b949e;
+  --accent:  #1f6feb; --ok: #10b981; --warn: #f59e0b; --err: #ef4444;
+  --aa:      #c4b5fd; --aa-dark: #7c3aed; --aa-bg: rgba(196,181,253,.08);
+}
+html,body { background: var(--bg); color: var(--text);
+  font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  font-size:14px; min-height:100vh; }
+a { color: inherit; text-decoration:none; }
+.wrap { max-width:1000px; margin:0 auto; padding:16px 20px 60px; }
+
+/* Header */
+.page-header { display:flex; align-items:center; gap:16px; padding:12px 0 20px;
+  border-bottom:1px solid var(--border); margin-bottom:24px; }
+.page-header .logo { font-size:22px; font-weight:700; color:var(--aa); }
+.header-right { margin-left:auto; display:flex; align-items:center; gap:8px; }
+.btn-nav { background:var(--bg3); border:1px solid var(--border); color:var(--text);
+  padding:7px 14px; border-radius:6px; cursor:pointer; font-size:13px;
+  text-decoration:none; display:inline-flex; align-items:center; gap:6px; transition:.15s; }
+.btn-nav:hover { border-color:#555; background:#2d333b; }
+.btn-nav.primary { background:var(--aa-dark); border-color:var(--aa); color:#fff; }
+.btn-nav.primary:hover { background:#6d28d9; }
+.btn-nav.green  { background:rgba(16,185,129,.15); border-color:var(--ok); color:var(--ok); }
+.btn-nav.green:hover  { background:rgba(16,185,129,.25); }
+.btn-nav.danger { background:rgba(239,68,68,.15); border-color:var(--err); color:var(--err); }
+.btn-nav.danger:hover { background:rgba(239,68,68,.25); }
+.btn-nav.warn-btn { background:rgba(245,158,11,.15); border-color:var(--warn); color:var(--warn); }
+.btn-nav.warn-btn:hover { background:rgba(245,158,11,.25); }
+.btn-nav:disabled { opacity:.4; cursor:not-allowed; }
+
+/* Tabs */
+.tabs { display:flex; gap:4px; border-bottom:1px solid var(--border); margin-bottom:24px; }
+.tab-btn { padding:10px 18px; background:none; border:none; color:var(--muted);
+  cursor:pointer; font-size:13px; border-bottom:2px solid transparent; transition:.15s; }
+.tab-btn:hover { color:var(--text); }
+.tab-btn.active { color:var(--aa); border-bottom-color:var(--aa); font-weight:600; }
+.tab-pane { display:none; }
+.tab-pane.active { display:block; }
+
+/* Form */
+.form-card { background:var(--bg2); border:1px solid var(--border); border-radius:10px;
+  padding:24px; margin-bottom:20px; }
+.form-card h3 { font-size:15px; font-weight:600; margin-bottom:20px;
+  color:var(--aa); display:flex; align-items:center; gap:8px; }
+.form-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+.form-grid.col3 { grid-template-columns:1fr 1fr 1fr; }
+.form-group { display:flex; flex-direction:column; gap:5px; }
+.form-group.full { grid-column:1/-1; }
+label { font-size:12px; color:var(--muted); font-weight:500; letter-spacing:.3px; }
+input, select { background:var(--bg3); border:1px solid var(--border); color:var(--text);
+  padding:9px 12px; border-radius:6px; font-size:13px; width:100%;
+  outline:none; transition:.15s; }
+input:focus, select:focus { border-color:var(--aa); box-shadow:0 0 0 3px rgba(196,181,253,.15); }
+.toggle-group { display:flex; gap:8px; }
+.toggle-btn { flex:1; padding:9px 8px; background:var(--bg3); border:1px solid var(--border);
+  color:var(--muted); border-radius:6px; cursor:pointer; font-size:13px;
+  text-align:center; transition:.15s; }
+.toggle-btn.active-test  { background:rgba(245,158,11,.15); border-color:var(--warn); color:var(--warn); font-weight:600; }
+.toggle-btn.active-real  { background:rgba(239,68,68,.15); border-color:var(--err); color:var(--err); font-weight:600; }
+
+/* Info box */
+.info-box { background:var(--aa-bg); border:1px solid rgba(196,181,253,.3);
+  border-radius:8px; padding:12px 16px; font-size:12px; color:var(--aa); }
+.info-box b { font-weight:600; }
+
+/* Warn box */
+.warn-box { background:rgba(245,158,11,.1); border:1px solid rgba(245,158,11,.35);
+  border-radius:8px; padding:12px 16px; font-size:12px; color:var(--warn);
+  display:none; }
+
+/* Status badge */
+.badge { display:inline-flex; align-items:center; gap:5px; padding:3px 9px;
+  border-radius:12px; font-size:11px; font-weight:600; }
+.badge.pending  { background:rgba(245,158,11,.15); color:var(--warn); }
+.badge.running  { background:rgba(31,111,235,.15); color:#60a5fa; }
+.badge.ok       { background:rgba(16,185,129,.15); color:var(--ok); }
+.badge.error    { background:rgba(239,68,68,.15); color:var(--err); }
+.badge.cancelled{ background:rgba(139,148,158,.15); color:var(--muted); }
+.badge.test     { background:rgba(245,158,11,.1); color:var(--warn); border:1px solid rgba(245,158,11,.3); }
+.badge.real     { background:rgba(239,68,68,.1); color:var(--err); border:1px solid rgba(239,68,68,.3); }
+
+/* Table */
+.tbl-wrap { overflow-x:auto; }
+table { width:100%; border-collapse:collapse; font-size:13px; }
+th { text-align:left; padding:10px 12px; font-size:11px; text-transform:uppercase;
+  letter-spacing:.5px; color:var(--muted); border-bottom:1px solid var(--border);
+  white-space:nowrap; }
+td { padding:10px 12px; border-bottom:1px solid rgba(48,54,61,.6);
+  vertical-align:top; }
+tr:last-child td { border-bottom:none; }
+tr:hover td { background:rgba(255,255,255,.025); }
+.empty-row td { text-align:center; color:var(--muted); padding:32px; font-size:13px; }
+
+/* Result box */
+.result-accordion { margin-top:4px; }
+.result-header { background:var(--bg3); border:1px solid var(--border);
+  border-radius:6px; padding:7px 12px; cursor:pointer; font-size:12px;
+  color:var(--muted); display:flex; align-items:center; gap:6px; }
+.result-header:hover { color:var(--text); border-color:#555; }
+.result-body { display:none; background:#0d1117; border:1px solid var(--border);
+  border-top:none; border-radius:0 0 6px 6px; padding:12px; font-size:11px;
+  font-family:monospace; white-space:pre-wrap; color:#adbac7; max-height:220px; overflow-y:auto; }
+.result-body.open { display:block; }
+
+/* Status bar */
+.status-bar { display:flex; gap:16px; flex-wrap:wrap; margin-bottom:20px; }
+.stat-pill { background:var(--bg2); border:1px solid var(--border); border-radius:8px;
+  padding:8px 16px; font-size:13px; display:flex; align-items:center; gap:8px; }
+.stat-pill span { color:var(--muted); font-size:12px; }
+.stat-pill strong { font-size:16px; }
+
+/* Spinner */
+@keyframes spin { to { transform:rotate(360deg); } }
+.spin { display:inline-block; animation:spin 1s linear infinite; }
+
+/* System badge */
+.sys-seq { color:#60a5fa; }
+.sys-sep { color:var(--err); font-weight:600; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- Header -->
+  <div class="page-header">
+    <div class="logo">📉 AfA-Lauf</div>
+    <div style="font-size:13px;color:var(--muted)">SAP Abschreibungslauf · <code>BAPI_AFAPOSTING_POST</code></div>
+    <div class="header-right">
+      <span id="hdrUser" style="font-size:12px;color:var(--muted)"></span>
+      <a class="btn-nav" href="startseite.html">🏠 Startseite</a>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('neu')">➕ Neuer Lauf</button>
+    <button class="tab-btn" id="tabBtnGeplant" onclick="switchTab('geplant')">
+      📅 Geplante Läufe <span id="pendingBadge" style="display:none;background:var(--warn);color:#000;
+        font-size:10px;padding:1px 6px;border-radius:10px;margin-left:4px;">0</span>
+    </button>
+    <button class="tab-btn" onclick="switchTab('historie')">📋 Historie</button>
+  </div>
+
+  <!-- ═══ TAB: NEUER LAUF ═══════════════════════════════════════════════════ -->
+  <div id="pane-neu" class="tab-pane active">
+
+    <div class="form-card">
+      <h3>⚙ AfA-Lauf konfigurieren</h3>
+
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Buchungskreis</label>
+          <select id="inBukrs" data-bukrs data-bukrs-selected="0435">
+          </select>
+        </div>
+        <div class="form-group">
+          <label>SAP-System</label>
+          <select id="inSapSys">
+            <option value="SEQ">SEQ — Test</option>
+            <option value="SEP">SEP — Produktion</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Geschäftsjahr</label>
+          <input type="number" id="inYear" min="2020" max="2099" placeholder="2026">
+        </div>
+        <div class="form-group">
+          <label>Periode (Monat)</label>
+          <select id="inPeriod">
+            <option value="01">01 — Januar</option>
+            <option value="02">02 — Februar</option>
+            <option value="03">03 — März</option>
+            <option value="04">04 — April</option>
+            <option value="05">05 — Mai</option>
+            <option value="06">06 — Juni</option>
+            <option value="07">07 — Juli</option>
+            <option value="08">08 — August</option>
+            <option value="09">09 — September</option>
+            <option value="10">10 — Oktober</option>
+            <option value="11">11 — November</option>
+            <option value="12">12 — Dezember</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Buchungsgrund</label>
+          <select id="inReason">
+            <option value="1">1 — Erstbuchung</option>
+            <option value="2">2 — Wiederholen</option>
+            <option value="3">3 — Neustart</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Buchungsdatum (leer = letzter Periodetag)</label>
+          <input type="date" id="inPostDate">
+        </div>
+      </div>
+
+      <div style="margin-top:16px;">
+        <label style="display:block;margin-bottom:6px;">Laufmodus</label>
+        <div class="toggle-group">
+          <div class="toggle-btn active-test" id="btnTest" onclick="setMode('test')">
+            🧪 Testlauf (kein Buchen)
+          </div>
+          <div class="toggle-btn" id="btnReal" onclick="setMode('real')">
+            🔴 Echtlauf (bucht in SAP)
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top:16px;display:flex;align-items:center;gap:8px;">
+        <input type="checkbox" id="chkStopWarn" style="width:auto;cursor:pointer;">
+        <label for="chkStopWarn" style="cursor:pointer;color:var(--text);">Bei Warnung abbrechen</label>
+      </div>
+
+      <div id="realWarnBox" class="warn-box" style="margin-top:14px;">
+        ⚠️ <b>Echtlauf gewählt!</b> Der Lauf bucht direkt in SAP. Bitte Geschäftsjahr,
+        Periode und Buchungskreis sorgfältig prüfen.
+      </div>
+
+      <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border);">
+        <label style="display:block;margin-bottom:6px;color:var(--muted);">Ausführungszeitpunkt</label>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+          <button class="btn-nav primary" onclick="scheduleRun(false)">
+            ⏰ Zeitgesteuert planen
+          </button>
+          <button class="btn-nav warn-btn" onclick="scheduleRun(true)">
+            ▶ Sofort ausführen
+          </button>
+          <input type="datetime-local" id="inFireAt"
+                 style="background:var(--bg3);border:1px solid var(--border);color:var(--text);
+                 padding:8px 12px;border-radius:6px;font-size:13px;flex:1;min-width:220px;">
+        </div>
+        <div style="font-size:11px;color:var(--muted);margin-top:6px;">
+          Zeitgesteuert: Datum/Uhrzeit wählen → Planen. Sofort: Lauf wird unmittelbar gestartet.
+        </div>
+      </div>
+
+      <div id="neuStatus" style="margin-top:14px;font-size:13px;"></div>
+    </div>
+
+    <div class="info-box">
+      <b>BAPI_AFAPOSTING_POST</b> — Führt den periodischen Abschreibungslauf für den gewählten
+      Buchungskreis und die Periode durch. Im Testlauf werden keine Buchungen erzeugt;
+      erst der Echtlauf schreibt Belege in SAP.
+    </div>
+
+  </div>
+
+  <!-- ═══ TAB: GEPLANTE LÄUFE ══════════════════════════════════════════════ -->
+  <div id="pane-geplant" class="tab-pane">
+
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+      <button class="btn-nav" onclick="loadPending()">🔄 Aktualisieren</button>
+    </div>
+
+    <div id="statsPending" class="status-bar">
+      <div class="stat-pill"><span>Wartend</span><strong id="cntPending">—</strong></div>
+      <div class="stat-pill"><span>Laufend</span><strong id="cntRunning">—</strong></div>
+    </div>
+
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Ausführung</th>
+            <th>BKr</th>
+            <th>GJ</th>
+            <th>Per</th>
+            <th>Modus</th>
+            <th>System</th>
+            <th>Status</th>
+            <th>Aktionen</th>
+          </tr>
+        </thead>
+        <tbody id="pendingBody">
+          <tr class="empty-row"><td colspan="9">Lädt…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ═══ TAB: HISTORIE ════════════════════════════════════════════════════ -->
+  <div id="pane-historie" class="tab-pane">
+
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap;">
+      <button class="btn-nav" onclick="loadHistorie()">🔄 Aktualisieren</button>
+      <select id="filterSys" style="width:auto;padding:7px 12px;" onchange="loadHistorie()">
+        <option value="">Alle Systeme</option>
+        <option value="SEQ">SEQ — Test</option>
+        <option value="SEP">SEP — Produktion</option>
+      </select>
+      <select id="filterStatus" style="width:auto;padding:7px 12px;" onchange="loadHistorie()">
+        <option value="">Alle Status</option>
+        <option value="ok">Erfolgreich</option>
+        <option value="error">Fehler</option>
+        <option value="cancelled">Storniert</option>
+      </select>
+    </div>
+
+    <div id="statsHistorie" class="status-bar">
+      <div class="stat-pill"><span>Gesamt</span><strong id="cntTotal">—</strong></div>
+      <div class="stat-pill"><span>OK</span><strong id="cntOk" style="color:var(--ok)">—</strong></div>
+      <div class="stat-pill"><span>Fehler</span><strong id="cntErr" style="color:var(--err)">—</strong></div>
+    </div>
+
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Ausführung</th>
+            <th>BKr</th>
+            <th>GJ/Per</th>
+            <th>Modus</th>
+            <th>System</th>
+            <th>Status</th>
+            <th>Anlagen</th>
+            <th>Ergebnis</th>
+          </tr>
+        </thead>
+        <tbody id="historieBody">
+          <tr class="empty-row"><td colspan="9">Lädt…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div><!-- /wrap -->
+
+<script>
+const ORC    = window.location.origin;
+const BRIDGE = window.location.origin.replace(':8000', ':8765');
+
+let _mode = 'test'; // 'test' | 'real'
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  const u = (typeof currentUser !== 'undefined' && currentUser)
+            ? (currentUser.display_name || currentUser.username || '')
+            : '';
+  if (u) document.getElementById('hdrUser').textContent = '👤 ' + u;
+
+  // Defaults
+  const now = new Date();
+  document.getElementById('inYear').value   = now.getFullYear();
+  document.getElementById('inPeriod').value = String(now.getMonth() + 1).padStart(2, '0');
+  // Default fire_at: heute 23:00
+  const dt = new Date(); dt.setHours(23, 0, 0, 0);
+  document.getElementById('inFireAt').value = _toLocalInput(dt);
+});
+
+function _toLocalInput(d) {
+  const pad = n => String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+// ── Tab switching ─────────────────────────────────────────────────────────────
+function switchTab(name) {
+  document.querySelectorAll('.tab-btn').forEach((b,i) => {
+    const names = ['neu','geplant','historie'];
+    b.classList.toggle('active', names[i] === name);
+  });
+  document.querySelectorAll('.tab-pane').forEach(p => {
+    p.classList.toggle('active', p.id === 'pane-' + name);
+  });
+  if (name === 'geplant')  loadPending();
+  if (name === 'historie') loadHistorie();
+}
+
+// ── Mode toggle ───────────────────────────────────────────────────────────────
+function setMode(m) {
+  _mode = m;
+  document.getElementById('btnTest').className =
+    'toggle-btn' + (m === 'test' ? ' active-test' : '');
+  document.getElementById('btnReal').className =
+    'toggle-btn' + (m === 'real' ? ' active-real' : '');
+  document.getElementById('realWarnBox').style.display = m === 'real' ? 'block' : 'none';
+}
+
+// ── Schedule run ──────────────────────────────────────────────────────────────
+async function scheduleRun(immediate) {
+  const bukrs      = document.getElementById('inBukrs').value;
+  const sapSys     = document.getElementById('inSapSys').value;
+  const year       = document.getElementById('inYear').value.trim();
+  const period     = document.getElementById('inPeriod').value;
+  const reason     = document.getElementById('inReason').value;
+  const postDate   = document.getElementById('inPostDate').value.replace(/-/g, '');
+  const stopOnWarn = document.getElementById('chkStopWarn').checked;
+  const fireAtVal  = document.getElementById('inFireAt').value;
+  const statusEl   = document.getElementById('neuStatus');
+
+  if (!year) { _showStatus(statusEl, 'Bitte Geschäftsjahr eingeben.', 'err'); return; }
+
+  let fireAt;
+  if (immediate) {
+    // Fire 5 seconds from now
+    const d = new Date(); d.setSeconds(d.getSeconds() + 5);
+    fireAt = d.toISOString().slice(0, 19);
+  } else {
+    if (!fireAtVal) { _showStatus(statusEl, 'Bitte Ausführungszeitpunkt wählen.', 'err'); return; }
+    fireAt = fireAtVal; // datetime-local value is already ISO-like
+  }
+
+  const payload = {
+    fire_at:      fireAt,
+    bukrs, fiscal_year: year, period, reason,
+    testrun:      _mode === 'test',
+    stop_on_warn: stopOnWarn,
+    posting_date: postDate,
+    sap_system:   sapSys,
+    created_by:   _currentUser(),
+  };
+
+  _showStatus(statusEl, '<span class="spin">⏳</span> Wird eingeplant…', 'info');
+  try {
+    const r = await fetch(ORC + '/afa/runs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!r.ok) { const t = await r.text(); throw new Error(t); }
+    const run = await r.json();
+    const ts  = new Date(run.fire_at).toLocaleString('de-DE');
+    _showStatus(statusEl,
+      `✅ AfA-Lauf #${run.id} eingeplant für ${ts} ` +
+      `(${run.testrun ? 'Testlauf' : 'Echtlauf'} · ${run.sap_system})`, 'ok');
+    _updatePendingBadge();
+  } catch(e) {
+    _showStatus(statusEl, '❌ Fehler: ' + e.message, 'err');
+  }
+}
+
+// ── Load pending ──────────────────────────────────────────────────────────────
+async function loadPending() {
+  const body = document.getElementById('pendingBody');
+  body.innerHTML = '<tr class="empty-row"><td colspan="9"><span class="spin">⏳</span> Lädt…</td></tr>';
+  try {
+    const r = await fetch(ORC + '/afa/runs?status=pending');
+    const r2 = await fetch(ORC + '/afa/runs?status=running');
+    const pending = await r.json();
+    const running = await r2.json();
+    const all = [...pending, ...running].sort((a,b) => a.fire_at > b.fire_at ? 1 : -1);
+    document.getElementById('cntPending').textContent = pending.length;
+    document.getElementById('cntRunning').textContent = running.length;
+    _updatePendingBadge(pending.length + running.length);
+
+    if (!all.length) {
+      body.innerHTML = '<tr class="empty-row"><td colspan="9">Keine geplanten Läufe.</td></tr>';
+      return;
+    }
+    body.innerHTML = all.map(ar => `
+      <tr>
+        <td><b>#${ar.id}</b></td>
+        <td style="white-space:nowrap">${_fmtDt(ar.fire_at)}</td>
+        <td>${ar.bukrs}</td>
+        <td>${ar.fiscal_year}</td>
+        <td>${ar.period}</td>
+        <td>${ar.testrun ? '<span class="badge test">🧪 Test</span>' : '<span class="badge error">🔴 Echt</span>'}</td>
+        <td class="${ar.sap_system === 'SEP' ? 'sys-sep' : 'sys-seq'}">${ar.sap_system}</td>
+        <td>${_statusBadge(ar.status)}</td>
+        <td>
+          ${ar.status === 'pending' ? `
+            <button class="btn-nav warn-btn" style="font-size:12px;padding:5px 10px;"
+              onclick="executeNow(${ar.id})">▶ Sofort</button>
+            <button class="btn-nav danger" style="font-size:12px;padding:5px 10px;margin-left:4px;"
+              onclick="cancelRun(${ar.id})">✖ Stornieren</button>
+          ` : '—'}
+        </td>
+      </tr>`).join('');
+  } catch(e) {
+    body.innerHTML = `<tr class="empty-row"><td colspan="9">Fehler: ${e.message}</td></tr>`;
+  }
+}
+
+// ── Load historie ─────────────────────────────────────────────────────────────
+async function loadHistorie() {
+  const body = document.getElementById('historieBody');
+  body.innerHTML = '<tr class="empty-row"><td colspan="9"><span class="spin">⏳</span> Lädt…</td></tr>';
+  const sys = document.getElementById('filterSys').value;
+  const st  = document.getElementById('filterStatus').value;
+  let url = ORC + '/afa/runs?';
+  if (sys) url += 'sap_system=' + sys + '&';
+  if (st)  url += 'status=' + st;
+  try {
+    const r   = await fetch(url);
+    const all = await r.json();
+    // Exclude pending/running from history view
+    const hist = all.filter(a => !['pending','running'].includes(a.status));
+    document.getElementById('cntTotal').textContent = hist.length;
+    document.getElementById('cntOk').textContent   = hist.filter(a => a.status === 'ok').length;
+    document.getElementById('cntErr').textContent  = hist.filter(a => a.status === 'error').length;
+
+    if (!hist.length) {
+      body.innerHTML = '<tr class="empty-row"><td colspan="9">Keine abgeschlossenen Läufe.</td></tr>';
+      return;
+    }
+    body.innerHTML = hist.map(ar => {
+      let result = null;
+      try { result = ar.result ? JSON.parse(ar.result) : null; } catch(e) {}
+      const postedCount = result ? (result.posted_count ?? '—') : '—';
+      const resultHtml = result
+        ? `<div class="result-accordion">
+            <div class="result-header" onclick="toggleResult(this)">🔍 Details anzeigen</div>
+            <div class="result-body">${_fmtResult(result)}</div>
+           </div>`
+        : (ar.status === 'cancelled' ? '<span style="color:var(--muted)">Storniert</span>' : '—');
+      return `<tr>
+        <td><b>#${ar.id}</b></td>
+        <td style="white-space:nowrap">${_fmtDt(ar.fire_at)}</td>
+        <td>${ar.bukrs}</td>
+        <td>${ar.fiscal_year}/${ar.period}</td>
+        <td>${ar.testrun ? '<span class="badge test">🧪 Test</span>' : '<span class="badge error">🔴 Echt</span>'}</td>
+        <td class="${ar.sap_system === 'SEP' ? 'sys-sep' : 'sys-seq'}">${ar.sap_system}</td>
+        <td>${_statusBadge(ar.status)}</td>
+        <td style="text-align:center">${postedCount}</td>
+        <td style="min-width:180px">${resultHtml}</td>
+      </tr>`;
+    }).join('');
+  } catch(e) {
+    body.innerHTML = `<tr class="empty-row"><td colspan="9">Fehler: ${e.message}</td></tr>`;
+  }
+}
+
+// ── Actions ───────────────────────────────────────────────────────────────────
+async function cancelRun(id) {
+  if (!confirm(`AfA-Lauf #${id} wirklich stornieren?`)) return;
+  try {
+    const r = await fetch(ORC + `/afa/runs/${id}/cancel`, { method: 'PATCH' });
+    if (!r.ok) throw new Error(await r.text());
+    loadPending();
+  } catch(e) { alert('Fehler: ' + e.message); }
+}
+
+async function executeNow(id) {
+  if (!confirm(`AfA-Lauf #${id} sofort ausführen?`)) return;
+  try {
+    const r = await fetch(ORC + `/afa/runs/${id}/execute`, { method: 'POST' });
+    if (!r.ok) throw new Error(await r.text());
+    alert(`Lauf #${id} gestartet. Status in "Geplante Läufe" verfolgen.`);
+    loadPending();
+  } catch(e) { alert('Fehler: ' + e.message); }
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function toggleResult(el) {
+  const body = el.nextElementSibling;
+  const open = body.classList.toggle('open');
+  el.textContent = open ? '🔼 Details ausblenden' : '🔍 Details anzeigen';
+}
+
+function _fmtDt(iso) {
+  if (!iso) return '—';
+  try { return new Date(iso).toLocaleString('de-DE'); } catch(e) { return iso; }
+}
+
+function _statusBadge(s) {
+  const map = {
+    pending:   '⏳ Geplant',
+    running:   '⚙ Läuft',
+    ok:        '✅ Erfolg',
+    error:     '❌ Fehler',
+    cancelled: '✖ Storniert',
+  };
+  return `<span class="badge ${s}">${map[s] || s}</span>`;
+}
+
+function _fmtResult(res) {
+  if (!res) return '—';
+  const lines = [];
+  if (res.errors   && res.errors.length)   lines.push('FEHLER:\n' + res.errors.join('\n'));
+  if (res.warnings && res.warnings.length) lines.push('Warnungen:\n' + res.warnings.join('\n'));
+  if (res.infos    && res.infos.length)    lines.push('Info:\n' + res.infos.join('\n'));
+  if (res.posted_count != null)            lines.push(`\nGebuchte Anlagen: ${res.posted_count}`);
+  if (res.posted_items && res.posted_items.length) {
+    lines.push('Anlagen (max 50):\n' +
+      res.posted_items.map(p => `  ${p.asset}/${p.subnr}: ${p.amount} ${p.curr}`).join('\n'));
+  }
+  return lines.join('\n\n') || JSON.stringify(res, null, 2);
+}
+
+function _showStatus(el, msg, type) {
+  const colors = { ok:'var(--ok)', err:'var(--err)', warn:'var(--warn)', info:'var(--aa)' };
+  el.innerHTML = `<span style="color:${colors[type]||'var(--text)'}">${msg}</span>`;
+}
+
+function _currentUser() {
+  if (typeof currentUser !== 'undefined' && currentUser)
+    return currentUser.username || currentUser.display_name || '';
+  return '';
+}
+
+function _updatePendingBadge(n) {
+  const badge = document.getElementById('pendingBadge');
+  if (n == null) {
+    fetch(ORC + '/afa/runs?status=pending')
+      .then(r => r.json())
+      .then(a => _updatePendingBadge(a.length))
+      .catch(() => {});
+    return;
+  }
+  badge.style.display = n > 0 ? '' : 'none';
+  badge.textContent   = n;
+}
+</script>
+</body>
+</html>

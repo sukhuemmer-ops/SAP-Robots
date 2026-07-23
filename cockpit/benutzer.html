@@ -340,6 +340,7 @@ tr:hover td{background:rgba(255,255,255,.02);}
 <div class="toast" id="toast"></div>
 
 <script src="auth.js"></script>
+<script src="cockpit-bar.js"></script>
 <script>
 // ─── Konfiguration ───────────────────────────────────────────────────────────
 const ORC_URL = window.location.origin;
@@ -618,14 +619,4 @@ async function testConnection() {
     const data = await r.json();
     if (!r.ok || !data.ok) throw new Error(data.error || 'Verbindung fehlgeschlagen');
     resultEl.innerHTML = '<span style="color:#10b981;">✓ Verbindung OK – ' + (data.system || '') + '</span>';
-    toast('✓ SAP-Verbindung erfolgreich', 'ok');
-  } catch(e) {
-    resultEl.innerHTML = '<span style="color:#dc2626;">✗ ' + e.message + '</span>';
-    toast('Verbindungsfehler: ' + e.message, 'err');
-  }
-}
-
-// ─── Init ─────────────────────────────────────────────────────────────────────
-AUTH.requireRole(['Admin']);
-AUTH.renderHeader('headerRight');
-</script>
+    toast('✓ SAP-Verbindu

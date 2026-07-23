@@ -677,49 +677,135 @@ def _show_session_window(session) -> None:
 
 
 # ---------------------------------------------------------------------------
+# SAP-System → Host-Mapping
+# ---------------------------------------------------------------------------
+_SAP_SYSTEM_HOSTS = {
+    "SEP": os.getenv("SAP_ASHOST_SEP", os.getenv("SAP_ASHOST", "172.28.189.8")),
+    "SEQ": os.getenv("SAP_ASHOST_SEQ", "172.28.189.11"),
+    "SEE": os.getenv("SAP_ASHOST_SEE", "172.28.189.14"),
+}
+_SAP_SYSTEM_SYSNR = {
+    "SEP": os.getenv("SAP_SYSNR_SEP", os.getenv("SAP_SYSNR", "06")),
+    "SEQ": os.getenv("SAP_SYSNR_SEQ", os.getenv("SAP_SYSNR", "06")),
+    "SEE": os.getenv("SAP_SYSNR_SEE", os.getenv("SAP_SYSNR", "06")),
+}
+# Optionale Per-System-User/Passwort-Overrides (SAP_USER_SEQ etc. in .env)
+_SAP_SYSTEM_USERS = {
+    "SEP": os.getenv("SAP_USER_SEP", ""),
+    "SEQ": os.getenv("SAP_USER_SEQ", ""),
+    "SEE": os.getenv("SAP_USER_SEE", ""),
+}
+_SAP_SYSTEM_PASSWDS = {
+    "SEP": os.getenv("SAP_PASSWORD_SEP", ""),
+    "SEQ": os.getenv("SAP_PASSWORD_SEQ", ""),
+    "SEE": os.getenv("SAP_PASSWORD_SEE", ""),
+}
+
+def _resolve_host(sap_auth: dict | None, env_params: dict) -> str:
+    """Mappt sap_system (SEP/SEQ/SEE) auf den korrekten Host."""
+    auth = sap_auth or {}
+    if auth.get("ashost"):
+        return auth["ashost"]
+    sys_id = auth.get("sap_system", "").upper()
+    if sys_id in _SAP_SYSTEM_HOSTS:
+        return _SAP_SYSTEM_HOSTS[sys_id]
+    return env_params.get("ashost") or os.getenv("SAP_ASHOST", "172.28.189.8")
+
+def _resolve_sysnr(sap_auth: dict | None, env_params: dict) -> str:
+    """Mappt sap_system (SEP/SEQ/SEE) auf die korrekte Systemnummer."""
+    auth = sap_auth or {}
+    if auth.get("sysnr"):
+        return auth["sysnr"]
+    sys_id = auth.get("sap_system", "").upper()
+    if sys_id in _SAP_SYSTEM_SYSNR:
+        return _SAP_SYSTEM_SYSNR[sys_id]
+    return env_params.get("sysnr") or os.getenv("SAP_SYSNR", "06")
+
+def _resolve_user(sap_auth: dict | None, env_params: dict) -> str:
+    """Gibt den SAP-User zurück: sap_auth.user/sap_username > SAP_USER_<SYS> > SAP_USER."""
+    auth = sap_auth or {}
+    # Akzeptiert 'user' (pyrfc) oder 'sap_username' (Cockpit-Session)
+    if auth.get("user"):
+        return auth["user"]
+    if auth.get("sap_username"):
+        return auth["sap_username"]
+    sys_id = auth.get("sap_system", "").upper()
+    if sys_id:
+        override = os.getenv(f"SAP_USER_{sys_id}", "") or _SAP_SYSTEM_USERS.get(sys_id, "")
+        if override:
+            return override
+    return env_params.get("user") or os.getenv("SAP_USER", "")
+
+def _resolve_passwd(sap_auth: dict | None, env_params: dict) -> str:
+    """Gibt das SAP-Passwort zurück: sap_auth > SAP_PASSWORD_<SYS> (dynamisch) > SAP_PASSWORD."""
+    auth = sap_auth or {}
+    if auth.get("passwd"):
+        return auth["passwd"]
+    sys_id = auth.get("sap_system", "").upper()
+    if sys_id:
+        # Immer dynamisch lesen – kein Modul-Reimport nötig nach .env-Änderung
+        override = os.getenv(f"SAP_PASSWORD_{sys_id}", "") or _SAP_SYSTEM_PASSWDS.get(sys_id, "")
+        if override:
+            return override
+    return env_params.get("passwd") or os.getenv("SAP_PASSWORD", "")
+
+# ---------------------------------------------------------------------------
 # AP / BAPI -- FI-Beleg buchen
 # ---------------------------------------------------------------------------
 def _rfc_connection_with_auth(sap_auth: dict | None = None, config=None):
     """
     Baut RFC-Verbindung auf. Wenn ``sap_auth`` aus dem Payload kommt (Cockpit-Login),
     werden diese Werte bevorzugt – andernfalls Fallback auf .env / Vault.
-    Optionaler ``config``-Parameter wird direkt an pyrfc.Connection weitergereicht
-    (z.B. config={'bcd': 'str'} als Workaround fuer den pyrfc 3.3 BCD-Bug).
+    sap_system (SEP/SEQ/SEE) wird per _resolve_host() auf den korrekten Host gemappt.
     """
     from pyrfc import Connection  # type: ignore
-    if sap_auth and sap_auth.get("user") and sap_auth.get("passwd"):
-        params = {
-            "ashost": sap_auth.get("ashost") or os.getenv("SAP_ASHOST"),
-            "sysnr":  sap_auth.get("sysnr")  or os.getenv("SAP_SYSNR", "00"),
-            "client": sap_auth.get("client") or os.getenv("SAP_CLIENT"),
-            "user":   sap_auth["user"],
-            "passwd": sap_auth["passwd"],
-            "lang":   sap_auth.get("lang")   or os.getenv("SAP_LANG", "DE"),
-        }
-        log.info("RFC-Verbindung mit Cockpit-Credentials: %s@%s Mdt.%s",
-                 params["user"], params["ashost"], params["client"])
+    env_params = build_sap_rfc_params("SAP")
+    ashost = _resolve_host(sap_auth, env_params)
+    sysnr  = _resolve_sysnr(sap_auth, env_params)
+    user   = _resolve_user(sap_auth, env_params)
+    passwd = _resolve_passwd(sap_auth, env_params)
+    sys_id = (sap_auth or {}).get("sap_system", "").upper()
+    if sap_auth and sap_auth.get("user"):
+        source = "Cockpit"
+    elif sys_id and os.getenv(f"SAP_PASSWORD_{sys_id}"):
+        source = f"SAP_{sys_id}_Override"
     else:
-        params = build_sap_rfc_params("SAP")
-        log.info("RFC-Verbindung mit .env-Credentials: %s@%s Mdt.%s",
-                 params.get("user"), params.get("ashost"), params.get("client"))
+        source = ".env"
+    log.info("RFC-Auth-Auflösung: user=%s passwd=%s sys=%s source=%s",
+             user, "***" if passwd else "(leer)", sys_id or "default", source)
+    params = {
+        "ashost": ashost,
+        "sysnr":  sysnr,
+        "client": (sap_auth or {}).get("client") or env_params.get("client") or os.getenv("SAP_CLIENT"),
+        "user":   user,
+        "passwd": passwd,
+        "lang":   (sap_auth or {}).get("lang") or env_params.get("lang") or os.getenv("SAP_LANG", "DE"),
+    }
+    log.info("RFC-Verbindung mit %s-Credentials: %s@%s Mdt.%s",
+             source, params["user"], params["ashost"], params["client"])
     return Connection(config=config, **params) if config else Connection(**params)
 
 
 def _rfc_connection_service_account(sap_auth: dict | None = None, config=None):
     """
-    Fallback-Verbindung mit Service-Account aus .env, aber SAP-System-Parameter
-    aus sap_auth (Host/Sysnr/Client/Lang). Wird verwendet wenn der eingeloggte
-    Benutzer keine S_RFC-Berechtigung für RFCPING hat.
+    Fallback-Verbindung mit Service-Account aus .env.
+    Verwendet per-System-Override (SAP_USER_SEQ / SAP_PASSWORD_SEQ etc.) wenn gesetzt,
+    andernfalls globalen SAP_USER / SAP_PASSWORD.
     """
     from pyrfc import Connection  # type: ignore
     env_params = build_sap_rfc_params("SAP")
+    sys_id = (sap_auth or {}).get("sap_system", "").upper()
+    # Per-System Service-Account bevorzugen (z.B. SAP_USER_SEQ=RFC_USER)
+    svc_user   = (_SAP_SYSTEM_USERS.get(sys_id) or
+                  env_params.get("user") or os.getenv("SAP_USER", "RFC_COFACE"))
+    svc_passwd = (_SAP_SYSTEM_PASSWDS.get(sys_id) or
+                  env_params.get("passwd") or os.getenv("SAP_PASSWORD", ""))
     params = {
-        # SAP-System aus sap_auth (kann SEQ sein), Credentials aus .env
-        "ashost": (sap_auth or {}).get("ashost") or env_params.get("ashost") or os.getenv("SAP_ASHOST"),
-        "sysnr":  (sap_auth or {}).get("sysnr")  or env_params.get("sysnr")  or os.getenv("SAP_SYSNR", "00"),
+        "ashost": _resolve_host(sap_auth, env_params),
+        "sysnr":  _resolve_sysnr(sap_auth, env_params),
         "client": (sap_auth or {}).get("client") or env_params.get("client") or os.getenv("SAP_CLIENT"),
-        "user":   env_params.get("user")   or os.getenv("SAP_USER", "RFC_COFACE"),
-        "passwd": env_params.get("passwd") or os.getenv("SAP_PASSWORD", ""),
+        "user":   svc_user,
+        "passwd": svc_passwd,
         "lang":   (sap_auth or {}).get("lang") or env_params.get("lang") or os.getenv("SAP_LANG", "DE"),
     }
     log.info("RFC-Verbindung Service-Account (RFCPING-Fallback): %s@%s Mdt.%s",
@@ -738,17 +824,19 @@ def bapi_acc_document_post(task: dict, payload: dict) -> str:
         log.info("Scheduler-Buchung: verwende Service-Account aus .env, System aus sap_auth.")
         conn = _rfc_connection_service_account(sap_auth)
     else:
-        # Interaktive Buchung: erst mit Benutzer-Credentials versuchen,
-        # bei RFCPING-Sperre Fallback auf Service-Account (RFC_COFACE aus .env).
+        # Interaktive Buchung: Benutzer-Credentials verwenden.
+        # Bei RFCPING-Sperre (S_RFC fehlt für RFC1): klare Fehlermeldung ausgeben.
+        # → SAP BASIS muss S_RFC (RFC_TYPE=FUGR, RFC_NAME=RFC1, ACTVT=16) für den Benutzer in diesem System freigeben.
         try:
             conn = _rfc_connection_with_auth(sap_auth)
         except Exception as _conn_exc:
             _exc_str = str(_conn_exc)
             if "RFC_NO_AUTHORITY" in _exc_str and "RFCPING" in _exc_str:
+                sys_id    = (sap_auth or {}).get("sap_system", "").upper() or "SAP"
+                user_disp = (sap_auth or {}).get("user") or (sap_auth or {}).get("sap_username", "?")
                 log.warning(
-                    "Benutzer '%s' hat keine S_RFC-Berechtigung für RFCPING – "
-                    "Fallback auf Service-Account für RFC-Verbindung.",
-                    (sap_auth or {}).get("user", "?")
+                    "BAPI-Post: %s hat keine S_RFC für RFCPING auf %s → Fallback Service-Account.",
+                    user_disp, sys_id,
                 )
                 conn = _rfc_connection_service_account(sap_auth)
             else:
@@ -887,7 +975,12 @@ def bapi_acc_document_rev(task: dict, payload: dict) -> str:
         except Exception as _conn_exc:
             _exc_str = str(_conn_exc)
             if "RFC_NO_AUTHORITY" in _exc_str and "RFCPING" in _exc_str:
-                log.warning("RFCPING-Fallback auf Service-Account für Storno.")
+                sys_id    = (sap_auth or {}).get("sap_system", "").upper() or "SAP"
+                user_disp = (sap_auth or {}).get("user") or (sap_auth or {}).get("sap_username", "?")
+                log.warning(
+                    "BAPI-Rev: %s hat keine S_RFC für RFCPING auf %s → Fallback Service-Account.",
+                    user_disp, sys_id,
+                )
                 conn = _rfc_connection_service_account(sap_auth)
             else:
                 raise
@@ -1639,10 +1732,11 @@ def bapi_sd_invoice_create_multi(task, payload):
         conn = _rfc_connection_with_auth(sap_auth)
     except Exception as _conn_exc:
         if "RFC_NO_AUTHORITY" in str(_conn_exc) and "RFCPING" in str(_conn_exc):
+            sys_id    = (sap_auth or {}).get("sap_system", "").upper() or "SAP"
+            user_disp = (sap_auth or {}).get("user") or (sap_auth or {}).get("sap_username", "?")
             log.warning(
-                "Benutzer '%s' hat keine S_RFC-Berechtigung fuer RFCPING – "
-                "Fallback auf Service-Account fuer RFC-Verbindung.",
-                (sap_auth or {}).get("user", "?")
+                "IC-Buchung: %s hat keine S_RFC für RFCPING auf %s → Fallback Service-Account.",
+                user_disp, sys_id,
             )
             conn = _rfc_connection_service_account(sap_auth)
         else:
@@ -3361,9 +3455,342 @@ def gui_fk02_intad_change(task: dict, payload: dict) -> dict:
             except Exception:
                 pass
 
+# ---------------------------------------------------------------------------
+# SALES / CO-PA – Sales Report (VBRK/VBRP + optionales COPA CE4xxxx)
+# ---------------------------------------------------------------------------
+def copa_sales_report(task: dict, payload: dict) -> dict:
+    """
+    SAP Sales-Report mit Material, Kunde und Gesellschaft.
+
+    Primärquelle: SD-Faktura-Belege via RFC_READ_TABLE (VBRK + VBRP + KNA1 + MAKT).
+    Optional:     CO-PA Einzelposten via CE4<operating_concern> (konfigurierbar).
+
+    Payload-Felder:
+        comp_codes          str | list  Buchungskreise, kommagetrennt (leer = alle)
+        date_from           str         Belegdatum von (YYYYMMDD oder DD.MM.YYYY)
+        date_to             str         Belegdatum bis
+        customer_filter     str         Kundennummer oder Prefix (optional)
+        material_filter     str         Materialnummer oder Prefix (optional)
+        source              str         "vbrk" (SD-Billing) | "copa" (COPA CE4)
+        operating_concern   str         Ergebnisobjektbereich für COPA, z.B. "0001"
+        maxrows             int         max. Datensätze (default 5000)
+
+    Returns:
+        {"rows": [...], "meta": {...}, "status": "ok"}
+    """
+    sap_auth  = payload.get("_sap_auth")
+    source    = payload.get("source", "vbrk").lower()
+    maxrows   = int(payload.get("maxrows", 5000))
+
+    # Buchungskreis-Liste aufbauen
+    raw_codes = payload.get("comp_codes", "") or payload.get("comp_code", "")
+    if isinstance(raw_codes, list):
+        comp_codes = [c.strip() for c in raw_codes if c.strip()]
+    else:
+        comp_codes = [c.strip() for c in str(raw_codes).split(",") if c.strip()]
+
+    date_from_raw = payload.get("date_from", "")
+    date_to_raw   = payload.get("date_to", "")
+    try:
+        dt_from = parse_date(date_from_raw, default_today=False) if date_from_raw else None
+        dt_to   = parse_date(date_to_raw,   default_today=True)  if date_to_raw   else None
+    except ValueError as e:
+        return {"status": "error", "message": str(e)}
+
+    date_from_sap = dt_from.strftime("%Y%m%d") if dt_from else ""
+    date_to_sap   = dt_to.strftime("%Y%m%d")   if dt_to   else ""
+
+    customer_filter = (payload.get("customer_filter") or "").strip()
+    material_filter = (payload.get("material_filter") or "").strip()
+
+    try:
+        conn = _rfc_connection_with_auth(sap_auth)
+    except Exception as _conn_exc:
+        _exc_str = str(_conn_exc)
+        if "RFC_NO_AUTHORITY" in _exc_str and "RFCPING" in _exc_str:
+            sys_id    = (sap_auth or {}).get("sap_system", "").upper() or "SAP"
+            user_disp = (sap_auth or {}).get("user") or (sap_auth or {}).get("sap_username", "?")
+            log.warning(
+                "COPA-Import: %s hat keine S_RFC für RFCPING auf %s → Fallback Service-Account.",
+                user_disp, sys_id,
+            )
+            conn = _rfc_connection_service_account(sap_auth)
+        else:
+            raise
+
+    try:
+        rows = []
+
+        if source == "copa":
+            concern = (payload.get("operating_concern") or "0001").strip()
+            table   = "CE4" + concern
+            options = []
+            if date_from_sap:
+                options.append({"TEXT": "BUDAT >= '" + date_from_sap + "'"})
+            if date_to_sap:
+                options.append({"TEXT": "AND BUDAT <= '" + date_to_sap + "'"})
+            if comp_codes:
+                codes_str = ",".join("'" + c + "'" for c in comp_codes)
+                options.append({"TEXT": "AND BUKRS IN (" + codes_str + ")"})
+
+            fields = ["BUKRS", "KNDNR", "ARTNR", "BUDAT", "WRBTR", "WAERS"]
+            try:
+                copa_rows = _rfc_read(conn, table, fields, options, maxrows=maxrows)
+            except Exception as e:
+                return {"status": "error", "message": "CE4-Tabelle '" + table + "' nicht lesbar: " + str(e)}
+
+            for r in copa_rows:
+                rows.append({
+                    "bukrs":  r.get("BUKRS", "").strip(),
+                    "kunnr":  r.get("KNDNR", "").strip(),
+                    "matnr":  r.get("ARTNR", "").strip(),
+                    "budat":  r.get("BUDAT", "").strip(),
+                    "netwr":  _safe_float(r.get("WRBTR", "")),
+                    "waers":  r.get("WAERS", "EUR").strip(),
+                    "kname":  "",
+                    "mtext":  "",
+                    "source": "copa",
+                })
+
+        else:
+            # SD-Faktura VBRK + VBRP
+            vbrk_opt = []
+            if date_from_sap:
+                vbrk_opt.append({"TEXT": "FKDAT >= '" + date_from_sap + "'"})
+            if date_to_sap:
+                vbrk_opt.append({"TEXT": "AND FKDAT <= '" + date_to_sap + "'"})
+            if comp_codes:
+                codes_str = ",".join("'" + c + "'" for c in comp_codes)
+                vbrk_opt.append({"TEXT": "AND BUKRS IN (" + codes_str + ")"})
+            if customer_filter:
+                vbrk_opt.append({"TEXT": "AND KUNAG >= '" + customer_filter + "'"})
+
+            vbrk_fields = ["VBELN", "BUKRS", "KUNAG", "FKDAT", "NETWR", "WAERS", "FKART"]
+            vbrk_rows   = _rfc_read(conn, "VBRK", vbrk_fields, vbrk_opt, maxrows=maxrows)
+
+            if not vbrk_rows:
+                return {
+                    "rows":   [],
+                    "meta":   {"count": 0, "comp_codes": comp_codes, "source": "vbrk"},
+                    "status": "ok",
+                }
+
+            vbrk_idx   = {r["VBELN"].strip(): r for r in vbrk_rows}
+            vbeln_list = list(vbrk_idx.keys())
+
+            vbrp_rows = []
+            for i in range(0, len(vbeln_list), 100):
+                chunk    = vbeln_list[i:i + 100]
+                in_str   = ",".join("'" + v + "'" for v in chunk)
+                vbrp_opt = [{"TEXT": "VBELN IN (" + in_str + ")"}]
+                vbrp_f   = ["VBELN", "POSNR", "MATNR", "NETWR", "MWSBP"]
+                if material_filter:
+                    vbrp_opt.append({"TEXT": "AND MATNR >= '" + material_filter + "'"})
+                try:
+                    part = _rfc_read(conn, "VBRP", vbrp_f, vbrp_opt, maxrows=maxrows)
+                    vbrp_rows.extend(part)
+                except Exception:
+                    pass
+
+            kunnr_set = {r["KUNAG"].strip() for r in vbrk_rows if r.get("KUNAG")}
+            kna1_idx  = {}
+            for i in range(0, len(list(kunnr_set)), 100):
+                chunk    = list(kunnr_set)[i:i + 100]
+                in_str   = ",".join("'" + k + "'" for k in chunk)
+                kna1_opt = [{"TEXT": "KUNNR IN (" + in_str + ")"}]
+                try:
+                    kna1_r = _rfc_read(conn, "KNA1", ["KUNNR", "NAME1"], kna1_opt, maxrows=5000)
+                    for k in kna1_r:
+                        kna1_idx[k["KUNNR"].strip()] = k.get("NAME1", "").strip()
+                except Exception:
+                    pass
+
+            matnr_set = {r["MATNR"].strip() for r in vbrp_rows if r.get("MATNR")}
+            makt_idx  = {}
+            for i in range(0, len(list(matnr_set)), 100):
+                chunk    = list(matnr_set)[i:i + 100]
+                in_str   = ",".join("'" + m + "'" for m in chunk)
+                makt_opt = [{"TEXT": "MATNR IN (" + in_str + ") AND SPRAS = 'D'"}]
+                try:
+                    makt_r = _rfc_read(conn, "MAKT", ["MATNR", "MAKTX"], makt_opt, maxrows=5000)
+                    for m in makt_r:
+                        makt_idx[m["MATNR"].strip()] = m.get("MAKTX", "").strip()
+                except Exception:
+                    pass
+
+            for pos in vbrp_rows:
+                vbeln  = pos["VBELN"].strip()
+                hdr    = vbrk_idx.get(vbeln, {})
+                kunnr  = hdr.get("KUNAG", "").strip()
+                matnr  = pos.get("MATNR", "").strip()
+                rows.append({
+                    "vbeln":  vbeln,
+                    "posnr":  pos.get("POSNR", "").strip(),
+                    "bukrs":  hdr.get("BUKRS", "").strip(),
+                    "kunnr":  kunnr,
+                    "kname":  kna1_idx.get(kunnr, ""),
+                    "matnr":  matnr,
+                    "mtext":  makt_idx.get(matnr, ""),
+                    "budat":  hdr.get("FKDAT", "").strip(),
+                    "netwr":  _safe_float(pos.get("NETWR", "")),
+                    "waers":  hdr.get("WAERS", "EUR").strip(),
+                    "fkart":  hdr.get("FKART", "").strip(),
+                    "source": "vbrk",
+                })
+
+        return {
+            "rows":   rows,
+            "meta": {
+                "count":      len(rows),
+                "comp_codes": comp_codes,
+                "date_from":  date_from_sap,
+                "date_to":    date_to_sap,
+                "source":     source,
+                "maxrows":    maxrows,
+            },
+            "status": "ok",
+        }
+
+    except Exception as e:
+        log.exception("copa_sales_report: Unerwarteter Fehler")
+        return {"status": "error", "message": str(e)}
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
+def _safe_float(val) -> float:
+    """SAP-Betragstring (z.B. '1.234,56-') in float umwandeln."""
+    if val is None:
+        return 0.0
+    s = str(val).strip()
+    if not s:
+        return 0.0
+    neg = s.endswith("-")
+    s   = s.replace("-", "").replace(",", ".").replace(" ", "")
+    if s.count(".") > 1:
+        parts = s.split(".")
+        s = "".join(parts[:-1]) + "." + parts[-1]
+    try:
+        result = float(s)
+        return -result if neg else result
+    except ValueError:
+        return 0.0
+
+
+# ---------------------------------------------------------------------------
+# BAPI_INCOMINGINVOICE_CREATE  (MIRO-Buchung via RFC)
+# ---------------------------------------------------------------------------
+def bapi_incominginvoice_create(task: dict, payload: dict) -> str:
+    """
+    Bucht eine Eingangsrechnung mit Bestellbezug via BAPI_INCOMINGINVOICE_CREATE.
+
+    Payload-Felder (aus mgmt-invoice.html):
+        _sap_auth      – SAP-Credentials (user, passwd, sap_system, ashost, …)
+        HEADERDATA     – dict: INVOICE_IND, COMP_CODE, DOC_DATE, PSTNG_DATE,
+                                GROSS_AMOUNT, CURRENCY, CALC_TAX_IND, HEADERTEXT, REF_DOC_NO
+        ITEMDATA       – list of: INVOICE_DOC_ITEM, PO_NUMBER, PO_ITEM,
+                                   QUANTITY, PO_UNIT, ITEM_AMOUNT, TAX_CODE
+    """
+    sap_auth = payload.get("_sap_auth") or payload.get("_sap_conn")
+
+    try:
+        conn = _rfc_connection_with_auth(sap_auth)
+    except Exception as _conn_exc:
+        _exc_str = str(_conn_exc)
+        if "RFC_NO_AUTHORITY" in _exc_str and "RFCPING" in _exc_str:
+            sys_id    = (sap_auth or {}).get("sap_system", "").upper() or "SAP"
+            user_disp = (sap_auth or {}).get("user") or (sap_auth or {}).get("sap_username", "?")
+            log.warning(
+                "MIRO: %s hat keine S_RFC für RFCPING auf %s → Fallback Service-Account.",
+                user_disp, sys_id,
+            )
+            conn = _rfc_connection_service_account(sap_auth)
+        else:
+            raise
+
+    hdr_raw = payload.get("HEADERDATA") or {}
+    items_raw = payload.get("ITEMDATA") or []
+
+    # HEADERDATA normalisieren
+    header = {
+        "INVOICE_IND":  str(hdr_raw.get("INVOICE_IND", "X")),
+        "COMP_CODE":    str(hdr_raw.get("COMP_CODE", "")),
+        "DOC_DATE":     str(hdr_raw.get("DOC_DATE", "")),
+        "PSTNG_DATE":   str(hdr_raw.get("PSTNG_DATE", "")),
+        "GROSS_AMOUNT": float(hdr_raw.get("GROSS_AMOUNT", 0.0)),
+        "CURRENCY":     str(hdr_raw.get("CURRENCY", "EUR")),
+        "CALC_TAX_IND": str(hdr_raw.get("CALC_TAX_IND", "X")),
+        "HEADERTEXT":   str(hdr_raw.get("HEADERTEXT", "")),
+        "REF_DOC_NO":   str(hdr_raw.get("REF_DOC_NO", "")),
+    }
+
+    if not header["COMP_CODE"]:
+        raise ValueError("HEADERDATA.COMP_CODE fehlt.")
+
+    # ITEMDATA normalisieren
+    items = []
+    for it in items_raw:
+        items.append({
+            "INVOICE_DOC_ITEM": str(it.get("INVOICE_DOC_ITEM", "")),
+            "PO_NUMBER":        str(it.get("PO_NUMBER", "")),
+            "PO_ITEM":          str(it.get("PO_ITEM", "")),
+            "QUANTITY":         float(it.get("QUANTITY", 1.0)),
+            "PO_UNIT":          str(it.get("PO_UNIT", "ST")),
+            "ITEM_AMOUNT":      float(it.get("ITEM_AMOUNT", 0.0)),
+            "TAX_CODE":         str(it.get("TAX_CODE", "")),
+        })
+
+    log.info(
+        "BAPI_INCOMINGINVOICE_CREATE: BUKRS=%s DOC_DATE=%s GROSS=%s PO=%s Positionen=%d",
+        header["COMP_CODE"], header["DOC_DATE"], header["GROSS_AMOUNT"],
+        items[0]["PO_NUMBER"] if items else "–", len(items),
+    )
+
+    result = conn.call(
+        "BAPI_INCOMINGINVOICE_CREATE",
+        HEADERDATA=header,
+        ITEMDATA=items,
+    )
+
+    # RETURN auswerten
+    ret_msgs = result.get("RETURN") or []
+    errors   = [r for r in ret_msgs if r.get("TYPE") in ("E", "A")]
+    warnings = [r for r in ret_msgs if r.get("TYPE") == "W"]
+    for w in warnings:
+        log.warning("MIRO RETURN W: %s %s", w.get("ID", ""), w.get("MESSAGE", ""))
+
+    doc_nr  = str(result.get("INVOICEDOCNUMBER", "")).strip()
+    fy      = str(result.get("FISCALYEAR", "")).strip()
+
+    if errors:
+        msgs = "; ".join(e.get("MESSAGE", str(e)) for e in errors)
+        raise RuntimeError(f"BAPI_INCOMINGINVOICE_CREATE Fehler: {msgs}")
+
+    if not doc_nr.strip("0"):
+        # Keine Belegnummer aber auch kein E-Return → Status aus RETURN lesen
+        info_msgs = [r for r in ret_msgs if r.get("TYPE") in ("S", "I")]
+        if info_msgs:
+            msgs = "; ".join(r.get("MESSAGE", "") for r in info_msgs)
+            raise RuntimeError(f"MIRO-Buchung ohne Belegnummer: {msgs}")
+        raise RuntimeError("BAPI_INCOMINGINVOICE_CREATE: Keine Belegnummer zurückgegeben.")
+
+    # Commit
+    conn.call("BAPI_TRANSACTION_COMMIT", WAIT="X")
+    log.info("MIRO gebucht: Beleg %s Geschäftsjahr %s", doc_nr, fy)
+
+    return f"MIRO-Beleg gebucht: {doc_nr} (GJ {fy})"
+
+
+# ---------------------------------------------------------------------------
+# Handler-Dispatch-Tabelle
+# ---------------------------------------------------------------------------
 HANDLERS: dict[tuple[str, str], callable] = {
-    ("BAPI", "BAPI_ACC_DOCUMENT_POST"):  bapi_acc_document_post,
-    ("BAPI", "BAPI_ACC_DOCUMENT_REV"):   bapi_acc_document_rev,
+    ("BAPI", "BAPI_ACC_DOCUMENT_POST"):      bapi_acc_document_post,
+    ("BAPI", "BAPI_ACC_DOCUMENT_REV"):       bapi_acc_document_rev,
+    ("BAPI", "BAPI_INCOMINGINVOICE_CREATE"): bapi_incominginvoice_create,
     ("BAPI", "FBL1N"):                   bapi_vendor_open_items,
     ("BAPI", "FBL5N"):                   bapi_customer_open_items,
     ("BAPI", "RFC_PING"):                rfc_ping,
@@ -3385,4 +3812,5 @@ HANDLERS: dict[tuple[str, str], callable] = {
     ("Batch","AFAB"):                    batch_afab_depreciation,
     ("BAPI", "STAMMDATEN"):              bapi_stammdaten,
     ("BAPI", "BAPI_VENDOR_CHANGE"):      bapi_vendor_change,
+    ("BAPI", "COPA_SALES_REPORT"):       copa_sales_report,
 }

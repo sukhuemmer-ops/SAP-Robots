@@ -1,0 +1,29 @@
+{
+  "version": 3,
+  "backups": [
+    {
+      "version": 1,
+      "filename": "YCONN_Backup_v001_20260710_094622.zip",
+      "date": "10.07.2026 09:46",
+      "files": 147,
+      "size_mb": 5.8,
+      "note": "Erster Backup - nach EN-Sprache + Delete-Fix + Druckdialog-Fix"
+    },
+    {
+      "version": 2,
+      "filename": "YCONN_Backup_v002_20260710_095300.zip",
+      "date": "10.07.2026 09:53",
+      "files": 147,
+      "size_mb": 5.8,
+      "note": ""
+    },
+    {
+      "version": 3,
+      "filename": "YCONN_Backup_v003_20260723_095318.zip",
+      "date": "23.07.2026 09:53",
+      "files": 158,
+      "size_mb": 6.7,
+      "note": ""
+    }
+  ]
+}

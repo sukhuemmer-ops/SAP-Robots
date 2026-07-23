@@ -736,7 +736,71 @@ def download_report(name):
     return send_from_directory(REPORT_OUT_DIR, name, as_attachment=True)
 
 
+
+# ── AP-Aging / FBL1N-Import ───────────────────────────────────────────────────
+@app.post("/ap-aging/fbl1n-import")
+def ap_aging_fbl1n_import():
+    """
+    Direkter FBL1N-Import via Bridge (hat pyrfc).
+    Wird vom Orchestrator-Endpoint /ap-aging/import aufgerufen.
+    """
+    import json as _json
+    data = request.get_json(silent=True) or {}
+
+    # batch_fbl1n_ap_aging erwartet (task: dict, payload: dict)
+    task    = {"method": "BATCH", "tcode": "FBL1N_AP_AGING"}
+    payload = {
+        "bukrs":        data.get("bukrs", ""),
+        "key_date":     data.get("key_date", ""),
+        "normal_items": data.get("normal_items", True),
+        "special_gl":   data.get("special_gl",  True),
+        "months_back":  int(data.get("months_back", 36)),
+        # _sap_auth: None → _rfc_connection_with_auth faellt auf .env zurück
+    }
+
+    try:
+        from handlers import batch_fbl1n_ap_aging
+        result = batch_fbl1n_ap_aging(task, payload)
+        return jsonify({"status": "ok", **result})
+    except Exception as exc:
+        tb = traceback.format_exc()
+        log.error("/ap-aging/fbl1n-import Fehler: %s\n%s", exc, tb)
+        return jsonify({"status": "error", "message": str(exc)}), 500
+
+
+# ── Sales / CO-PA-Import ──────────────────────────────────────────────────────
+@app.post("/sales/copa-import")
+def sales_copa_import():
+    """
+    Direkter CO-PA/SD-Billing-Import via Bridge (hat pyrfc).
+    Wird vom Orchestrator-Endpoint /sales/import aufgerufen.
+    """
+    data = request.get_json(silent=True) or {}
+
+    task    = {"method": "BAPI", "tcode": "COPA_SALES_REPORT"}
+    payload = {
+        "comp_codes":        data.get("comp_codes", ""),
+        "date_from":         data.get("date_from", ""),
+        "date_to":           data.get("date_to", ""),
+        "source":            data.get("source", "vbrk"),
+        "operating_concern": data.get("operating_concern", ""),
+        "customer_filter":   data.get("customer_filter", ""),
+        "material_filter":   data.get("material_filter", ""),
+        "maxrows":           int(data.get("maxrows", 5000)),
+        "_sap_auth":         data.get("_sap_auth"),
+    }
+
+    try:
+        from handlers import copa_sales_report
+        result = copa_sales_report(task, payload)
+        return jsonify({"status": "ok", **result})
+    except Exception as exc:
+        tb = traceback.format_exc()
+        log.error("/sales/copa-import Fehler: %s\n%s", exc, tb)
+        return jsonify({"status": "error", "message": str(exc)}), 500
+
+
 if __name__ == "__main__":
     port = int(os.getenv("BRIDGE_PORT", "8765"))
-    log.info("Bridge startet auf Port %d …", port)
+    log.info("Bridge startet auf Port %d ...")
     app.run(host="127.0.0.1", port=port, debug=False, use_reloader=False)

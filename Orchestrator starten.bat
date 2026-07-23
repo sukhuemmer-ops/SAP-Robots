@@ -52,6 +52,12 @@ if errorlevel 1 (
     )
 )
 
+REM ----- 4. Python-Cache loeschen (verhindert veralteten main.pyc) -----
+if exist "__pycache__\main.cpython-*.pyc" (
+    del /q "__pycache__\main.cpython-*.pyc" 2>nul
+    echo     main.pyc Cache geloescht.
+)
+
 echo.
 echo === Orchestrator startet auf http://localhost:8000 ===
 echo === API-Doku:    http://localhost:8000/docs ===

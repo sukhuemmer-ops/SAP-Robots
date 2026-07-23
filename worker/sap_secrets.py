@@ -35,10 +35,17 @@ from __future__ import annotations
 
 import logging
 import os
+import sys
 from functools import lru_cache
+from pathlib import Path
 from urllib.parse import urlsplit
 
 log = logging.getLogger("secrets")
+
+# ── Fernet-Modul aus dem Projektstamm laden ──────────────────────────────────
+_PROJ_ROOT = Path(__file__).parent.parent  # worker/../  → Projektstamm
+if str(_PROJ_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJ_ROOT))
 
 
 # ---------------------------------------------------------------------------
@@ -91,11 +98,36 @@ def clear_cache() -> None:
 # ---------------------------------------------------------------------------
 # Handler je Schema
 # ---------------------------------------------------------------------------
+def _h_enc(uri: str) -> str:
+    """Entschlüsselt einen Fernet-verschlüsselten Wert (ENC:-Präfix).
+    URI-Form: enc://ENC:gAAAAA...   oder   enc://ENC:...
+    Wird verwendet wenn .env-Datei Werte mit ENC:-Präfix enthält."""
+    try:
+        from crypto import decrypt  # type: ignore
+    except ImportError as exc:
+        raise RuntimeError(
+            "crypto.py nicht gefunden. Liegt secret.key im Projektstamm? "
+            f"({exc})"
+        ) from exc
+    # enc://ENC:xxx  →  ENC:xxx
+    raw = uri[len("enc://"):]
+    return decrypt(raw)
+
+
 def _h_env(uri: str) -> str:
     var = uri[len("env://"):]
     val = os.getenv(var)
     if val is None:
         raise RuntimeError(f"Umgebungsvariable '{var}' nicht gesetzt.")
+    # Automatisch entschlüsseln wenn der .env-Wert mit ENC: anfängt
+    if val.startswith("ENC:"):
+        try:
+            from crypto import decrypt  # type: ignore
+            return decrypt(val)
+        except Exception as exc:
+            raise RuntimeError(
+                f"Entschlüsselung von '{var}' fehlgeschlagen: {exc}"
+            ) from exc
     return val
 
 
@@ -209,6 +241,7 @@ def _h_gcp_sm(uri: str) -> str:
 
 
 _HANDLERS = {
+    "enc":               _h_enc,           # Fernet – lokale Verschlüsselung
     "env":               _h_env,
     "file":              _h_file,
     "windows-dpapi":     _h_windows_dpapi,
@@ -250,10 +283,10 @@ def build_sap_rfc_params(prefix: str = "SAP") -> dict:
     if os.getenv(f"{prefix}_SAPROUTER"):
         params["saprouter"] = os.getenv(f"{prefix}_SAPROUTER")
     if os.getenv(f"{prefix}_MSHOST"):
-        params["mshost"]  = os.getenv(f"{prefix}_MSHOST")
-        params["group"]   = os.getenv(f"{prefix}_GROUP", "PUBLIC")
-        params["sysid"]   = os.getenv(f"{prefix}_SYSID", "")
-        params.pop("ashost", None)  # bei MSHOST kein ASHOST
+        params["mshost"] = os.getenv(f"{prefix}_MSHOST")
+        params["group"]  = os.getenv(f"{prefix}_GROUP", "PUBLIC")
+        params["sysid"]  = os.getenv(f"{prefix}_SYSID", "")
+        params.pop("ashost", None)
     if os.getenv(f"{prefix}_SNC_PARTNERNAME"):
         params.update({
             "snc_qop":         os.getenv(f"{prefix}_SNC_QOP", "9"),
@@ -266,11 +299,14 @@ def build_sap_rfc_params(prefix: str = "SAP") -> dict:
 
 def build_sap_gui_params(prefix: str = "SAP_GUI") -> dict:
     """Analog zu ``build_sap_rfc_params`` fuer SAP GUI Scripting."""
-    password_ref = os.getenv(f"{prefix}_PASSWORD_REF") or f"env://{prefix.replace('_GUI','')}_PASSWORD"
+    password_ref = (
+        os.getenv(f"{prefix}_PASSWORD_REF")
+        or f"env://{prefix.replace('_GUI', '')}_PASSWORD"
+    )
     return {
-        "connection":  os.getenv(f"{prefix}_CONNECTION") or os.getenv("SAP_GUI_CONNECTION"),
-        "user":        os.getenv(f"{prefix}_USER") or os.getenv("SAP_USER"),
-        "password":    resolve_secret_cached(password_ref),
-        "client":      os.getenv("SAP_CLIENT"),
-        "lang":        os.getenv("SAP_LANG", "DE"),
+        "connection": os.getenv(f"{prefix}_CONNECTION") or os.getenv("SAP_GUI_CONNECTION"),
+        "user":       os.getenv(f"{prefix}_USER") or os.getenv("SAP_USER"),
+        "password":   resolve_secret_cached(password_ref),
+        "client":     os.getenv("SAP_CLIENT"),
+        "lang":       os.getenv("SAP_LANG", "DE"),
     }

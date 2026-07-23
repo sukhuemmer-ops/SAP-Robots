@@ -238,7 +238,7 @@ async function doLogin() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ _sap_auth: {
         ashost: u.ashost, sysnr: u.sysnr, client: u.client,
-        lang: u.lang || 'DE', user: u.sap_username, passwd: pw
+        lang: 'EN', user: u.sap_username, passwd: pw
       }}),
       signal: AbortSignal.timeout(12000)
     });
@@ -256,12 +256,13 @@ async function doLogin() {
         ashost:       u.ashost,
         sysnr:        u.sysnr,
         client:       u.client,
-        lang:         u.lang || 'DE',
+        lang:         'EN',        // Globale Regel: SAP-Verbindung immer EN
         role:         u.role,
         passwd:       pw,          // nur sessionStorage – nie persistiert
         login_time:   new Date().toISOString()
       };
       localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+      localStorage.setItem('yconn_lang', 'en');  // App-UI immer EN nach Login
       sessionStorage.setItem(SESSION_KEY, JSON.stringify(session)); // Fallback für API-Calls
       setStatus('✓ Anmeldung erfolgreich…', 'ok');
       setTimeout(() => location.replace(REDIRECT), 600);
@@ -280,12 +281,13 @@ async function doLogin() {
       ashost:       u.ashost,
       sysnr:        u.sysnr,
       client:       u.client,
-      lang:         u.lang || 'DE',
+      lang:         'EN',          // Globale Regel: SAP-Verbindung immer EN
       role:         u.role,
       passwd:       pw,
       login_time:   new Date().toISOString(),
       bridge_offline: true
     };
+    localStorage.setItem('yconn_lang', 'en');  // App-UI immer EN nach Login
     sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
     setStatus('⚠ Bridge offline – Anmeldung ohne Verbindungstest.', 'warn');
     setTimeout(() => location.replace(REDIRECT), 900);

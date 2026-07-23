@@ -120,12 +120,15 @@ select{padding:6px 10px;background:var(--bg3);border:1px solid var(--border);bor
       <div style="display:flex;align-items:center;gap:10px">
         <div style="font-size:11px;color:var(--muted)">Buchungskreis:</div>
         <select id="cfgBukrs" onchange="onBukrsChange()" style="font-size:12px;font-weight:700;padding:5px 12px;background:rgba(88,166,255,.1);border:1px solid rgba(88,166,255,.4);border-radius:8px;color:var(--acc)">
+          <option value="VV9">VV9 – Catensys Holding (Werk: manuell)</option>
+          <option value="0334">0334 – Catensys France (Werk: manuell)</option>
           <option value="0435">0435 – Catensys Germany (Werk: C060)</option>
           <option value="0436">0436 – (Werk: C199)</option>
           <option value="0437">0437 – (Werk: C095)</option>
           <option value="0438">0438 – (Werk: C074)</option>
           <option value="0439">0439 – (Werk: C042)</option>
           <option value="0440">0440 – (Werk: C051)</option>
+          <option value="0441">0441 – Catensys Japan (Werk: manuell)</option>
         </select>
         <button class="btn-nav" onclick="saveConfig()" style="font-size:11px">💾 Speichern</button>
       </div>
@@ -228,12 +231,15 @@ select{padding:6px 10px;background:var(--bg3);border:1px solid var(--border);bor
         <div class="modal-field">
           <label>Buchungskreis</label>
           <select id="nieBukrs" style="width:100%;padding:8px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px">
+            <option value="VV9">VV9 – Holding</option>
+            <option value="0334">0334 – France</option>
             <option value="0435">0435 – C060</option>
             <option value="0436">0436 – C199</option>
             <option value="0437">0437 – C095</option>
             <option value="0438">0438 – C074</option>
             <option value="0439">0439 – C042</option>
             <option value="0440">0440 – C051</option>
+            <option value="0441">0441 – Japan</option>
           </select>
         </div>
         <div class="modal-field">
@@ -617,6 +623,8 @@ select{padding:6px 10px;background:var(--bg3);border:1px solid var(--border);bor
 </div>
 
 <script src="auth.js"></script>
+<script src="bukrs.js"></script>
+<script src="cockpit-bar.js"></script>
 <script>
 AUTH.renderHeader('headerRight');
 
@@ -651,6 +659,9 @@ var BUKRS_MAP = {
   '0438': { vkorg: 'C074', plant: 'C074' },
   '0439': { vkorg: 'C042', plant: 'C042' },
   '0440': { vkorg: 'C051', plant: 'C051' },
+  '0441': { vkorg: '',     plant: ''     },
+  'VV9':  { vkorg: '',     plant: ''     },
+  '0334': { vkorg: '',     plant: ''     },
 };
 function onBukrsChange(reload) {
   var bukrs = document.getElementById('cfgBukrs').value;
@@ -672,11 +683,15 @@ function _currentAndPrevPeriode() {
 }
 var _dbFirstLoad = true;
 
+function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
 // ─── DB: Laden ─────────────────────────────────────────────
-async function loadFromDb() {
+async function loadFromDb(allBukrs) {
   try {
     var bukrs = (document.getElementById('cfgBukrs') || {}).value || '0435';
-    var url   = ORCH_URL + '/invoice_records?bukrs=' + encodeURIComponent(bukrs);
+    var url   = allBukrs
+      ? ORCH_URL + '/invoice_records'
+      : ORCH_URL + '/invoice_records?bukrs=' + encodeURIComponent(bukrs);
     var resp  = await fetch(url);
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
     var records = await resp.json();
@@ -693,7 +708,7 @@ async function loadFromDb() {
         mwst_code:    r.mwst_code,
         waehrung:     r.waehrung,
         payterm:      '0000',
-        total:        r.total,
+        total:        r.total != null ? Number(r.total) : 0,
         status:       r.status,
         invoice_nr:   r.invoice_nr,
         order_nr:     r.order_nr,
@@ -714,6 +729,9 @@ async function loadFromDb() {
     return false;
   }
 }
+
+// Beim Seitenstart alle Rechnungen laden (alle Buchungskreise)
+window.addEventListener('DOMContentLoaded', function() { loadFromDb(true); });
 
 // ─── DB: Speichern (Bulk-Upsert nach Excel-Import) ─────────
 async function saveToDb(invoices) {
@@ -1092,7 +1110,7 @@ function renderTable() {
     var badge  = statusBadge[inv.status] || '<span class="badge badge-muted">–</span>';
     var invNr  = inv.invoice_nr ? '<span style="font-family:monospace;color:var(--acc)">' + esc(inv.invoice_nr) + '</span>' : '<span style="color:var(--muted)">–</span>';
     var ordNr  = inv.order_nr   ? '<span style="font-family:monospace;font-size:11px;color:var(--muted)">' + esc(inv.order_nr) + '</span>' : '<span style="color:var(--muted)">–</span>';
-    var total  = inv.total.toLocaleString('de-DE', {minimumFractionDigits:2, maximumFractionDigits:2});
+    var total  = (inv.total != null ? inv.total : 0).toLocaleString('de-DE', {minimumFractionDigits:2, maximumFractionDigits:2});
     var storno = inv.is_storno ? ' <span class="badge badge-err" style="font-size:9px">Storno</span>' : '';
     var bukrsLabel = inv.bukrs || '–';
     var pdfBtn = inv.has_pdf
@@ -1206,6 +1224,31 @@ function closeCreateModal() {
   _createCtx = null;
   var creds = AUTH.user || {};
   if (!creds.passwd) creds.passwd = '';
+}
+
+// ─── Rechnung löschen ───────────────────────────────────────
+async function deleteInvoiceRecord(id, name) {
+  if (!confirm('Offene Rechnung löschen?\n\n' + name + ' (ID ' + id + ')\n\nDieser Eintrag wird unwiderruflich aus der Datenbank entfernt.')) return;
+  try {
+    var r = await fetch(ORCH_URL + '/invoice_records/' + id, { method: 'DELETE' });
+    if (r.status === 204 || r.ok) {
+      // Zeile aus DOM entfernen
+      var key = id;
+      var trMain = document.getElementById('inv_' + key);
+      var trPos  = document.getElementById('pos_' + key);
+      if (trMain) trMain.remove();
+      if (trPos)  trPos.remove();
+      // Aus _invoices-Array entfernen + Tabelle neu rendern
+      _invoices = _invoices.filter(function(i){ return i.id !== id; });
+      renderTable();
+    } else {
+      var msg = '';
+      try { var d = await r.json(); msg = d.detail || d.message || ''; } catch(_) {}
+      alert('Fehler beim Löschen: ' + (msg || r.status));
+    }
+  } catch(e) {
+    alert('Verbindungsfehler: ' + e.message);
+  }
 }
 
 // ─── Beleg-Nr. Modal ────────────────────────────────────────
@@ -1588,4 +1631,54 @@ async function execCreate(debugMode) {
         '</div>';
       document.getElementById('createExecBtn').disabled    = false;
       document.getElementById('createExecBtn').textContent = '📨 Erneut versuchen';
-      document.getElementById('createDebugBtn').disabled   = fals
+      document.getElementById('createDebugBtn').disabled   = false;
+      return;
+    }
+
+    // ── Produktiv-Buchung erfolgreich ──
+    var invoiceNr = data.invoice_nr || '';
+    document.getElementById('createProgress').innerHTML =
+      '<div class="status-banner ok">✅ Faktura ' + (invoiceNr ? '<strong>' + esc(invoiceNr) + '</strong> ' : '') + 'erstellt.</div>';
+    // DB-Status aktualisieren
+    if (inv.id) {
+      try {
+        await fetch(ORCH_URL + '/invoice_records/' + inv.id, {
+          method:  'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ status: 'erstellt', invoice_nr: invoiceNr }),
+        });
+      } catch(_) {}
+    }
+    inv.status     = 'erstellt';
+    inv.invoice_nr = invoiceNr;
+    await loadFromDb();
+    document.getElementById('createExecBtn').disabled    = false;
+    document.getElementById('createExecBtn').textContent = '📨 Jetzt erstellen';
+    document.getElementById('createDebugBtn').disabled   = false;
+    document.getElementById('createPwd').value           = '';
+    // Modal nach kurzer Pause automatisch schließen
+    setTimeout(closeCreateModal, 2500);
+
+  } catch(e) {
+    document.getElementById('createProgress').innerHTML =
+      '<div class="status-banner err">❌ ' + esc(String(e.message || e)) + '</div>';
+    document.getElementById('createExecBtn').disabled    = false;
+    document.getElementById('createExecBtn').textContent = '📨 Jetzt erstellen';
+    document.getElementById('createDebugBtn').disabled   = false;
+  }
+}
+
+// ── Init: E-Mail-Daten beim Seitenstart laden ────────────────
+(function initEmailModule() {
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function(){ loadEmailConfigs(); loadEmailHistory(); });
+  } else {
+    loadEmailConfigs(); loadEmailHistory();
+  }
+})();
+
+loadConfig();
+
+</script>
+</body>
+</html>

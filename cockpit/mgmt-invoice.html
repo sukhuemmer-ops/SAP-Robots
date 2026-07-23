@@ -1,0 +1,820 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<script>
+if(location.protocol==='file:'){
+  var _fn=(location.pathname.split('/').pop()||location.pathname.split('\\').pop());
+  location.replace('http://localhost:8000/cockpit/'+_fn+location.search+location.hash);
+}
+</script>
+<title>YCONN – Management Service Eingangsrechnungen</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+*,*::before,*::after{box-sizing:border-box}
+:root{
+  --bg:#0d1117;--bg2:#161b22;--bg3:#21262d;--border:#30363d;
+  --text:#e6edf3;--muted:#8b949e;--acc:#1f6feb;
+  --ok:#10b981;--warn:#f59e0b;--err:#ef4444;--purple:#a371f7;
+}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;font-size:14px}
+/* ── Header ── */
+.page-header{background:var(--bg2);border-bottom:1px solid var(--border);
+  padding:12px 24px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:50}
+.page-header h1{margin:0;font-size:15px;font-weight:700;flex:1}
+.badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700}
+.badge-seq{background:rgba(163,113,247,.15);color:var(--purple);border:1px solid rgba(163,113,247,.35)}
+.badge-sep{background:rgba(239,68,68,.12);color:#f87171;border:1px solid rgba(239,68,68,.35)}
+.badge-fb01{background:rgba(31,111,235,.15);color:#58a6ff;border:1px solid rgba(31,111,235,.3)}
+.badge-miro{background:rgba(245,158,11,.15);color:var(--warn);border:1px solid rgba(245,158,11,.3)}
+.badge-ok{background:rgba(16,185,129,.12);color:var(--ok);border:1px solid rgba(16,185,129,.3)}
+.badge-err{background:rgba(239,68,68,.1);color:var(--err);border:1px solid rgba(239,68,68,.3)}
+.badge-open{background:rgba(139,148,158,.1);color:var(--muted);border:1px solid var(--border)}
+/* ── Layout ── */
+.main{max-width:1100px;margin:0 auto;padding:24px 16px}
+/* ── Header-Box (Kopfdaten) ── */
+.header-box{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:18px 20px;margin-bottom:20px}
+.header-box h2{margin:0 0 14px;font-size:13px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px}
+.hdr-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px}
+.field label{display:block;font-size:11px;color:var(--muted);margin-bottom:4px;font-weight:600}
+.field input,.field select{width:100%;padding:7px 10px;background:var(--bg3);border:1px solid var(--border);
+  border-radius:7px;color:var(--text);font-size:13px;font-family:inherit;outline:none}
+.field input:focus,.field select:focus{border-color:var(--acc)}
+/* ── Entity cards ── */
+.entities{display:grid;grid-template-columns:repeat(auto-fill,minmax(480px,1fr));gap:16px}
+.entity-card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+.entity-card.status-booked{border-color:rgba(16,185,129,.4)}
+.entity-card.status-error{border-color:rgba(239,68,68,.4)}
+.entity-head{padding:14px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border)}
+.entity-head .bukrs{font-size:18px;font-weight:800;color:var(--acc)}
+.entity-head .meta{flex:1}
+.entity-head .meta .name{font-size:12px;color:var(--muted)}
+.entity-body{padding:14px 16px}
+/* Vendor line */
+.vendor-line{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center;
+  padding:8px 10px;background:rgba(239,68,68,.06);border:1px solid rgba(239,68,68,.2);
+  border-radius:8px;margin-bottom:12px}
+.vendor-line .lbl{font-size:11px;color:var(--err);font-weight:700}
+.vendor-line .acct{font-size:12px;color:var(--muted)}
+.vendor-line .amt{font-size:15px;font-weight:800;color:var(--err);text-align:right}
+/* GL lines */
+.gl-table{width:100%;border-collapse:collapse;margin-bottom:14px}
+.gl-table th{font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;
+  padding:4px 6px;border-bottom:1px solid var(--border);text-align:left}
+.gl-table td{padding:5px 6px;border-bottom:1px solid rgba(48,54,61,.5);font-size:12px;vertical-align:middle}
+.gl-table tr:last-child td{border-bottom:none}
+.amt-input{width:110px;padding:4px 8px;background:var(--bg3);border:1px solid var(--border);
+  border-radius:6px;color:var(--text);font-size:12px;text-align:right;font-family:inherit;outline:none}
+.amt-input:focus{border-color:var(--acc)}
+.cc-cell{font-family:monospace;font-size:11px;color:#58a6ff}
+/* Footer card */
+.entity-foot{padding:10px 16px;border-top:1px solid var(--border);display:flex;align-items:center;gap:8px}
+.entity-foot .status-msg{flex:1;font-size:12px}
+/* Buttons */
+.btn{padding:7px 16px;border-radius:7px;border:none;font-size:12px;font-weight:700;
+  cursor:pointer;font-family:inherit;white-space:nowrap;transition:opacity .15s}
+.btn:hover{opacity:.85}
+.btn:disabled{opacity:.35;cursor:not-allowed}
+.btn-book{background:var(--acc);color:#fff}
+.btn-preview{background:var(--bg3);color:var(--text);border:1px solid var(--border)}
+.btn-all{background:#10b981;color:#fff;padding:9px 20px;font-size:13px}
+.btn-reset{background:var(--bg3);color:var(--muted);border:1px solid var(--border)}
+/* System Toggle */
+.sys-toggle{display:flex;gap:4px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:3px}
+.sys-btn{padding:5px 14px;border-radius:6px;border:none;font-size:12px;font-weight:700;cursor:pointer;
+  font-family:inherit;background:transparent;color:var(--muted);transition:all .15s}
+.sys-btn.active-seq{background:rgba(163,113,247,.2);color:var(--purple);border:1px solid rgba(163,113,247,.4)}
+.sys-btn.active-sep{background:rgba(239,68,68,.15);color:#f87171;border:1px solid rgba(239,68,68,.35)}
+/* Top action bar */
+.action-bar{display:flex;align-items:center;gap:10px;margin-bottom:20px;flex-wrap:wrap}
+.action-bar .spacer{flex:1}
+/* Spinner */
+@keyframes spin{to{transform:rotate(360deg)}}
+.spin{display:inline-block;width:12px;height:12px;border:2px solid rgba(255,255,255,.25);
+  border-top-color:#fff;border-radius:50%;animation:spin .5s linear infinite}
+/* PO fields (MIRO) */
+.po-block{background:rgba(245,158,11,.05);border:1px solid rgba(245,158,11,.2);
+  border-radius:8px;padding:10px 12px;margin-bottom:12px}
+.po-block .po-title{font-size:11px;color:var(--warn);font-weight:700;margin-bottom:8px}
+.po-item-row{display:grid;grid-template-columns:90px 70px 1fr;gap:6px;align-items:center;margin-bottom:4px}
+.po-item-row label{font-size:10px;color:var(--muted)}
+.po-item-row input{padding:4px 8px;background:var(--bg3);border:1px solid var(--border);
+  border-radius:6px;color:var(--text);font-size:11px;font-family:inherit;outline:none}
+/* Sum check */
+.sum-check{font-size:11px;padding:4px 8px;border-radius:6px;text-align:right}
+.sum-ok{color:var(--ok)}
+.sum-warn{color:var(--err);background:rgba(239,68,68,.08);padding:4px 8px;border-radius:6px}
+/* History */
+.history-section{margin-top:28px}
+.history-section h2{font-size:13px;color:var(--muted);font-weight:600;text-transform:uppercase;
+  letter-spacing:.5px;margin-bottom:12px}
+.hist-table{width:100%;border-collapse:collapse}
+.hist-table th{font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;
+  padding:6px 10px;border-bottom:1px solid var(--border);text-align:left;white-space:nowrap}
+.hist-table td{padding:8px 10px;border-bottom:1px solid rgba(48,54,61,.4);font-size:12px}
+.hist-table tr:last-child td{border-bottom:none}
+.hist-table tr:hover td{background:rgba(255,255,255,.02)}
+/* ── SAP-Übergabe Modal ── */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:200;
+  align-items:center;justify-content:center;padding:16px}
+.modal-overlay.open{display:flex}
+.modal-box{background:var(--bg2);border:1px solid var(--border);border-radius:14px;
+  width:100%;max-width:720px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden}
+.modal-head{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
+.modal-head h3{margin:0;font-size:15px;font-weight:700;flex:1}
+.modal-body{overflow-y:auto;padding:0}
+.modal-foot{padding:14px 20px;border-top:1px solid var(--border);display:flex;gap:10px;justify-content:flex-end}
+/* Payload-Tabelle */
+.ptable{width:100%;border-collapse:collapse}
+.ptable .ph td{padding:7px 14px;background:var(--bg3);font-weight:700;font-size:11px;
+  color:var(--acc);letter-spacing:.04em;text-transform:uppercase}
+.ptable td{padding:6px 14px;font-size:12px;border-bottom:1px solid rgba(48,54,61,.4)}
+.ptable tr:last-child td{border-bottom:none}
+.ptable .klbl{color:var(--muted);font-size:11px;width:42%;white-space:nowrap}
+.ptable .kval{font-family:monospace}
+.ptable .pos{color:var(--ok)}
+.ptable .neg{color:var(--err)}
+/* Betrag-Box */
+.amt-box{margin:16px 20px;padding:12px 16px;background:var(--bg3);border-radius:9px;
+  display:flex;justify-content:space-between;align-items:center}
+/* Prod-Warnung */
+.prod-warn{margin:12px 20px;padding:10px 14px;background:rgba(239,68,68,.08);
+  border:1px solid rgba(239,68,68,.3);border-radius:8px;font-size:12px;color:#fca5a5}
+</style>
+<script src="i18n.js"></script>
+</head>
+<body>
+
+<div class="page-header">
+  <a href="startseite.html" style="color:var(--muted);text-decoration:none;font-size:12px">← Home</a>
+  <h1>📥 Management Service – Eingangsrechnungen</h1>
+  <span class="badge badge-seq" id="sysBadge">SEQ – Test</span>
+  <div id="headerUser"></div>
+</div>
+
+<div class="main">
+
+  <!-- ── Kopfdaten ─────────────────────────────────────────────────── -->
+  <div class="header-box">
+    <h2>📋 Buchungsparameter</h2>
+    <div class="hdr-grid">
+      <div class="field">
+        <label>Periode (MM/YYYY)</label>
+        <input type="text" id="hdrPeriode" placeholder="07/2026" maxlength="7">
+      </div>
+      <div class="field">
+        <label>Rechnungsdatum</label>
+        <input type="date" id="hdrDocDate">
+      </div>
+      <div class="field">
+        <label>Buchungsdatum</label>
+        <input type="date" id="hdrPstngDate">
+      </div>
+      <div class="field">
+        <label>Referenz (AR-Rech.-Nr.)</label>
+        <input type="text" id="hdrRefDoc" placeholder="z.B. 90012440" maxlength="64">
+      </div>
+      <div class="field">
+        <label>Kopftext</label>
+        <input type="text" id="hdrTxt" placeholder="Management Service Jul 2026" maxlength="128">
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Action bar ─────────────────────────────────────────────────── -->
+  <div class="action-bar">
+    <button class="btn btn-all" id="btnAllBook" onclick="bookAll()">▶ Alle 5 Gesellschaften buchen</button>
+    <button class="btn btn-reset" onclick="resetAll()">↺ Status zurücksetzen</button>
+    <div class="spacer"></div>
+    <!-- System-Toggle -->
+    <div class="sys-toggle">
+      <button class="sys-btn active-seq" id="sysBtnSEQ" onclick="setSapSystem('SEQ')">🟣 SEQ – Test</button>
+      <button class="sys-btn" id="sysBtnSEP" onclick="setSapSystem('SEP')">🔴 SEP – Produktion</button>
+    </div>
+    <span id="globalStatus" style="font-size:12px;color:var(--muted)"></span>
+  </div>
+
+  <!-- ── Entity Cards ──────────────────────────────────────────────── -->
+  <div class="entities" id="entityGrid"></div>
+
+  <!-- ── Buchungshistorie ──────────────────────────────────────────── -->
+  <div class="history-section">
+    <h2>📂 Buchungshistorie</h2>
+    <div id="histArea"><span style="color:var(--muted);font-size:12px">Wird geladen…</span></div>
+  </div>
+
+</div><!-- /main -->
+
+<!-- ══ SAP-Übergabe Modal ══════════════════════════════════════════════ -->
+<div class="modal-overlay" id="sapUbergabeModal" onclick="if(event.target===this)closeUbergabe()">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3 id="modalTitle">🔍 SAP-Übergabe prüfen</h3>
+      <button onclick="closeUbergabe()" style="background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;padding:0 4px;line-height:1">✕</button>
+    </div>
+    <div class="modal-body" id="modalBody"></div>
+    <div class="modal-foot">
+      <button onclick="closeUbergabe()" class="btn btn-reset">Abbrechen</button>
+      <button id="modalBookBtn" class="btn btn-book">✅ Jetzt buchen</button>
+    </div>
+  </div>
+</div>
+
+<script src="auth.js"></script>
+<script src="bukrs.js"></script>
+<script>
+AUTH.requireRole(['Admin','User']);
+AUTH.renderHeader('headerUser');
+
+const ORC        = window.location.origin.replace(':8765',':8000');
+const BRIDGE_URL  = window.location.origin.replace(':8000',':8765');
+
+// ── Aktives SAP-System ────────────────────────────────────────────────
+var _activeSys = 'SEQ';
+
+function _getSapSystem(){ return _activeSys; }
+
+function setSapSystem(sys){
+  _activeSys = sys;
+  // Badge im Header aktualisieren
+  var badge = document.getElementById('sysBadge');
+  if(sys === 'SEP'){
+    badge.className = 'badge badge-sep';
+    badge.textContent = 'SEP – Produktion';
+  } else {
+    badge.className = 'badge badge-seq';
+    badge.textContent = 'SEQ – Test';
+  }
+  // Toggle-Buttons
+  document.getElementById('sysBtnSEQ').className = 'sys-btn' + (sys==='SEQ' ? ' active-seq' : '');
+  document.getElementById('sysBtnSEP').className = 'sys-btn' + (sys==='SEP' ? ' active-sep' : '');
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Buchungslogik-Stammdaten (aus Excel)
+// ═══════════════════════════════════════════════════════════════════════
+const ENTITIES = [
+  {
+    bukrs: '0437', name: 'DG 0437', transaction: 'MIRO',
+    tax_code: 'S1', vendor: 'L372961', business_place: '',
+    pon: '4500017388',
+    lines: [
+      {costcenter:'0437-2009', amount:9547.00,   po_item:'00010'},
+      {costcenter:'0437-3116', amount:15157.00,  po_item:'00020'},
+      {costcenter:'0437-5019', amount:5810.00,   po_item:'00030'},
+    ]
+  },
+  {
+    bukrs: '0436', name: 'DG 0436', transaction: 'FB01',
+    tax_code: 'J0', vendor: 'L372961', business_place: 'C199',
+    lines: [
+      {costcenter:'0436-2009', amount:18602.00},
+      {costcenter:'0436-3121', amount:31110.00},
+      {costcenter:'0436-4022', amount:21717.00},
+      {costcenter:'0436-5019', amount:55103.00},
+    ]
+  },
+  {
+    bukrs: '0438', name: 'DG 0438', transaction: 'FB01',
+    tax_code: 'V0', vendor: 'L372961', business_place: '0438',
+    lines: [
+      {costcenter:'0438-2009', amount:6398.00},
+      {costcenter:'0438-3121', amount:10760.00},
+      {costcenter:'0438-4022', amount:9807.00},
+      {costcenter:'0438-5019', amount:29867.00},
+    ]
+  },
+  {
+    bukrs: '0439', name: 'DG 0439', transaction: 'FB01',
+    tax_code: 'VQ', vendor: 'L372961', business_place: '',
+    lines: [
+      {costcenter:'0439-2009', amount:5764.00},
+      {costcenter:'0439-3121', amount:9653.00},
+      {costcenter:'0439-4022', amount:6909.00},
+      {costcenter:'0439-5019', amount:26809.00},
+    ]
+  },
+  {
+    bukrs: '0334', name: 'GmbH 0334', transaction: 'FB01',
+    tax_code: 'WH', vendor: 'L372961', business_place: '',
+    lines: [
+      {costcenter:'0334-2001', amount:3183.53},
+      {costcenter:'0334-2012', amount:9112.23},
+      {costcenter:'0334-3116', amount:20294.11},
+      {costcenter:'0334-4022', amount:10484.81},
+      {costcenter:'0334-5013', amount:4462.69},
+      {costcenter:'0334-5019', amount:15910.47},
+      {costcenter:'0334-5040', amount:1473.19},
+      {costcenter:'0334-5090', amount:6941.97},
+    ]
+  }
+];
+
+// Laufzeit-Status pro Entity
+var _state = {};
+ENTITIES.forEach(function(e){ _state[e.bukrs] = {status:'open', belnr:'', msg:'', dbId:null}; });
+
+// ── Bridge-Session ────────────────────────────────────────────────────
+function _getSession(){
+  // Primär: AUTH.user (gesetzt von auth.js via localStorage/sessionStorage 'yconn_user')
+  if(typeof AUTH !== 'undefined' && AUTH.user) return AUTH.user;
+  try{ return JSON.parse(localStorage.getItem('yconn_user')||sessionStorage.getItem('yconn_user')||'{}'); }catch(_){return{};}
+}
+
+// ── Zahl formatieren ─────────────────────────────────────────────────
+function fmtAmt(v){ return Number(v).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})+' EUR'; }
+
+// ═══════════════════════════════════════════════════════════════════════
+// Render
+// ═══════════════════════════════════════════════════════════════════════
+function render(){
+  var grid = document.getElementById('entityGrid');
+  grid.innerHTML = '';
+  ENTITIES.forEach(function(e){
+    var st = _state[e.bukrs];
+    var gross = e.lines.reduce(function(s,l){return s+getAmt(e.bukrs,l.costcenter,l.amount);},0);
+    var vendorAmt = -gross;
+    var isMIRO = e.transaction==='MIRO';
+    var txBadge = isMIRO ? '<span class="badge badge-miro">MIRO</span>' : '<span class="badge badge-fb01">FB01</span>';
+    var statusBadge = st.status==='booked'
+      ? '<span class="badge badge-ok">✓ Gebucht</span>'
+      : st.status==='error'
+      ? '<span class="badge badge-err">✗ Fehler</span>'
+      : '<span class="badge badge-open">Offen</span>';
+
+    var card = document.createElement('div');
+    card.className = 'entity-card status-'+st.status;
+    card.id = 'card_'+e.bukrs;
+
+    // PO Block (nur MIRO)
+    var poHtml = '';
+    if(isMIRO){
+      poHtml = '<div class="po-block">'
+        + '<div class="po-title">🛒 MIRO – Bestellbezug (PO ' + e.pon + ')</div>';
+      e.lines.forEach(function(l,i){
+        poHtml += '<div class="po-item-row">'
+          + '<div><label>PO Position</label><input type="text" id="poi_'+e.bukrs+'_'+i+'" value="'+(l.po_item||'')+'" placeholder="00010" style="width:80px"></div>'
+          + '<div><label>Menge</label><input type="number" id="qty_'+e.bukrs+'_'+i+'" value="1" min="0.001" step="0.001" style="width:60px"></div>'
+          + '<div style="font-size:11px;color:var(--muted);padding-top:14px">'+l.costcenter+'</div>'
+          + '</div>';
+      });
+      poHtml += '</div>';
+    }
+
+    // GL-Zeilen
+    var glRows = e.lines.map(function(l,i){
+      var amtId = 'amt_'+e.bukrs+'_'+i;
+      return '<tr>'
+        + '<td class="cc-cell">'+l.costcenter+'</td>'
+        + '<td>619000</td>'
+        + '<td>'+e.tax_code+'</td>'
+        + (e.business_place ? '<td>'+e.business_place+'</td>' : '<td style="color:var(--muted)">–</td>')
+        + '<td style="text-align:right"><input class="amt-input" type="number" id="'+amtId+'" value="'+l.amount+'" min="0" step="0.01" onchange="updateVendor(\''+e.bukrs+'\')"></td>'
+        + '</tr>';
+    }).join('');
+
+    // Sum-Check
+    var sumId = 'sum_'+e.bukrs;
+
+    card.innerHTML = '<div class="entity-head">'
+      + '<div class="bukrs">'+e.bukrs+'</div>'
+      + '<div class="meta"><div style="font-weight:700">'+e.name+'</div><div class="name">'+e.vendor+' | '+e.tax_code+(e.business_place?' | BP: '+e.business_place:'')+'</div></div>'
+      + txBadge + '&nbsp;' + statusBadge
+      + '</div>'
+      + '<div class="entity-body">'
+      + '<div class="vendor-line">'
+      + '<span class="lbl">PK 31 Kreditor</span>'
+      + '<span class="acct">'+e.vendor+'</span>'
+      + '<span class="amt" id="vtotal_'+e.bukrs+'">'+fmtAmt(vendorAmt)+'</span>'
+      + '</div>'
+      + poHtml
+      + '<table class="gl-table">'
+      + '<thead><tr><th>Kostenstelle</th><th>Konto</th><th>Steuerkz.</th><th>BP</th><th style="text-align:right">Betrag EUR</th></tr></thead>'
+      + '<tbody>'+glRows+'</tbody>'
+      + '</table>'
+      + '<div id="'+sumId+'"></div>'
+      + (st.status==='booked'?'<div style="font-size:12px;color:var(--ok);margin-top:4px">✓ SAP Beleg: <strong>'+st.belnr+'</strong></div>':'')
+      + (st.status==='error'?'<div style="font-size:11px;color:var(--err);margin-top:4px;word-break:break-all">'+esc(st.msg)+'</div>':'')
+      + '</div>'
+      + '<div class="entity-foot">'
+      + '<div class="status-msg" id="smsg_'+e.bukrs+'"></div>'
+      + '<button class="btn btn-preview" onclick="showUbergabe(\''+e.bukrs+'\')">🔍 SAP-Übergabe</button>'
+      + '<button class="btn btn-book" id="bbtn_'+e.bukrs+'" onclick="bookOne(\''+e.bukrs+'\')" '+(st.status==='booked'?'disabled':'')+'>▶ Buchen</button>'
+      + '</div>';
+
+    grid.appendChild(card);
+    updateVendor(e.bukrs);
+  });
+}
+
+function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function getAmt(bukrs,cc,defaultAmt){
+  var e = ENTITIES.find(function(x){return x.bukrs===bukrs;});
+  var idx = e.lines.findIndex(function(l){return l.costcenter===cc;});
+  var inp = document.getElementById('amt_'+bukrs+'_'+idx);
+  return inp ? parseFloat(inp.value)||0 : defaultAmt;
+}
+
+function updateVendor(bukrs){
+  var e = ENTITIES.find(function(x){return x.bukrs===bukrs;});
+  var gross = e.lines.reduce(function(s,l,i){
+    var inp = document.getElementById('amt_'+bukrs+'_'+i);
+    return s + (inp ? parseFloat(inp.value)||0 : l.amount);
+  },0);
+  var vtEl = document.getElementById('vtotal_'+bukrs);
+  if(vtEl) vtEl.textContent = fmtAmt(-gross);
+  var sumEl = document.getElementById('sum_'+bukrs);
+  if(sumEl) sumEl.innerHTML = '<div class="sum-ok" style="text-align:right;font-size:11px">∑ Soll: '+fmtAmt(gross)+'</div>';
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// SAP-Übergabe Vorschau
+// ═══════════════════════════════════════════════════════════════════════
+function showUbergabe(bukrs){
+  var h = _hdrVals();
+  var e = ENTITIES.find(function(x){return x.bukrs===bukrs;});
+  var sess = _getSession();
+  var sys = _getSapSystem();
+  var isMIRO = e.transaction === 'MIRO';
+
+  // Beträge aus UI lesen
+  var lines = e.lines.map(function(l,i){
+    var inp = document.getElementById('amt_'+bukrs+'_'+i);
+    return Object.assign({}, l, {amount: inp ? parseFloat(inp.value)||0 : l.amount});
+  });
+  var gross = lines.reduce(function(s,l){return s+l.amount;},0);
+
+  // Helper
+  var tH = function(title){
+    return '<tr class="ph"><td colspan="2">'+esc(title)+'</td></tr>';
+  };
+  var tR = function(label, val, cls){
+    return '<tr><td class="klbl">'+esc(label)+'</td>'
+      +'<td class="kval'+(cls?' '+cls:'')+'">'+esc(String(val===undefined||val===null?'':val))+'</td></tr>';
+  };
+
+  var html = '<table class="ptable">';
+
+  if(isMIRO){
+    // ── BAPI_INCOMINGINVOICE_CREATE ──
+    html += tH('BAPI: BAPI_INCOMINGINVOICE_CREATE');
+    html += tH('HEADERDATA');
+    html += tR('INVOICE_IND','X')
+      + tR('COMP_CODE', e.bukrs)
+      + tR('DOC_DATE', h.doc_date||'(nicht gesetzt)')
+      + tR('PSTNG_DATE', h.pstng_date||'(nicht gesetzt)')
+      + tR('CURRENCY','EUR')
+      + tR('GROSS_AMOUNT', gross.toLocaleString('de-DE',{minimumFractionDigits:2})+' EUR', 'pos')
+      + tR('CALC_TAX_IND','X')
+      + tR('HEADERTEXT', h.header_txt||'')
+      + tR('REF_DOC_NO', h.ref_doc_no||'');
+    html += tH('ITEMDATA');
+    lines.forEach(function(l,i){
+      var poItem = (document.getElementById('poi_'+e.bukrs+'_'+i)||{}).value || l.po_item || '';
+      var qty    = parseFloat((document.getElementById('qty_'+e.bukrs+'_'+i)||{}).value) || 1;
+      html += tR('Position '+(i+1)+' — PO_NUMBER', e.pon, 'pos');
+      html += tR('  PO_ITEM', poItem);
+      html += tR('  QUANTITY', qty);
+      html += tR('  ITEM_AMOUNT', l.amount.toLocaleString('de-DE',{minimumFractionDigits:2})+' EUR', 'pos');
+      html += tR('  TAX_CODE', e.tax_code);
+    });
+  } else {
+    // ── BAPI_ACC_DOCUMENT_POST ──
+    html += tH('BAPI: BAPI_ACC_DOCUMENT_POST');
+    html += tH('DOCUMENTHEADER');
+    html += tR('COMP_CODE', e.bukrs)
+      + tR('DOC_DATE', h.doc_date||'(nicht gesetzt)')
+      + tR('PSTNG_DATE', h.pstng_date||'(nicht gesetzt)')
+      + tR('BLART','KR  ← Kreditorenrechnung')
+      + tR('CURRENCY','EUR')
+      + tR('REF_DOC_NO', h.ref_doc_no||'')
+      + tR('HEADER_TXT', h.header_txt||'');
+
+    html += tH('ACCOUNTPAYABLE — PK 31 Kreditor (Haben)');
+    html += tR('Pos 1 — VENDOR_NO', e.vendor, 'neg')
+      + tR('  TAX_CODE', e.tax_code)
+      + (e.business_place ? tR('  BUPLA (Business Place)', e.business_place) : '');
+
+    html += tH('ACCOUNTGL — PK 40 Aufwandskonto 619000 (Soll)');
+    lines.forEach(function(l,i){
+      html += tR('Pos '+(i+2)+' — GL_ACCOUNT','619000', 'pos');
+      html += tR('  COSTCENTER', l.costcenter);
+      html += tR('  TAX_CODE', e.tax_code);
+      if(e.business_place) html += tR('  BUPLA', e.business_place);
+    });
+
+    html += tH('CURRENCYAMOUNT');
+    html += tR('Pos 1 — Kreditor (Haben)', '−'+gross.toLocaleString('de-DE',{minimumFractionDigits:2})+' EUR', 'neg');
+    lines.forEach(function(l,i){
+      html += tR('Pos '+(i+2)+' — 619000 (Soll)', '+'+l.amount.toLocaleString('de-DE',{minimumFractionDigits:2})+' EUR', 'pos');
+    });
+  }
+
+  // SAP-System
+  html += tH('SAP-Verbindung');
+  var sysLabel = sys==='SEQ' ? 'SEQ — Testsystem (172.28.189.11)' : 'SEP — Produktionssystem (172.28.189.8)';
+  html += tR('System', sysLabel, sys==='SEP'?'neg':'pos');
+  html += tR('Benutzer (RFC)', 'RFC_COFACE (Service-Account)');
+  html += '</table>';
+
+  // Betrag-Zusammenfassung
+  html += '<div class="amt-box">'
+    +'<span style="font-size:12px;color:var(--muted)">Brutto-Buchungsbetrag</span>'
+    +'<span style="font-size:18px;font-weight:800;color:var(--ok)">'+gross.toLocaleString('de-DE',{minimumFractionDigits:2})+' EUR</span>'
+    +'</div>';
+
+  // Warnung bei Produktion
+  if(sys === 'SEP'){
+    html += '<div class="prod-warn">⚠️ <strong>Achtung:</strong> Sie buchen im SAP <strong>Produktionssystem (SEP)</strong>. Diese Buchung ist nicht ohne weiteres rückgängig zu machen.</div>';
+  }
+
+  // Modal befüllen
+  document.getElementById('modalTitle').textContent = '🔍 SAP-Übergabe — '+e.bukrs+' '+e.name+' ('+e.transaction+')';
+  document.getElementById('modalBody').innerHTML = html;
+  document.getElementById('modalBookBtn').onclick = function(){
+    closeUbergabe();
+    bookOne(bukrs);
+  };
+  document.getElementById('sapUbergabeModal').classList.add('open');
+}
+
+function closeUbergabe(){
+  document.getElementById('sapUbergabeModal').classList.remove('open');
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Buchung
+// ═══════════════════════════════════════════════════════════════════════
+function _hdrVals(){
+  return {
+    periode:    document.getElementById('hdrPeriode').value.trim(),
+    doc_date:   document.getElementById('hdrDocDate').value,
+    pstng_date: document.getElementById('hdrPstngDate').value,
+    ref_doc_no: document.getElementById('hdrRefDoc').value.trim(),
+    header_txt: document.getElementById('hdrTxt').value.trim(),
+  };
+}
+
+async function bookOne(bukrs){
+  var h = _hdrVals();
+  if(!h.doc_date || !h.pstng_date){ alert('Bitte Rechnungsdatum und Buchungsdatum angeben.'); return; }
+
+  var e   = ENTITIES.find(function(x){return x.bukrs===bukrs;});
+  var btn = document.getElementById('bbtn_'+bukrs);
+  var msg = document.getElementById('smsg_'+bukrs);
+  var sys = _getSapSystem();
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin"></span>';
+  msg.innerHTML = '<span style="color:var(--acc)">Buchung läuft ('+sys+')…</span>';
+
+  var sess = _getSession();
+
+  try {
+    // Beträge einlesen
+    var lines = e.lines.map(function(l,i){
+      var inp = document.getElementById('amt_'+bukrs+'_'+i);
+      return Object.assign({}, l, {amount: inp ? parseFloat(inp.value)||0 : l.amount});
+    });
+    var gross = lines.reduce(function(s,l){return s+l.amount;},0);
+
+    // ── In DB speichern ──
+    var dbBody = {
+      periode: h.periode, doc_date: h.doc_date, pstng_date: h.pstng_date,
+      bukrs: bukrs, sap_transaction: e.transaction,
+      ref_doc_no: h.ref_doc_no, header_txt: h.header_txt,
+      sap_system: sys, vendor: e.vendor, tax_code: e.tax_code,
+      business_place: e.business_place, gross_amount: gross,
+      status: 'open', lines: lines,
+      created_by: (sess.username||'?'),
+    };
+    var dbR = await fetch(ORC+'/mgmt-invoice', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(dbBody)});
+    var dbD = await dbR.json();
+    var runId = dbD.id;
+    _state[bukrs].dbId = runId;
+
+    // ── SAP Buchung via Bridge ──
+    var sapPayload;
+    if(e.transaction === 'MIRO'){
+      sapPayload = _buildMiroPayload(e, h, lines, gross, sess, sys);
+    } else {
+      sapPayload = _buildFb01Payload(e, h, lines, gross, sess, sys);
+    }
+
+    var ctrl  = new AbortController();
+    var timer = setTimeout(function(){ ctrl.abort(); }, 120000);
+    var bridgeR = await fetch(BRIDGE_URL+'/run', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(sapPayload),
+      signal: ctrl.signal,
+    });
+    clearTimeout(timer);
+
+    var rawText = await bridgeR.text();
+    var bridgeD;
+    try { bridgeD = JSON.parse(rawText); }
+    catch(_){
+      var preview = rawText.substring(0,200).trim();
+      var isDown = preview.toLowerCase().includes('<!doctype') || preview.toLowerCase().includes('<html') || !bridgeR.ok;
+      throw new Error(isDown ? 'Bridge nicht erreichbar (Port 8765). Bitte Bridge starten.' : 'Ungültige Bridge-Antwort: '+preview);
+    }
+
+    if(!bridgeR.ok || bridgeD.status==='error' || bridgeD.error){
+      throw new Error(bridgeD.error || bridgeD.result || bridgeD.message || bridgeD.detail || 'SAP Fehler');
+    }
+
+    var belnr = bridgeD.doc_number || _extractBelnr(bridgeD.result || bridgeD.message || '');
+    _state[bukrs] = {status:'booked', belnr:belnr, msg:bridgeD.result||'OK', dbId:runId};
+
+    // DB aktualisieren
+    await fetch(ORC+'/mgmt-invoice/'+runId, {
+      method:'PATCH', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({status:'booked', belnr:belnr, sap_msg:String(bridgeD.result||'').substring(0,512)}),
+    });
+
+    msg.innerHTML = '<span style="color:var(--ok)">✓ Gebucht ('+sys+') – Beleg '+esc(belnr)+'</span>';
+  } catch(err){
+    _state[bukrs].status = 'error';
+    _state[bukrs].msg    = err.message;
+    if(_state[bukrs].dbId){
+      await fetch(ORC+'/mgmt-invoice/'+_state[bukrs].dbId, {
+        method:'PATCH', headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({status:'error', sap_msg:err.message.substring(0,512)}),
+      });
+    }
+    msg.innerHTML = '<span style="color:var(--err)">✗ '+esc(err.message)+'</span>';
+  } finally {
+    btn.disabled = _state[bukrs].status==='booked';
+    btn.innerHTML = _state[bukrs].status==='booked' ? '✓ Gebucht' : '▶ Buchen';
+    document.getElementById('card_'+bukrs).className = 'entity-card status-'+_state[bukrs].status;
+    loadHistory();
+  }
+}
+
+function _buildFb01Payload(e, h, lines, gross, sess, sys){
+  var sapSys = sys || _getSapSystem();
+  var itemNo = 1;
+  var accountGL = [];
+  var currAmt   = [
+    {ITEMNO_ACC: _pad(itemNo), CURRENCY:'EUR', AMT_DOCCUR: -(gross)},
+  ];
+  var accountAP = [{
+    ITEMNO_ACC: _pad(itemNo),
+    VENDOR_NO:  e.vendor,
+    TAX_CODE:   e.tax_code,
+    BUPLA:      e.business_place || '',
+  }];
+
+  lines.forEach(function(l){
+    itemNo++;
+    accountGL.push({
+      ITEMNO_ACC:  _pad(itemNo),
+      GL_ACCOUNT:  '619000',
+      COSTCENTER:  l.costcenter,
+      TAX_CODE:    e.tax_code,
+      BUPLA:       e.business_place || '',
+    });
+    currAmt.push({ITEMNO_ACC: _pad(itemNo), CURRENCY:'EUR', AMT_DOCCUR: l.amount});
+  });
+
+  return {
+    method: 'BAPI',
+    tcode:  'BAPI_ACC_DOCUMENT_POST',
+    payload: {
+      _sap_auth: Object.assign({}, sess, {sap_system: sapSys, user: sess.sap_username||sess.username||'', use_service_account: true}),
+      DOCUMENTHEADER: {
+        COMP_CODE:   e.bukrs,
+        DOC_DATE:    h.doc_date,
+        PSTNG_DATE:  h.pstng_date,
+        BLART:       'KR',
+        CURRENCY:    'EUR',
+        REF_DOC_NO:  h.ref_doc_no,
+        HEADER_TXT:  h.header_txt,
+      },
+      ACCOUNTPAYABLE: accountAP,
+      ACCOUNTGL:      accountGL,
+      CURRENCYAMOUNT: currAmt,
+    },
+  };
+}
+
+function _buildMiroPayload(e, h, lines, gross, sess, sys){
+  var sapSys = sys || _getSapSystem();
+  var items = lines.map(function(l,i){
+    var poItem = (document.getElementById('poi_'+e.bukrs+'_'+i)||{}).value || l.po_item || '';
+    var qty    = parseFloat((document.getElementById('qty_'+e.bukrs+'_'+i)||{}).value) || 1;
+    return {
+      INVOICE_DOC_ITEM: _pad3(i+1),
+      PO_NUMBER:        e.pon,
+      PO_ITEM:          poItem,
+      QUANTITY:         qty,
+      PO_UNIT:          'ST',
+      ITEM_AMOUNT:      l.amount,
+      TAX_CODE:         e.tax_code,
+    };
+  });
+
+  return {
+    method: 'BAPI',
+    tcode:  'BAPI_INCOMINGINVOICE_CREATE',
+    payload: {
+      _sap_auth: Object.assign({}, sess, {sap_system: sapSys, user: sess.sap_username||sess.username||'', use_service_account: true}),
+      HEADERDATA: {
+        INVOICE_IND:  'X',
+        DOC_DATE:     h.doc_date,
+        PSTNG_DATE:   h.pstng_date,
+        COMP_CODE:    e.bukrs,
+        CURRENCY:     'EUR',
+        GROSS_AMOUNT: gross,
+        CALC_TAX_IND: 'X',
+        HEADERTEXT:   h.header_txt,
+        REF_DOC_NO:   h.ref_doc_no,
+      },
+      ITEMDATA: items,
+    },
+  };
+}
+
+function _pad(n){ return String(n).padStart(10,'0'); }
+function _pad3(n){ return String(n).padStart(6,'0'); }
+
+function _extractBelnr(msg){
+  var m = msg.match(/\b(\d{10})\b/) || msg.match(/Beleg\s+(\S+)/i) || msg.match(/(\d{7,10})/);
+  return m ? m[1] : msg.substring(0,20);
+}
+
+async function bookAll(){
+  var btn = document.getElementById('btnAllBook');
+  btn.disabled = true;
+  var sys = _getSapSystem();
+  document.getElementById('globalStatus').textContent = 'Buchung läuft ('+sys+')…';
+  for(var i=0;i<ENTITIES.length;i++){
+    var e = ENTITIES[i];
+    if(_state[e.bukrs].status !== 'booked'){
+      await bookOne(e.bukrs);
+    }
+  }
+  var booked = ENTITIES.filter(function(e){return _state[e.bukrs].status==='booked';}).length;
+  document.getElementById('globalStatus').textContent = booked+'/'+ENTITIES.length+' gebucht ('+sys+')';
+  btn.disabled = false;
+}
+
+function resetAll(){
+  ENTITIES.forEach(function(e){ _state[e.bukrs]={status:'open',belnr:'',msg:'',dbId:null}; });
+  render();
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Historie
+// ═══════════════════════════════════════════════════════════════════════
+async function loadHistory(){
+  try{
+    var h = _hdrVals();
+    var url = ORC+'/mgmt-invoice?limit=50'+(h.periode?'&periode='+encodeURIComponent(h.periode):'');
+    var r = await fetch(url);
+    var rows = await r.json();
+    if(!rows.length){
+      document.getElementById('histArea').innerHTML='<span style="color:var(--muted);font-size:12px">Noch keine Buchungen für diese Periode.</span>';
+      return;
+    }
+    var html='<table class="hist-table"><thead><tr><th>Periode</th><th>Bukrs</th><th>Transaktion</th>'
+      +'<th>System</th><th>Bruttobet.</th><th>Status</th><th>SAP Beleg</th><th>Buchungsdatum</th><th>Benutzer</th></tr></thead><tbody>';
+    rows.forEach(function(r){
+      var stC = r.status==='booked'?'color:var(--ok)':r.status==='error'?'color:var(--err)':'color:var(--muted)';
+      var sysC = (r.sap_system||'')==='SEP'?'color:#f87171;font-weight:700':'color:var(--purple)';
+      html+='<tr>'
+        +'<td>'+esc(r.periode||'')+'</td>'
+        +'<td><strong>'+esc(r.bukrs)+'</strong></td>'
+        +'<td>'+esc(r.sap_transaction||'')+'</td>'
+        +'<td style="'+sysC+'">'+esc(r.sap_system||'SEQ')+'</td>'
+        +'<td style="text-align:right">'+Number(r.gross_amount||0).toLocaleString('de-DE',{minimumFractionDigits:2})+'</td>'
+        +'<td style="'+stC+'">'+esc(r.status||'')+'</td>'
+        +'<td><strong>'+esc(r.belnr||'–')+'</strong></td>'
+        +'<td>'+esc((r.booked_at||'').substring(0,16).replace('T',' '))+'</td>'
+        +'<td>'+esc(r.created_by||'')+'</td>'
+        +'</tr>';
+    });
+    html+='</tbody></table>';
+    document.getElementById('histArea').innerHTML=html;
+  }catch(_){}
+}
+
+// ── Init ─────────────────────────────────────────────────────────────
+(function init(){
+  var now = new Date();
+  var lastDay = new Date(now.getFullYear(), now.getMonth()+1, 0);
+  var ld = lastDay.toISOString().substring(0,10);
+  var mm = String(now.getMonth()+1).padStart(2,'0');
+  var yyyy = now.getFullYear();
+  document.getElementById('hdrPeriode').value   = mm+'/'+yyyy;
+  document.getElementById('hdrDocDate').value   = ld;
+  document.getElementById('hdrPstngDate').value = ld;
+  document.getElementById('hdrTxt').value       = 'Management Service '+mm+'/'+yyyy;
+  render();
+  loadHistory();
+})();
+</script>
+</body>
+</html>

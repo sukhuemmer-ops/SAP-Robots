@@ -30,11 +30,26 @@ from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.date import DateTrigger
 import io
 from fastapi import Depends, FastAPI, File, HTTPException, UploadFile, status
+from fastapi.responses import Response
+
+# Verschlüsselung – Modul liegt im Projektstamm (ein Verzeichnis über orchestrator/)
+import sys as _sys
+import pathlib as _pathlib
+_PROJ_ROOT = _pathlib.Path(__file__).parent.parent
+if str(_PROJ_ROOT) not in _sys.path:
+    _sys.path.insert(0, str(_PROJ_ROOT))
+try:
+    from crypto import encrypt as _enc, decrypt as _dec  # type: ignore
+    _CRYPTO_OK = True
+except ImportError:
+    _CRYPTO_OK = False
+    def _enc(v): return v   # type: ignore
+    def _dec(v): return v   # type: ignore
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-from sqlalchemy import (Column, DateTime, ForeignKey, Integer, String, Text,
-                        create_engine)
+from sqlalchemy import (Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text,
+                        create_engine, text)
 from sqlalchemy.orm import (DeclarativeBase, Mapped, Session, mapped_column,
                             relationship, sessionmaker)
 
@@ -68,6 +83,21 @@ def _load_db_path() -> str:
     return default
 
 _DB_PATH    = _load_db_path()
+
+# ── Buchungskreis-Registry (SEP & SEQ) ──────────────────────────────────────
+BUKRS_LIST = [
+    {"code": "VV9",  "name": "Catensys Holding",  "full": "Catensys Holding GmbH"},
+    {"code": "0334", "name": "Catensys France",    "full": "Catensys France S.A.S."},
+    {"code": "0435", "name": "Catensys Germany",   "full": "Catensys Germany GmbH"},
+    {"code": "0436", "name": "Catensys China",     "full": "Catensys China Co. Ltd."},
+    {"code": "0437", "name": "Catensys Slovakia",  "full": "Catensys Slovakia s.r.o."},
+    {"code": "0438", "name": "Catensys Korea",     "full": "Catensys Korea Co. Ltd."},
+    {"code": "0439", "name": "Catensys India",     "full": "Catensys India Pvt. Ltd."},
+    {"code": "0440", "name": "Catensys US",        "full": "Catensys US Inc."},
+    {"code": "0441", "name": "Catensys Japan",     "full": "Catensys Japan K.K."},
+]
+BUKRS_CODES = [b["code"] for b in BUKRS_LIST]
+
 DATABASE_URL = f"sqlite:///{_DB_PATH}"
 engine = create_engine(
     DATABASE_URL,
@@ -586,9 +616,61 @@ class RueckstellungTemplate(Base):
     updated_at:   Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
+
+
+class AfaRun(Base):
+    """Einmaliger AfA-Lauf (BAPI_AFAPOSTING_POST) zu einem bestimmten Zeitpunkt."""
+    __tablename__ = "afa_runs"
+    id:          Mapped[int]      = mapped_column(primary_key=True)
+    fire_at:     Mapped[datetime] = mapped_column(DateTime)               # geplanter Startzeitpunkt (UTC)
+    bukrs:       Mapped[str]      = mapped_column(String(8))              # Buchungskreis
+    fiscal_year: Mapped[str]      = mapped_column(String(4))             # Geschäftsjahr
+    period:      Mapped[str]      = mapped_column(String(2))             # Periode 01-12
+    reason:      Mapped[str]      = mapped_column(String(1), default="1") # 1=Erst, 2=Wdh, 3=Neustart
+    testrun:     Mapped[int]      = mapped_column(Integer, default=1)    # 1=Testlauf, 0=Echtlauf
+    stop_on_warn:Mapped[int]      = mapped_column(Integer, default=0)
+    posting_date:Mapped[str]      = mapped_column(String(8), default="") # YYYYMMDD (leer=auto)
+    sap_system:  Mapped[str]      = mapped_column(String(8), default="SEQ")
+    status:      Mapped[str]      = mapped_column(String(16), default="pending")
+    # pending | running | ok | error | cancelled
+    result:      Mapped[str]      = mapped_column(Text, default="")      # JSON-Ergebnis
+    created_by:  Mapped[str]      = mapped_column(String(64), default="")
+    created_at:  Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
 # ----------------------------------------------------------------------------
 # Pydantic-Schemas (API)
 # ----------------------------------------------------------------------------
+# ── AfaRun Schemas ──────────────────────────────────────────────────────────
+class AfaRunIn(BaseModel):
+    fire_at:      str               # ISO-Datetime lokale Zeit, z. B. "2026-07-31T23:00:00"
+    bukrs:        str               # Buchungskreis
+    fiscal_year:  str               # Geschäftsjahr
+    period:       str               # Periode 01–12
+    reason:       str  = "1"        # 1=Erstbuchung, 2=Wiederholen, 3=Neustart
+    testrun:      bool = True
+    stop_on_warn: bool = False
+    posting_date: str  = ""         # YYYYMMDD; leer = letzter Tag der Periode
+    sap_system:   str  = "SEQ"
+    created_by:   str  = ""
+
+class AfaRunOut(BaseModel):
+    model_config = {"from_attributes": True}
+    id:           int
+    fire_at:      datetime
+    bukrs:        str
+    fiscal_year:  str
+    period:       str
+    reason:       str
+    testrun:      int
+    stop_on_warn: int
+    posting_date: str
+    sap_system:   str
+    status:       str
+    result:       str
+    created_by:   str
+    created_at:   datetime
+
 # ── PayRoll Schemas ──────────────────────────────────────────────────────────
 class PayrollLineIn(BaseModel):
     nr: int
@@ -1131,16 +1213,119 @@ def _migrate_db() -> None:
                 cur.execute(f"ALTER TABLE three_w_answers ADD COLUMN {col} {typedef}")
                 log.info("Migration 10W: Spalte '%s' zu three_w_answers hinzugefuegt.", col)
 
-        con.commit()
-        con.close()
+        # ── mgmt_invoice_runs: transaction → sap_transaction (Task #151) ──
+        cur.execute("PRAGMA table_info(mgmt_invoice_runs)")
+        mir_cols = {row[1] for row in cur.fetchall()}
+        if "transaction" in mir_cols and "sap_transaction" not in mir_cols:
+            # Umbenennung via temporäre Tabelle (SQLite unterstützt kein RENAME COLUMN < 3.25)
+            cur.execute("ALTER TABLE mgmt_invoice_runs ADD COLUMN sap_transaction TEXT NOT NULL DEFAULT ''")
+            cur.execute("UPDATE mgmt_invoice_runs SET sap_transaction = \"transaction\"")
+            log.info("Migration: mgmt_invoice_runs.transaction → sap_transaction kopiert.")
+        elif "sap_transaction" not in mir_cols and "transaction" not in mir_cols:
+            pass  # Tabelle noch nicht vorhanden – create_all legt sie korrekt an
+        for col, typedef in [
+            ("sap_system",     "TEXT NOT NULL DEFAULT 'SEQ'"),
+            ("vendor",         "TEXT NOT NULL DEFAULT 'L372961'"),
+            ("tax_code",       "TEXT NOT NULL DEFAULT ''"),
+            ("business_place", "TEXT NOT NULL DEFAULT ''"),
+        ]:
+            if col not in mir_cols:
+                cur.execute(f"ALTER TABLE mgmt_invoice_runs ADD COLUMN {col} {typedef}")
+                log.info("Migration: mgmt_invoice_runs Spalte '%s' hinzugefuegt.", col)
 
         # ── Knowledge Universe + Decision Engine: per create_all (neue Tabellen) ──
         # Neue Tabellen werden automatisch via Base.metadata.create_all angelegt.
         # Hier kein ALTER TABLE noetig — reine Neuerstellung.
+        con.commit()
+        con.close()
         log.info("Migration abgeschlossen (10W + Knowledge Universe + Decision Engine).")
 
     except Exception as exc:
         log.warning("DB-Migration fehlgeschlagen (ignoriert): %s", exc)
+
+    # ── Rückstellungs-Tabellen: explizit anlegen falls fehlend (Task #121) ──
+    # create_all() legt neue Tabellen nur beim ersten Start an. Falls die DB
+    # vor Task #121 erzeugt wurde, fehlen diese Tabellen — daher hier nachholen.
+    try:
+        import sqlite3 as _sq2
+        _db2 = DATABASE_URL.replace("sqlite:///", "")
+        _con2 = _sq2.connect(_db2, timeout=5)
+        _cur2 = _con2.cursor()
+        _cur2.executescript("""
+            CREATE TABLE IF NOT EXISTS rueckstellung_requests (
+                id               INTEGER PRIMARY KEY AUTOINCREMENT,
+                workflow         VARCHAR(16)  NOT NULL DEFAULT 'direkt',
+                kategorie        VARCHAR(64)  NOT NULL DEFAULT '',
+                beschreibung     TEXT         NOT NULL DEFAULT '',
+                betrag           REAL         NOT NULL DEFAULT 0.0,
+                waehrung         VARCHAR(4)   NOT NULL DEFAULT 'EUR',
+                konto_soll       VARCHAR(16)  NOT NULL DEFAULT '',
+                konto_haben      VARCHAR(16)  NOT NULL DEFAULT '',
+                kostenstelle     VARCHAR(16)  NOT NULL DEFAULT '',
+                bukrs_json       TEXT         NOT NULL DEFAULT '[]',
+                periode          VARCHAR(16)  NOT NULL DEFAULT '',
+                buchungsdatum    VARCHAR(10)  NOT NULL DEFAULT '',
+                referenz         VARCHAR(128) NOT NULL DEFAULT '',
+                sap_system       VARCHAR(16)  NOT NULL DEFAULT 'SEQ',
+                blart            VARCHAR(4)   NOT NULL DEFAULT 'SA',
+                status           VARCHAR(32)  NOT NULL DEFAULT 'offen',
+                requires_approval INTEGER     NOT NULL DEFAULT 0,
+                submitted_by     VARCHAR(128) NOT NULL DEFAULT '',
+                approved_by      VARCHAR(128) NOT NULL DEFAULT '',
+                approval_comment TEXT         NOT NULL DEFAULT '',
+                sap_doc_nrs      TEXT         NOT NULL DEFAULT '',
+                created_at       DATETIME,
+                updated_at       DATETIME
+            );
+            CREATE TABLE IF NOT EXISTS rueckstellung_approvals (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                request_id INTEGER NOT NULL REFERENCES rueckstellung_requests(id),
+                action     VARCHAR(32) NOT NULL,
+                actor      VARCHAR(128) NOT NULL DEFAULT '',
+                comment    TEXT         NOT NULL DEFAULT '',
+                ts         DATETIME
+            );
+            CREATE TABLE IF NOT EXISTS rueckstellung_kontenplan (
+                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                kategorie    VARCHAR(64)  NOT NULL DEFAULT '',
+                konto_soll   VARCHAR(16)  NOT NULL DEFAULT '',
+                konto_haben  VARCHAR(16)  NOT NULL DEFAULT '',
+                kostenstelle VARCHAR(16)  NOT NULL DEFAULT '',
+                blart        VARCHAR(4)   NOT NULL DEFAULT 'SA',
+                aktiv        INTEGER      NOT NULL DEFAULT 1,
+                sort_order   INTEGER      NOT NULL DEFAULT 0
+            );
+            CREATE TABLE IF NOT EXISTS rueckstellung_templates (
+                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                bukrs        VARCHAR(8)   NOT NULL DEFAULT '',
+                kategorie    VARCHAR(64)  NOT NULL DEFAULT '',
+                name         VARCHAR(128) NOT NULL DEFAULT '',
+                beschreibung TEXT         NOT NULL DEFAULT '',
+                spalten_json TEXT         NOT NULL DEFAULT '[]',
+                aktiv        INTEGER      NOT NULL DEFAULT 1
+            );
+            CREATE TABLE IF NOT EXISTS afa_runs (
+                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                fire_at      DATETIME     NOT NULL,
+                bukrs        VARCHAR(8)   NOT NULL DEFAULT '',
+                fiscal_year  VARCHAR(4)   NOT NULL DEFAULT '',
+                period       VARCHAR(2)   NOT NULL DEFAULT '01',
+                reason       VARCHAR(1)   NOT NULL DEFAULT '1',
+                testrun      INTEGER      NOT NULL DEFAULT 1,
+                stop_on_warn INTEGER      NOT NULL DEFAULT 0,
+                posting_date VARCHAR(8)   NOT NULL DEFAULT '',
+                sap_system   VARCHAR(8)   NOT NULL DEFAULT 'SEQ',
+                status       VARCHAR(16)  NOT NULL DEFAULT 'pending',
+                result       TEXT         NOT NULL DEFAULT '',
+                created_by   VARCHAR(64)  NOT NULL DEFAULT '',
+                created_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
+        _con2.commit()
+        _con2.close()
+        log.info("Migration Rueckstellung: Tabellen sichergestellt (CREATE IF NOT EXISTS).")
+    except Exception as _exc2:
+        log.warning("Migration Rueckstellung fehlgeschlagen: %s", _exc2)
 
 
 scheduler = BackgroundScheduler(
@@ -1273,6 +1458,56 @@ def _auto_periode() -> str:
     return f"{now.month:02d}/{now.year}"
 
 
+def trigger_afa_run(afa_run_id: int) -> None:
+    """Wird vom APScheduler aufgerufen – führt den AfA-Lauf aus."""
+    log.info("AfA-Lauf %d gestartet.", afa_run_id)
+    with SessionLocal() as db:
+        try:
+            ar = db.get(AfaRun, afa_run_id)
+            if not ar or ar.status != "pending":
+                log.warning("AfA-Lauf %d nicht mehr pending (%s) – übersprungen.",
+                            afa_run_id, ar.status if ar else "not found")
+                return
+            ar.status = "running"
+            db.commit()
+        except Exception as exc:
+            log.error("AfA-Lauf %d: DB-Fehler beim Start: %s", afa_run_id, exc)
+            return
+
+    import json as _json
+    sap_auth = None   # Fallback auf .env Service-Account
+    try:
+        from worker.handlers import batch_afab_depreciation  # type: ignore
+        payload = {
+            "bukrs":        ar.bukrs,
+            "fiscal_year":  ar.fiscal_year,
+            "period":       ar.period,
+            "reason":       ar.reason,
+            "testrun":      bool(ar.testrun),
+            "stop_on_warn": bool(ar.stop_on_warn),
+            "posting_date": ar.posting_date,
+            "_sap_auth":    sap_auth,
+        }
+        result = batch_afab_depreciation({}, payload)
+        final_status = "ok"
+        result_json = _json.dumps(result, ensure_ascii=False, default=str)
+    except Exception as exc:
+        log.error("AfA-Lauf %d: Fehler: %s", afa_run_id, exc)
+        final_status = "error"
+        result_json = _json.dumps({"error": str(exc)}, ensure_ascii=False)
+
+    with SessionLocal() as db:
+        try:
+            ar = db.get(AfaRun, afa_run_id)
+            if ar:
+                ar.status = final_status
+                ar.result = result_json
+                db.commit()
+        except Exception as exc:
+            log.error("AfA-Lauf %d: DB-Fehler beim Speichern: %s", afa_run_id, exc)
+    log.info("AfA-Lauf %d abgeschlossen: %s", afa_run_id, final_status)
+
+
 def reload_schedules() -> None:
     """Liest alle aktiven Schedules aus der DB und plant sie im APScheduler ein."""
     scheduler.remove_all_jobs()
@@ -1301,7 +1536,15 @@ def reload_schedules() -> None:
                 scheduler.add_job(trigger_zinsen_run_once,
                                   trigger=DateTrigger(run_date=ro.fire_at),
                                   args=[ro.id], id=f"zinsen-once-{ro.id}")
-                log.info("Einmalige Zinsbuchung %d eingeplant für %s.", ro.id, ro.fire_at)
+                log.info("Einmalige Zinsbuchung %d eingeplant fuer %s.", ro.id, ro.fire_at)
+        # AfA-Laeufe (pending, noch in der Zukunft)
+        for ar in db.query(AfaRun).filter(AfaRun.status == "pending").all():
+            if ar.fire_at > datetime.utcnow():
+                scheduler.add_job(trigger_afa_run,
+                                  trigger=DateTrigger(run_date=ar.fire_at),
+                                  args=[ar.id], id=f"afa-run-{ar.id}",
+                                  replace_existing=True)
+                log.info("AfA-Lauf %d eingeplant fuer %s.", ar.id, ar.fire_at)
 
 
 @asynccontextmanager
@@ -1326,9 +1569,23 @@ app.add_middleware(
 
 # Cockpit-Seiten über http://localhost:8000/cockpit/ erreichbar machen
 # (nötig für Mikrofon-Zugriff in Browsern – file:// wird teilweise blockiert)
+# HTML-Dateien werden mit no-cache ausgeliefert, damit Änderungen sofort sichtbar sind.
 _COCKPIT_DIR = pathlib.Path(__file__).parent.parent / "cockpit"
 if _COCKPIT_DIR.exists():
-    app.mount("/cockpit", StaticFiles(directory=str(_COCKPIT_DIR), html=True), name="cockpit")
+    from starlette.staticfiles import StaticFiles as _SF
+    from starlette.responses import FileResponse as _FR
+
+    class NoCacheStaticFiles(_SF):
+        """StaticFiles mit no-cache für .html, damit Änderungen sofort greifen."""
+        async def get_response(self, path: str, scope):
+            resp = await super().get_response(path, scope)
+            if isinstance(resp, _FR) and path.endswith(".html"):
+                resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+                resp.headers["Pragma"] = "no-cache"
+                resp.headers["Expires"] = "0"
+            return resp
+
+    app.mount("/cockpit", NoCacheStaticFiles(directory=str(_COCKPIT_DIR), html=True), name="cockpit")
 
 
 # ----------------------------------------------------------------------------
@@ -1483,12 +1740,20 @@ def delete_schedule(schedule_id: int, db: Session = Depends(get_db)):
 # ----------------------------------------------------------------------------
 # Endpoints: SAP-Benutzerverwaltung
 # ----------------------------------------------------------------------------
+def _sap_user_decrypt(u: "SapUser") -> "SapUser":
+    """Entschlüsselt sensitive Felder eines SapUser-ORM-Objekts in-place."""
+    u.sap_username = _dec(u.sap_username)
+    u.ashost       = _dec(u.ashost)
+    return u
+
+
 @app.get("/sap-users", response_model=List[SapUserOut])
 def list_sap_users(active_only: bool = False, db: Session = Depends(get_db)):
     q = db.query(SapUser)
     if active_only:
         q = q.filter(SapUser.active == 1)
-    return q.order_by(SapUser.display_name).all()
+    users = q.order_by(SapUser.display_name).all()
+    return [_sap_user_decrypt(u) for u in users]
 
 
 @app.get("/sap-users/{user_id}", response_model=SapUserOut)
@@ -1496,15 +1761,18 @@ def get_sap_user(user_id: int, db: Session = Depends(get_db)):
     u = db.get(SapUser, user_id)
     if not u:
         raise HTTPException(404, "Benutzer nicht gefunden.")
-    return u
+    return _sap_user_decrypt(u)
 
 
 @app.post("/sap-users", response_model=SapUserOut, status_code=201)
 def create_sap_user(payload: SapUserIn, db: Session = Depends(get_db)):
-    u = SapUser(**payload.model_dump())
+    data = payload.model_dump()
+    data["sap_username"] = _enc(data.get("sap_username", ""))
+    data["ashost"]       = _enc(data.get("ashost", ""))
+    u = SapUser(**data)
     db.add(u); db.commit(); db.refresh(u)
-    log.info("SAP-Benutzer angelegt: %s (%s)", u.display_name, u.sap_username)
-    return u
+    log.info("SAP-Benutzer angelegt: %s", u.display_name)
+    return _sap_user_decrypt(u)
 
 
 @app.put("/sap-users/{user_id}", response_model=SapUserOut)
@@ -1512,11 +1780,14 @@ def update_sap_user(user_id: int, payload: SapUserIn, db: Session = Depends(get_
     u = db.get(SapUser, user_id)
     if not u:
         raise HTTPException(404, "Benutzer nicht gefunden.")
-    for k, v in payload.model_dump().items():
+    data = payload.model_dump()
+    data["sap_username"] = _enc(data.get("sap_username", ""))
+    data["ashost"]       = _enc(data.get("ashost", ""))
+    for k, v in data.items():
         setattr(u, k, v)
     db.commit(); db.refresh(u)
     log.info("SAP-Benutzer aktualisiert: %s", u.display_name)
-    return u
+    return _sap_user_decrypt(u)
 
 
 @app.delete("/sap-users/{user_id}", status_code=204)
@@ -2633,31 +2904,6 @@ def create_decision(payload: DecisionRequestIn, db: Session = Depends(get_db)):
     return {"id": item.id, "status": item.status}
 
 
-@app.get("/decisions", tags=["Decision-Engine"])
-def list_decisions(
-    module: Optional[str] = None, asked_by: Optional[str] = None,
-    status: Optional[str] = None, limit: int = 50,
-    db: Session = Depends(get_db),
-):
-    q = db.query(DecisionRequest)
-    if module:   q = q.filter(DecisionRequest.module   == module)
-    if asked_by: q = q.filter(DecisionRequest.asked_by == asked_by)
-    if status:   q = q.filter(DecisionRequest.status   == status)
-    rows = q.order_by(DecisionRequest.created_at.desc()).limit(limit).all()
-    return [{"id": r.id, "question": r.question, "recommendation": r.recommendation,
-             "confidence": r.confidence, "status": r.status, "module": r.module,
-             "asked_by": r.asked_by, "created_at": r.created_at.isoformat(),
-             "decided_at": r.decided_at.isoformat() if r.decided_at else None} for r in rows]
-
-
-@app.get("/decisions/stats/summary", tags=["Decision-Engine"])
-def decision_stats(db: Session = Depends(get_db)):
-    total    = db.query(DecisionRequest).count()
-    archived = db.query(DecisionRequest).filter(DecisionRequest.status == "archived").count()
-    correct  = db.query(DecisionRequest).filter(DecisionRequest.outcome_correct == 1).count()
-    return {"total": total, "archived": archived, "correct": correct}
-
-
 # ============================================================================
 # KNOWLEDGE DECISION ENGINE -- Argumentations- und Begruendungslogik
 # ============================================================================
@@ -2993,6 +3239,78 @@ def server_info():
     }
 
 
+# ── Backup ────────────────────────────────────────────────────────────────────
+_BACKUP_VERSION_FILE = pathlib.Path(__file__).parent.parent / "backups" / "backup_version.json"
+_BACKUP_DIR          = pathlib.Path(__file__).parent.parent / "backups"
+_BACKUP_SCRIPT       = pathlib.Path(__file__).parent.parent / "backup.py"
+
+
+@app.get("/backup/list", tags=["Backup"])
+def backup_list():
+    """Gibt die Backup-Historie zurück."""
+    if not _BACKUP_VERSION_FILE.exists():
+        return {"version": 0, "backups": []}
+    import json as _j
+    try:
+        data = _j.loads(_BACKUP_VERSION_FILE.read_text(encoding="utf-8"))
+        # Datei-Existenz prüfen
+        for b in data.get("backups", []):
+            f = _BACKUP_DIR / b["filename"]
+            b["exists"] = f.exists()
+            b["path"]   = str(f)
+        return data
+    except Exception as exc:
+        raise HTTPException(500, f"Fehler beim Lesen der Backup-Historie: {exc}")
+
+
+@app.post("/backup/create", tags=["Backup"])
+def backup_create(payload: dict = {}):
+    """Erstellt einen neuen App-Backup (läuft synchron, dauert ~5s)."""
+    import subprocess as _sp
+    import sys as _sys
+    note = (payload or {}).get("note", "")
+    args = [_sys.executable, str(_BACKUP_SCRIPT)]
+    if note:
+        args += ["--note", note]
+    try:
+        result = _sp.run(
+            args,
+            capture_output=True, text=True, timeout=120,
+            cwd=str(_BACKUP_SCRIPT.parent),
+        )
+        if result.returncode != 0:
+            raise HTTPException(500, f"Backup fehlgeschlagen: {result.stderr or result.stdout}")
+        # Neu gelesene Version zurückgeben
+        if _BACKUP_VERSION_FILE.exists():
+            import json as _j
+            data = _j.loads(_BACKUP_VERSION_FILE.read_text(encoding="utf-8"))
+            last = data["backups"][-1] if data["backups"] else {}
+            return {"status": "ok", "backup": last, "output": result.stdout}
+        return {"status": "ok", "output": result.stdout}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(500, str(exc))
+
+
+@app.delete("/backup/{filename}", tags=["Backup"])
+def backup_delete(filename: str):
+    """Löscht eine Backup-ZIP-Datei und den Eintrag aus der Historie."""
+    import json as _j
+    # Sicherheitsprüfung: nur .zip, kein Pfad-Traversal
+    if "/" in filename or "\\" in filename or not filename.endswith(".zip"):
+        raise HTTPException(400, "Ungültiger Dateiname")
+    f = _BACKUP_DIR / filename
+    if f.exists():
+        f.unlink()
+    # Aus JSON entfernen
+    if _BACKUP_VERSION_FILE.exists():
+        data = _j.loads(_BACKUP_VERSION_FILE.read_text(encoding="utf-8"))
+        data["backups"] = [b for b in data["backups"] if b["filename"] != filename]
+        _BACKUP_VERSION_FILE.write_text(_j.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+    return {"status": "ok"}
+
+
 @app.post("/db-config/migrate", tags=["DB-Konfiguration"])
 def migrate_db(payload: dict):
     """Kopiert alle Daten der aktuellen DB in eine neue Zieldatei (SQLite backup API)."""
@@ -3123,21 +3441,17 @@ def delete_rueckstellung(request_id: int, db: Session = Depends(get_db)):
 
 
 # ── Kontenplan-Endpoints ─────────────────────────────────────────────────────
+
 @app.get("/rueckstellung/kontenplan", response_model=List[KontenplanOut], tags=["Rückstellung"])
 def list_kontenplan(db: Session = Depends(get_db)):
-    return db.query(RueckstellungKontenplan).order_by(RueckstellungKontenplan.sort_order).all()
+    return db.query(RueckstellungKontenplan).order_by(
+        RueckstellungKontenplan.sort_order, RueckstellungKontenplan.id).all()
 
 
 @app.post("/rueckstellung/kontenplan", response_model=KontenplanOut, status_code=201, tags=["Rückstellung"])
 def create_kontenplan(payload: KontenplanIn, db: Session = Depends(get_db)):
-    existing = db.query(RueckstellungKontenplan).filter(
-        RueckstellungKontenplan.kategorie == payload.kategorie).first()
-    if existing:
-        raise HTTPException(409, f"Kategorie '{payload.kategorie}' existiert bereits")
     entry = RueckstellungKontenplan(**payload.model_dump())
-    db.add(entry)
-    db.commit()
-    db.refresh(entry)
+    db.add(entry); db.commit(); db.refresh(entry)
     return entry
 
 
@@ -3145,11 +3459,10 @@ def create_kontenplan(payload: KontenplanIn, db: Session = Depends(get_db)):
 def update_kontenplan(entry_id: int, payload: KontenplanIn, db: Session = Depends(get_db)):
     entry = db.get(RueckstellungKontenplan, entry_id)
     if not entry:
-        raise HTTPException(404, "Kontenplan-Eintrag nicht gefunden")
+        raise HTTPException(404, "Eintrag nicht gefunden")
     for k, v in payload.model_dump().items():
         setattr(entry, k, v)
-    db.commit()
-    db.refresh(entry)
+    db.commit(); db.refresh(entry)
     return entry
 
 
@@ -3157,52 +3470,1032 @@ def update_kontenplan(entry_id: int, payload: KontenplanIn, db: Session = Depend
 def delete_kontenplan(entry_id: int, db: Session = Depends(get_db)):
     entry = db.get(RueckstellungKontenplan, entry_id)
     if not entry:
-        raise HTTPException(404, "Kontenplan-Eintrag nicht gefunden")
-    db.delete(entry)
-    db.commit()
+        raise HTTPException(404, "Eintrag nicht gefunden")
+    db.delete(entry); db.commit()
+
 
 # ── Template-Endpoints ────────────────────────────────────────────────────────
+
 @app.get("/rueckstellung/templates", response_model=List[RueckstellungTemplateOut], tags=["Rückstellung"])
 def list_templates(bukrs: str = "", kategorie: str = "", db: Session = Depends(get_db)):
-    """Gibt alle aktiven Templates zurück — gefiltert wenn bukrs/kategorie übergeben."""
-    q = db.query(RueckstellungTemplate).filter(RueckstellungTemplate.aktiv == 1)
-    if bukrs or kategorie:
-        from sqlalchemy import or_
-        q = q.filter(or_(
-            RueckstellungTemplate.bukrs == bukrs,
-            RueckstellungTemplate.bukrs == "",
-        )).filter(or_(
-            RueckstellungTemplate.kategorie == kategorie,
-            RueckstellungTemplate.kategorie == "",
-        ))
-    return q.order_by(
-        RueckstellungTemplate.bukrs.desc(),
-        RueckstellungTemplate.kategorie.desc()
-    ).all()
+    q = db.query(RueckstellungTemplate)
+    if bukrs:
+        q = q.filter(RueckstellungTemplate.bukrs == bukrs)
+    if kategorie:
+        q = q.filter(RueckstellungTemplate.kategorie == kategorie)
+    return q.order_by(RueckstellungTemplate.id).all()
 
 
 @app.post("/rueckstellung/templates", response_model=RueckstellungTemplateOut, status_code=201, tags=["Rückstellung"])
 def create_template(payload: RueckstellungTemplateIn, db: Session = Depends(get_db)):
-    entry = RueckstellungTemplate(**payload.model_dump())
-    db.add(entry); db.commit(); db.refresh(entry)
-    return entry
+    now = datetime.utcnow()
+    tpl = RueckstellungTemplate(**payload.model_dump(), created_at=now, updated_at=now)
+    db.add(tpl); db.commit(); db.refresh(tpl)
+    return tpl
 
 
 @app.put("/rueckstellung/templates/{tpl_id}", response_model=RueckstellungTemplateOut, tags=["Rückstellung"])
 def update_template(tpl_id: int, payload: RueckstellungTemplateIn, db: Session = Depends(get_db)):
-    entry = db.get(RueckstellungTemplate, tpl_id)
-    if not entry:
+    tpl = db.get(RueckstellungTemplate, tpl_id)
+    if not tpl:
         raise HTTPException(404, "Vorlage nicht gefunden")
     for k, v in payload.model_dump().items():
-        setattr(entry, k, v)
-    entry.updated_at = datetime.utcnow()
-    db.commit(); db.refresh(entry)
-    return entry
+        setattr(tpl, k, v)
+    tpl.updated_at = datetime.utcnow()
+    db.commit(); db.refresh(tpl)
+    return tpl
 
 
 @app.delete("/rueckstellung/templates/{tpl_id}", status_code=204, tags=["Rückstellung"])
 def delete_template(tpl_id: int, db: Session = Depends(get_db)):
-    entry = db.get(RueckstellungTemplate, tpl_id)
-    if not entry:
+    tpl = db.get(RueckstellungTemplate, tpl_id)
+    if not tpl:
         raise HTTPException(404, "Vorlage nicht gefunden")
-    db.delete(entry); db.commit()
+    db.delete(tpl); db.commit()
+
+
+# ── AfA-Lauf Endpoints ────────────────────────────────────────────────────────
+@app.get("/afa/runs", response_model=List[AfaRunOut], tags=["AfA-Lauf"])
+def list_afa_runs(sap_system: str = "", status: str = "",
+                  db: Session = Depends(get_db)):
+    q = db.query(AfaRun)
+    if sap_system:
+        q = q.filter(AfaRun.sap_system == sap_system)
+    if status:
+        q = q.filter(AfaRun.status == status)
+    return q.order_by(AfaRun.fire_at.desc()).limit(200).all()
+
+
+@app.post("/afa/runs", response_model=AfaRunOut, status_code=201, tags=["AfA-Lauf"])
+def create_afa_run(payload: AfaRunIn, db: Session = Depends(get_db)):
+    from datetime import timezone
+    # fire_at als UTC parsen (naive oder mit TZ)
+    try:
+        fire_at = datetime.fromisoformat(payload.fire_at.replace("Z", "+00:00"))
+        if fire_at.tzinfo is not None:
+            fire_at = fire_at.astimezone(timezone.utc).replace(tzinfo=None)
+    except ValueError:
+        raise HTTPException(400, f"Ungültiges fire_at-Format: {payload.fire_at!r}")
+    ar = AfaRun(
+        fire_at      = fire_at,
+        bukrs        = payload.bukrs.strip(),
+        fiscal_year  = payload.fiscal_year.strip(),
+        period       = payload.period.strip().zfill(2),
+        reason       = payload.reason,
+        testrun      = 1 if payload.testrun else 0,
+        stop_on_warn = 1 if payload.stop_on_warn else 0,
+        posting_date = payload.posting_date.strip(),
+        sap_system   = payload.sap_system,
+        created_by   = payload.created_by,
+        status       = "pending",
+    )
+    db.add(ar); db.commit(); db.refresh(ar)
+    # Im Scheduler eintragen (sofort)
+    if fire_at > datetime.utcnow():
+        scheduler.add_job(trigger_afa_run,
+                          trigger=DateTrigger(run_date=fire_at),
+                          args=[ar.id], id=f"afa-run-{ar.id}",
+                          replace_existing=True)
+        log.info("AfA-Lauf %d für %s eingeplant.", ar.id, fire_at)
+    return ar
+
+
+@app.get("/afa/runs/{run_id}", response_model=AfaRunOut, tags=["AfA-Lauf"])
+def get_afa_run(run_id: int, db: Session = Depends(get_db)):
+    ar = db.get(AfaRun, run_id)
+    if not ar:
+        raise HTTPException(404, "AfA-Lauf nicht gefunden")
+    return ar
+
+
+@app.patch("/afa/runs/{run_id}/cancel", response_model=AfaRunOut, tags=["AfA-Lauf"])
+def cancel_afa_run(run_id: int, db: Session = Depends(get_db)):
+    ar = db.get(AfaRun, run_id)
+    if not ar:
+        raise HTTPException(404, "AfA-Lauf nicht gefunden")
+    if ar.status not in ("pending",):
+        raise HTTPException(409, f"Nur pending-Laeufe koennen storniert werden (aktuell: {ar.status})")
+    ar.status = "cancelled"
+    db.commit(); db.refresh(ar)
+    try:
+        scheduler.remove_job(f"afa-run-{run_id}")
+    except Exception:
+        pass
+    return ar
+
+
+@app.delete("/afa/runs/{run_id}", status_code=204, tags=["AfA-Lauf"])
+def delete_afa_run(run_id: int, db: Session = Depends(get_db)):
+    ar = db.get(AfaRun, run_id)
+    if not ar:
+        raise HTTPException(404, "AfA-Lauf nicht gefunden")
+    if ar.status == "running":
+        raise HTTPException(409, "Laufender AfA-Job kann nicht geloescht werden")
+    try:
+        scheduler.remove_job(f"afa-run-{run_id}")
+    except Exception:
+        pass
+    db.delete(ar); db.commit()
+
+
+@app.post("/afa/runs/{run_id}/execute", response_model=AfaRunOut, tags=["AfA-Lauf"])
+def execute_afa_run_now(run_id: int, db: Session = Depends(get_db)):
+    """Fuehrt einen pending AfA-Lauf sofort aus (unabhaengig vom fire_at)."""
+    ar = db.get(AfaRun, run_id)
+    if not ar:
+        raise HTTPException(404, "AfA-Lauf nicht gefunden")
+    if ar.status != "pending":
+        raise HTTPException(409, f"Nur pending-Laeufe koennen sofort ausgefuehrt werden (aktuell: {ar.status})")
+    scheduler.add_job(trigger_afa_run, args=[run_id],
+                      id=f"afa-run-{run_id}-now", replace_existing=True)
+    return ar
+
+
+# ── Buchungskreis-Registry Endpoint ───────────────────────────────────────────
+@app.get("/bukrs", tags=["System"])
+def get_bukrs_list():
+    """Gibt alle konfigurierten Buchungskreise (SEP & SEQ) zurück."""
+    return BUKRS_LIST
+
+
+
+# ── AP-Aging / FBL1N-Import ───────────────────────────────────────────────────
+
+class ApAgingRun(Base):
+    """Gespeicherter AP-Aging-Import aus SAP (mit vollständigen Einzelposten)."""
+    __tablename__ = "ap_aging_runs"
+    id:           Mapped[int]      = mapped_column(primary_key=True)
+    stichtag:     Mapped[str]      = mapped_column(String(10))   # 'YYYY-MM-DD'
+    stichtag_fmt: Mapped[str]      = mapped_column(String(10), default="")  # 'DD.MM.YYYY'
+    bukrs_list:   Mapped[str]      = mapped_column(String(200))  # 'VV9,0334,...'
+    normal_items: Mapped[bool]     = mapped_column(Boolean, default=True)
+    special_gl:   Mapped[bool]     = mapped_column(Boolean, default=True)
+    months_back:  Mapped[int]      = mapped_column(Integer, default=36)
+    item_count:   Mapped[int]      = mapped_column(Integer, default=0)
+    sap_system:   Mapped[str]      = mapped_column(String(16), default="")
+    created_by:   Mapped[str]      = mapped_column(String(128), default="")
+    created_at:   Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    items_json:   Mapped[str]      = mapped_column(Text, default="[]")  # JSON-Array
+
+
+# Migration: Tabelle anlegen falls nicht vorhanden
+with engine.connect() as _conn:
+    _conn.execute(text(
+        "CREATE TABLE IF NOT EXISTS ap_aging_runs ("
+        "id           INTEGER PRIMARY KEY AUTOINCREMENT,"
+        "stichtag     TEXT    NOT NULL,"
+        "stichtag_fmt TEXT    NOT NULL DEFAULT '',"
+        "bukrs_list   TEXT    NOT NULL DEFAULT '',"
+        "normal_items INTEGER NOT NULL DEFAULT 1,"
+        "special_gl   INTEGER NOT NULL DEFAULT 1,"
+        "months_back  INTEGER NOT NULL DEFAULT 36,"
+        "item_count   INTEGER NOT NULL DEFAULT 0,"
+        "sap_system   TEXT    NOT NULL DEFAULT '',"
+        "created_by   TEXT    NOT NULL DEFAULT '',"
+        "created_at   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,"
+        "items_json   TEXT    NOT NULL DEFAULT '[]'"
+        ")"
+    ))
+    _conn.commit()
+
+
+class ApAgingImportIn(BaseModel):
+    bukrs:        str  = ""
+    key_date:     str  = ""
+    normal_items: bool = True
+    special_gl:   bool = True
+    months_back:  int  = 36
+
+
+class ApAgingSaveIn(BaseModel):
+    stichtag:     str
+    stichtag_fmt: str  = ""
+    bukrs_list:   str  = ""
+    normal_items: bool = True
+    special_gl:   bool = True
+    months_back:  int  = 36
+    sap_system:   str  = ""
+    created_by:   str  = ""
+    items:        list = []
+
+
+@app.post("/ap-aging/import", tags=["Reporting"])
+def ap_aging_import(body: ApAgingImportIn):
+    payload = {
+        "bukrs":        body.bukrs,
+        "key_date":     body.key_date,
+        "normal_items": body.normal_items,
+        "special_gl":   body.special_gl,
+        "months_back":  body.months_back,
+    }
+    result = _bridge_post("/ap-aging/fbl1n-import", payload, timeout=300)
+    if result.get("status") == "error":
+        raise HTTPException(502, f"SAP-Import fehlgeschlagen: {result.get('message','?')}")
+    return result
+
+
+@app.post("/ap-aging/imports", tags=["Reporting"])
+def ap_aging_save(body: ApAgingSaveIn):
+    import json as _json
+    with SessionLocal() as db:
+        run = ApAgingRun(
+            stichtag     = body.stichtag,
+            stichtag_fmt = body.stichtag_fmt or body.stichtag,
+            bukrs_list   = body.bukrs_list,
+            normal_items = body.normal_items,
+            special_gl   = body.special_gl,
+            months_back  = body.months_back,
+            item_count   = len(body.items),
+            sap_system   = body.sap_system,
+            created_by   = body.created_by,
+            items_json   = _json.dumps(body.items, ensure_ascii=False),
+        )
+        db.add(run)
+        db.commit()
+        db.refresh(run)
+        return {"id": run.id, "item_count": run.item_count, "created_at": str(run.created_at)}
+
+
+@app.get("/ap-aging/imports", tags=["Reporting"])
+def ap_aging_list():
+    with SessionLocal() as db:
+        runs = db.execute(
+            text("SELECT id, stichtag, stichtag_fmt, bukrs_list, normal_items, special_gl, "
+                 "months_back, item_count, sap_system, created_by, created_at "
+                 "FROM ap_aging_runs ORDER BY created_at DESC")
+        ).fetchall()
+        return [dict(r._mapping) for r in runs]
+
+
+@app.get("/ap-aging/imports/{run_id}", tags=["Reporting"])
+def ap_aging_get(run_id: int):
+    import json as _json
+    with SessionLocal() as db:
+        row = db.execute(
+            text("SELECT * FROM ap_aging_runs WHERE id = :id"),
+            {"id": run_id}
+        ).fetchone()
+        if not row:
+            raise HTTPException(404, "Import nicht gefunden")
+        d = dict(row._mapping)
+        d["items"] = _json.loads(d.pop("items_json", "[]"))
+        return d
+
+
+@app.delete("/ap-aging/imports/{run_id}", tags=["Reporting"])
+def ap_aging_delete(run_id: int):
+    with SessionLocal() as db:
+        result = db.execute(
+            text("DELETE FROM ap_aging_runs WHERE id = :id"), {"id": run_id}
+        )
+        db.commit()
+        if result.rowcount == 0:
+            raise HTTPException(404, "Import nicht gefunden")
+        return {"deleted": run_id}
+
+
+@app.post("/ap-aging/export-excel", tags=["Reporting"])
+def ap_aging_export_excel(payload: dict):
+    """Erzeugt eine farbige Excel-Datei (openpyxl) mit AP-Aging-Daten."""
+    import openpyxl
+    from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
+
+    raw_data  = payload.get("rawData",  [])
+    gl_data   = payload.get("glData",   [])
+    sup_data  = payload.get("supData",  [])
+    stichtag  = payload.get("stichtag", "30.06.2026")
+    bukrs_val = payload.get("bukrs",    "(Mehrere Elemente)")
+    dt_str    = stichtag.replace(".", "")  # "30062026"
+
+    wb = openpyxl.Workbook()
+    wb.remove(wb.active)  # leeres Standard-Sheet entfernen
+
+    # ── Stilhilfen ──────────────────────────────────────────────────────────
+    HDR_FILL  = PatternFill("solid", fgColor="1F4E79")
+    HDR_FONT  = Font(bold=True, color="FFFFFF", size=10)
+    TITLE_FONT = Font(bold=True, size=11)
+    TOTAL_FONT = Font(bold=True, size=10)
+    TOTAL_FILL = PatternFill("solid", fgColor="D9D9D9")
+    CAT_FILL  = PatternFill("solid", fgColor="DBEAFE")
+    CAT_FONT  = Font(color="1D4ED8", size=10)
+    SCH_FILL  = PatternFill("solid", fgColor="FFF7ED")
+    SCH_FONT  = Font(color="C2410C", size=10)
+    DEF_FONT  = Font(size=10)
+    THIN = Side(style="thin", color="B0B0B0")
+    CELL_BORDER = Border(left=THIN, right=THIN, top=THIN, bottom=THIN)
+    NUM_FMT = '#,##0.00'
+
+    def _set_hdr(ws, row, cols):
+        for ci, val in enumerate(cols, 1):
+            c = ws.cell(row=row, column=ci, value=val)
+            c.fill = HDR_FILL; c.font = HDR_FONT
+            c.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+            c.border = CELL_BORDER
+
+    def _set_num(c, val):
+        c.number_format = NUM_FMT
+        c.alignment = Alignment(horizontal="right")
+        c.border = CELL_BORDER
+        try: c.value = float(val) if val not in (None, "") else 0.0
+        except: c.value = 0.0
+
+    def _meta_rows(ws, title):
+        ws.append([None, title])
+        ws.cell(ws.max_row, 2).font = TITLE_FONT
+        ws.append([None, "Catensys Group"])
+        ws.append([None, "Company Code", bukrs_val])
+        ws.append([None, "remark", "(Leer)", "(ohne Catensys-Intern und Schaeffler)"])
+        ws.append([])
+        ws.append([None, None, None, "Werte"])
+
+    # ── Sheet 1: GL-Abstimmung ───────────────────────────────────────────────
+    ws1 = wb.create_sheet("Aging_AP_GL-Abstimmung")
+    _meta_rows(ws1, f"Aging -AP-GL Abstimmung  per {stichtag}")
+    hdr1 = ["G/L Account", "Local Currency 2", "Fällig <30 days",
+            "Fällig >=30 days", "Fällig >60 days", "Fällig >90 days"]
+    HDR_ROW1 = ws1.max_row + 1
+    _set_hdr(ws1, HDR_ROW1, hdr1)
+    totals1 = [0.0, 0.0, 0.0, 0.0]
+    for r in gl_data:
+        dr = ws1.max_row + 1
+        ws1.cell(dr, 1, r.get("gl","")).border = CELL_BORDER
+        ws1.cell(dr, 2, r.get("cur","EUR")).border = CELL_BORDER
+        for ci, k in enumerate(["d30","d60","d90","d90p"], 3):
+            _set_num(ws1.cell(dr, ci), r.get(k, 0))
+            totals1[ci-3] += float(r.get(k, 0) or 0)
+    tr = ws1.max_row + 1
+    ws1.cell(tr, 1, "Gesamtergebnis").font = TOTAL_FONT
+    for ci, v in enumerate(totals1, 3):
+        c = ws1.cell(tr, ci, v); c.fill = TOTAL_FILL; c.font = TOTAL_FONT
+        c.number_format = NUM_FMT; c.alignment = Alignment(horizontal="right")
+    for col in range(1, 7): ws1.column_dimensions[get_column_letter(col)].width = 20
+
+    # ── Sheet 2: Kreditoren Aging ────────────────────────────────────────────
+    sh2_name = f"Aging_AP_{dt_str[:6]}"
+    ws2 = wb.create_sheet(sh2_name)
+    _meta_rows(ws2, f"Aging -Kreditoren per {stichtag}")
+    hdr2 = ["Supplier name", "Local Currency 2", "Fällig <30 days",
+            "Fällig >=30 days", "Fällig >60 days", "Fällig >90 days"]
+    HDR_ROW2 = ws2.max_row + 1
+    _set_hdr(ws2, HDR_ROW2, hdr2)
+    totals2 = [0.0, 0.0, 0.0, 0.0]
+    for r in sup_data:
+        dr = ws2.max_row + 1
+        ws2.cell(dr, 1, r.get("sup","")).border = CELL_BORDER
+        ws2.cell(dr, 2, r.get("cur","EUR")).border = CELL_BORDER
+        for ci, k in enumerate(["d30","d60","d90","d90p"], 3):
+            _set_num(ws2.cell(dr, ci), r.get(k, 0))
+            totals2[ci-3] += float(r.get(k, 0) or 0)
+    tr2 = ws2.max_row + 1
+    ws2.cell(tr2, 1, "Gesamtergebnis").font = TOTAL_FONT
+    for ci, v in enumerate(totals2, 3):
+        c = ws2.cell(tr2, ci, v); c.fill = TOTAL_FILL; c.font = TOTAL_FONT
+        c.number_format = NUM_FMT; c.alignment = Alignment(horizontal="right")
+    ws2.column_dimensions["A"].width = 40
+    for col in range(2, 7): ws2.column_dimensions[get_column_letter(col)].width = 20
+
+    # ── Sheet 3: AP-Kreditoren Einzelposten ─────────────────────────────────
+    sh3_name = f"AP-Kreditoren-{dt_str[:6]}"
+    ws3 = wb.create_sheet(sh3_name)
+    HDR3 = ["BuKr","G/L","Konto","Lieferant","Belegnr.","Art",
+            "Belegdatum","Fällig Datum","Tage",
+            "<30 Tage",">=30 Tage",">60 Tage",">90 Tage","Bemerkung"]
+    _set_hdr(ws3, 1, HDR3)
+    BEM_COL = 14  # Spalte N = "Bemerkung"
+    for r in raw_data:
+        dr = ws3.max_row + 1
+        bem = r.get("bemerkung") or ""
+        is_cat = "catensys" in bem.lower()
+        is_sch = "schaeffler" in bem.lower()
+        vals = [
+            r.get("bukrs",""), r.get("gl",""), r.get("account",""), r.get("sup",""),
+            r.get("docnum",""), r.get("dtype",""), r.get("docdate",""), r.get("duedate",""),
+            r.get("days",""), r.get("d30",0), r.get("d60",0), r.get("d90",0), r.get("d90p",0),
+            bem
+        ]
+        for ci, val in enumerate(vals, 1):
+            cell = ws3.cell(dr, ci, val)
+            cell.border = CELL_BORDER
+            cell.font = DEF_FONT
+            if ci in (10, 11, 12, 13):
+                cell.number_format = NUM_FMT
+                cell.alignment = Alignment(horizontal="right")
+            if ci == BEM_COL:
+                if is_cat:
+                    cell.fill = CAT_FILL; cell.font = CAT_FONT
+                    cell.alignment = Alignment(horizontal="center")
+                elif is_sch:
+                    cell.fill = SCH_FILL; cell.font = SCH_FONT
+                    cell.alignment = Alignment(horizontal="center")
+        if is_cat or is_sch:
+            row_fill = CAT_FILL if is_cat else SCH_FILL
+            for ci in range(1, BEM_COL):
+                ws3.cell(dr, ci).fill = row_fill
+    col_widths3 = [6,8,14,40,14,6,12,12,7,12,12,12,12,18]
+    for ci, w in enumerate(col_widths3, 1):
+        ws3.column_dimensions[get_column_letter(ci)].width = w
+    ws3.freeze_panes = "A2"
+
+    # ── Datei in Speicher schreiben ──────────────────────────────────────────
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    fname = f"Aging_AP_{stichtag.replace('.', '-')}_YCONN.xlsx"
+    return Response(
+        content=buf.read(),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{fname}"'}
+    )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# GLOBALE BUCHUNGSHISTORIE
+# ─────────────────────────────────────────────────────────────────────────────
+
+class GlobalBookingEntry(Base):
+    __tablename__ = "global_booking_history"
+    id          : Mapped[int]      = mapped_column(primary_key=True)
+    module      : Mapped[str]      = mapped_column(String(32),  default="")
+    bukrs       : Mapped[str]      = mapped_column(String(8),   default="")
+    sap_system  : Mapped[str]      = mapped_column(String(16),  default="")
+    doc_date    : Mapped[str]      = mapped_column(String(10),  default="")
+    yr          : Mapped[str]      = mapped_column(String(4),   default="")
+    period      : Mapped[str]      = mapped_column(String(2),   default="")
+    belnr       : Mapped[str]      = mapped_column(String(18),  default="")
+    obj_key     : Mapped[str]      = mapped_column(String(20),  default="")
+    ref_doc_no  : Mapped[str]      = mapped_column(String(64),  default="")
+    header_txt  : Mapped[str]      = mapped_column(String(128), default="")
+    amount      : Mapped[float]    = mapped_column(Float,       default=0.0)
+    currency    : Mapped[str]      = mapped_column(String(4),   default="EUR")
+    description : Mapped[str]      = mapped_column(String(256), default="")
+    booked_by   : Mapped[str]      = mapped_column(String(128), default="")
+    booked_at   : Mapped[str]      = mapped_column(String(32),  default="")
+    status      : Mapped[str]      = mapped_column(String(16),  default="booked")
+    source      : Mapped[str]      = mapped_column(String(16),  default="app")
+
+# Migration
+with engine.connect() as _conn:
+    _conn.execute(text(
+        "CREATE TABLE IF NOT EXISTS global_booking_history ("
+        "id          INTEGER PRIMARY KEY AUTOINCREMENT,"
+        "module      TEXT NOT NULL DEFAULT '',"
+        "bukrs       TEXT NOT NULL DEFAULT '',"
+        "sap_system  TEXT NOT NULL DEFAULT '',"
+        "doc_date    TEXT NOT NULL DEFAULT '',"
+        "yr          TEXT NOT NULL DEFAULT '',"
+        "period      TEXT NOT NULL DEFAULT '',"
+        "belnr       TEXT NOT NULL DEFAULT '',"
+        "obj_key     TEXT NOT NULL DEFAULT '',"
+        "ref_doc_no  TEXT NOT NULL DEFAULT '',"
+        "header_txt  TEXT NOT NULL DEFAULT '',"
+        "amount      REAL NOT NULL DEFAULT 0.0,"
+        "currency    TEXT NOT NULL DEFAULT 'EUR',"
+        "description TEXT NOT NULL DEFAULT '',"
+        "booked_by   TEXT NOT NULL DEFAULT '',"
+        "booked_at   TEXT NOT NULL DEFAULT '',"
+        "status      TEXT NOT NULL DEFAULT 'booked',"
+        "source      TEXT NOT NULL DEFAULT 'app'"
+        ")"
+    ))
+    _conn.commit()
+
+class GlobalBookingIn(BaseModel):
+    module      : str   = ""
+    bukrs       : str   = ""
+    sap_system  : str   = ""
+    doc_date    : str   = ""
+    yr          : str   = ""
+    period      : str   = ""
+    belnr       : str   = ""
+    obj_key     : str   = ""
+    ref_doc_no  : str   = ""
+    header_txt  : str   = ""
+    amount      : float = 0.0
+    currency    : str   = "EUR"
+    description : str   = ""
+    booked_by   : str   = ""
+    booked_at   : str   = ""
+    status      : str   = "booked"
+    source      : str   = "app"
+
+@app.post("/booking-history", tags=["Global"])
+def booking_history_save(body: GlobalBookingIn):
+    with SessionLocal() as db:
+        row = GlobalBookingEntry(
+            module=body.module, bukrs=body.bukrs, sap_system=body.sap_system,
+            doc_date=body.doc_date, yr=body.yr, period=body.period,
+            belnr=body.belnr, obj_key=body.obj_key,
+            ref_doc_no=body.ref_doc_no, header_txt=body.header_txt,
+            amount=body.amount, currency=body.currency,
+            description=body.description, booked_by=body.booked_by,
+            booked_at=body.booked_at or datetime.utcnow().isoformat(),
+            status=body.status, source=body.source,
+        )
+        db.add(row); db.commit(); db.refresh(row)
+        return {"id": row.id, "status": "saved"}
+
+
+@app.get("/booking-history", tags=["Global"])
+def booking_history_list(
+    module: str = "", bukrs: str = "", limit: int = 500,
+    db: Session = Depends(get_db)
+):
+    q = db.query(GlobalBookingEntry).order_by(GlobalBookingEntry.id.desc())
+    if module:
+        q = q.filter(GlobalBookingEntry.module == module)
+    if bukrs:
+        q = q.filter(GlobalBookingEntry.bukrs == bukrs)
+    rows = q.limit(limit).all()
+    return [
+        {
+            "id": r.id, "module": r.module, "bukrs": r.bukrs,
+            "sap_system": r.sap_system, "doc_date": r.doc_date,
+            "yr": r.yr, "period": r.period, "belnr": r.belnr,
+            "obj_key": r.obj_key, "ref_doc_no": r.ref_doc_no,
+            "header_txt": r.header_txt, "amount": r.amount,
+            "currency": r.currency, "description": r.description,
+            "booked_by": r.booked_by, "booked_at": r.booked_at,
+            "status": r.status, "source": r.source,
+        }
+        for r in rows
+    ]
+# ═══════════════════════════════════════════════════════════════════════════════
+# USt-Firmenwagen
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class UstFirmenwagenRun(Base):
+    __tablename__ = "ust_firmenwagen_runs"
+    id           : Mapped[int]  = mapped_column(Integer, primary_key=True, autoincrement=True)
+    periode      : Mapped[str]  = mapped_column(String(20),  default="")
+    post_date    : Mapped[str]  = mapped_column(String(10),  default="")
+    bukrs        : Mapped[str]  = mapped_column(String(8),   default="0435")
+    fis_period   : Mapped[str]  = mapped_column(String(4),   default="")
+    fisc_year    : Mapped[str]  = mapped_column(String(4),   default="")
+    ref_doc      : Mapped[str]  = mapped_column(String(64),  default="")
+    header_txt   : Mapped[str]  = mapped_column(String(128), default="")
+    sap_system   : Mapped[str]  = mapped_column(String(16),  default="SEP")
+    total_amount : Mapped[float]= mapped_column(Float,       default=0.0)
+    row_count    : Mapped[int]  = mapped_column(Integer,     default=0)
+    status       : Mapped[str]  = mapped_column(String(16),  default="saved")
+    created_by   : Mapped[str]  = mapped_column(String(128), default="")
+    created_at   : Mapped[str]  = mapped_column(String(32),  default="")
+    lines_json   : Mapped[str]  = mapped_column(Text,        default="[]")
+
+# Migration
+with engine.connect() as _conn:
+    _conn.execute(text(
+        "CREATE TABLE IF NOT EXISTS ust_firmenwagen_runs ("
+        "id           INTEGER PRIMARY KEY AUTOINCREMENT,"
+        "periode      TEXT NOT NULL DEFAULT '',"
+        "post_date    TEXT NOT NULL DEFAULT '',"
+        "bukrs        TEXT NOT NULL DEFAULT '0435',"
+        "fis_period   TEXT NOT NULL DEFAULT '',"
+        "fisc_year    TEXT NOT NULL DEFAULT '',"
+        "ref_doc      TEXT NOT NULL DEFAULT '',"
+        "header_txt   TEXT NOT NULL DEFAULT '',"
+        "sap_system   TEXT NOT NULL DEFAULT 'SEP',"
+        "total_amount REAL NOT NULL DEFAULT 0.0,"
+        "row_count    INTEGER NOT NULL DEFAULT 0,"
+        "status       TEXT NOT NULL DEFAULT 'saved',"
+        "created_by   TEXT NOT NULL DEFAULT '',"
+        "created_at   TEXT NOT NULL DEFAULT '',"
+        "lines_json   TEXT NOT NULL DEFAULT '[]'"
+        ")"
+    ))
+    _conn.commit()
+
+class UwLineIn(BaseModel):
+    persnr       : str   = ""
+    nachname     : str   = ""
+    kostenstelle : str   = ""
+    gvw          : float = 0.0
+    fahrten      : float = 0.0
+    amount       : float = 0.0
+    status       : str   = "pending"
+    belnr        : str   = ""
+
+class UwRunIn(BaseModel):
+    periode    : str          = ""
+    post_date  : str          = ""
+    bukrs      : str          = "0435"
+    fis_period : str          = ""
+    fisc_year  : str          = ""
+    ref_doc    : str          = ""
+    header_txt : str          = ""
+    sap_system : str          = "SEP"
+    created_by : str          = ""
+    lines      : list[UwLineIn] = []
+
+def _uw_status(lines: list) -> str:
+    if not lines:
+        return "saved"
+    booked = sum(1 for l in lines if l.get("status") == "booked")
+    if booked == len(lines):
+        return "booked"
+    if booked > 0:
+        return "partial"
+    return "saved"
+
+@app.post("/ust-firmenwagen", tags=["USt-Firmenwagen"])
+def uw_create(body: UwRunIn):
+    import json as _json
+    lines_data = [l.model_dump() for l in body.lines]
+    total = round(sum(l["amount"] for l in lines_data), 2)
+    with SessionLocal() as db:
+        run = UstFirmenwagenRun(
+            periode=body.periode, post_date=body.post_date, bukrs=body.bukrs,
+            fis_period=body.fis_period, fisc_year=body.fisc_year,
+            ref_doc=body.ref_doc, header_txt=body.header_txt,
+            sap_system=body.sap_system, total_amount=total,
+            row_count=len(lines_data), status=_uw_status(lines_data),
+            created_by=body.created_by,
+            created_at=datetime.utcnow().isoformat(),
+            lines_json=_json.dumps(lines_data, ensure_ascii=False),
+        )
+        db.add(run)
+        db.commit()
+        db.refresh(run)
+        return {"id": run.id, "total_amount": run.total_amount, "row_count": run.row_count}
+
+@app.patch("/ust-firmenwagen/{run_id}", tags=["USt-Firmenwagen"])
+def uw_update(run_id: int, body: UwRunIn):
+    import json as _json
+    lines_data = [l.model_dump() for l in body.lines]
+    total = round(sum(l["amount"] for l in lines_data), 2)
+    with SessionLocal() as db:
+        run = db.get(UstFirmenwagenRun, run_id)
+        if not run:
+            raise HTTPException(status_code=404, detail="Run not found")
+        run.periode      = body.periode or run.periode
+        run.post_date    = body.post_date or run.post_date
+        run.bukrs        = body.bukrs or run.bukrs
+        run.fis_period   = body.fis_period or run.fis_period
+        run.fisc_year    = body.fisc_year or run.fisc_year
+        run.ref_doc      = body.ref_doc or run.ref_doc
+        run.header_txt   = body.header_txt or run.header_txt
+        run.sap_system   = body.sap_system or run.sap_system
+        run.total_amount = total
+        run.row_count    = len(lines_data)
+        run.status       = _uw_status(lines_data)
+        run.lines_json   = _json.dumps(lines_data, ensure_ascii=False)
+        db.commit()
+        db.refresh(run)
+        return {"id": run.id, "total_amount": run.total_amount,
+                "row_count": run.row_count, "status": run.status}
+
+@app.get("/ust-firmenwagen", tags=["USt-Firmenwagen"])
+def uw_list(limit: int = 50):
+    with SessionLocal() as db:
+        runs = db.execute(
+            text("SELECT * FROM ust_firmenwagen_runs ORDER BY id DESC LIMIT :l"),
+            {"l": limit}
+        ).mappings().all()
+        return [dict(r) for r in runs]
+
+@app.get("/ust-firmenwagen/{run_id}", tags=["USt-Firmenwagen"])
+def uw_get(run_id: int):
+    with SessionLocal() as db:
+        run = db.get(UstFirmenwagenRun, run_id)
+        if not run:
+            raise HTTPException(status_code=404, detail="Run not found")
+        import json as _json
+        result = {
+            "id": run.id, "periode": run.periode, "post_date": run.post_date,
+            "bukrs": run.bukrs, "fis_period": run.fis_period, "fisc_year": run.fisc_year,
+            "ref_doc": run.ref_doc, "header_txt": run.header_txt, "sap_system": run.sap_system,
+            "total_amount": run.total_amount, "row_count": run.row_count,
+            "status": run.status, "created_by": run.created_by, "created_at": run.created_at,
+            "lines": _json.loads(run.lines_json or "[]"),
+        }
+        return result
+
+@app.delete("/ust-firmenwagen/{run_id}", tags=["USt-Firmenwagen"])
+def uw_delete(run_id: int):
+    with SessionLocal() as db:
+        run = db.get(UstFirmenwagenRun, run_id)
+        if not run:
+            raise HTTPException(status_code=404, detail="Run not found")
+        db.delete(run)
+        db.commit()
+    return Response(status_code=204)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Management-Service Eingangsrechnungen
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class MgmtInvoiceRun(Base):
+    __tablename__ = "mgmt_invoice_runs"
+    id          : Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    periode     : Mapped[str] = mapped_column(String(8),   default="")   # YYYY-MM
+    doc_date    : Mapped[str] = mapped_column(String(10),  default="")
+    pstng_date  : Mapped[str] = mapped_column(String(10),  default="")
+    bukrs       : Mapped[str] = mapped_column(String(8),   default="")   # Buchungskreis
+    sap_transaction : Mapped[str] = mapped_column(String(10),  default="")   # FB01 / MIRO
+    ref_doc_no  : Mapped[str] = mapped_column(String(64),  default="")
+    header_txt  : Mapped[str] = mapped_column(String(128), default="")
+    sap_system  : Mapped[str] = mapped_column(String(16),  default="SEQ")
+    vendor      : Mapped[str] = mapped_column(String(20),  default="L372961")
+    tax_code    : Mapped[str] = mapped_column(String(4),   default="")
+    business_place: Mapped[str] = mapped_column(String(10), default="")
+    gross_amount: Mapped[float] = mapped_column(Float,     default=0.0)
+    status      : Mapped[str] = mapped_column(String(20),  default="open")   # open/booked/error
+    belnr       : Mapped[str] = mapped_column(String(20),  default="")       # SAP Belegnummer
+    sap_msg     : Mapped[str] = mapped_column(Text,        default="")
+    lines_json  : Mapped[str] = mapped_column(Text,        default="[]")
+    created_by  : Mapped[str] = mapped_column(String(128), default="")
+    created_at  : Mapped[str] = mapped_column(String(32),  default="")
+    booked_at   : Mapped[str] = mapped_column(String(32),  default="")
+
+with engine.connect() as _conn:
+    _conn.execute(text("""
+        CREATE TABLE IF NOT EXISTS mgmt_invoice_runs (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            periode       TEXT NOT NULL DEFAULT '',
+            doc_date      TEXT NOT NULL DEFAULT '',
+            pstng_date    TEXT NOT NULL DEFAULT '',
+            bukrs         TEXT NOT NULL DEFAULT '',
+            sap_transaction TEXT NOT NULL DEFAULT '',
+            ref_doc_no    TEXT NOT NULL DEFAULT '',
+            header_txt    TEXT NOT NULL DEFAULT '',
+            sap_system    TEXT NOT NULL DEFAULT 'SEQ',
+            vendor        TEXT NOT NULL DEFAULT 'L372961',
+            tax_code      TEXT NOT NULL DEFAULT '',
+            business_place TEXT NOT NULL DEFAULT '',
+            gross_amount  REAL NOT NULL DEFAULT 0.0,
+            status        TEXT NOT NULL DEFAULT 'open',
+            belnr         TEXT NOT NULL DEFAULT '',
+            sap_msg       TEXT NOT NULL DEFAULT '',
+            lines_json    TEXT NOT NULL DEFAULT '[]',
+            created_by    TEXT NOT NULL DEFAULT '',
+            created_at    TEXT NOT NULL DEFAULT '',
+            booked_at     TEXT NOT NULL DEFAULT ''
+        )
+    """))
+    _conn.commit()
+
+class MgmtInvoiceIn(BaseModel):
+    periode      : str   = ""
+    doc_date     : str   = ""
+    pstng_date   : str   = ""
+    bukrs        : str   = ""
+    sap_transaction : str   = "FB01"
+    ref_doc_no   : str   = ""
+    header_txt   : str   = ""
+    sap_system   : str   = "SEQ"
+    vendor       : str   = "L372961"
+    tax_code     : str   = ""
+    business_place: str  = ""
+    gross_amount : float = 0.0
+    status       : str   = "open"
+    belnr        : str   = ""
+    sap_msg      : str   = ""
+    lines        : list  = []
+    created_by   : str   = ""
+
+@app.get("/mgmt-invoice", tags=["Management Invoice"])
+def mi_list(periode: str = "", limit: int = 100):
+    with SessionLocal() as db:
+        q = "SELECT * FROM mgmt_invoice_runs"
+        params: dict = {}
+        if periode:
+            q += " WHERE periode = :p"
+            params["p"] = periode
+        q += " ORDER BY id DESC LIMIT :l"
+        params["l"] = limit
+        rows = db.execute(text(q), params).mappings().all()
+        return [dict(r) for r in rows]
+
+@app.post("/mgmt-invoice", tags=["Management Invoice"])
+def mi_create(body: MgmtInvoiceIn):
+    import json as _json
+    now = datetime.utcnow().isoformat()
+    with SessionLocal() as db:
+        run = MgmtInvoiceRun(
+            periode=body.periode, doc_date=body.doc_date, pstng_date=body.pstng_date,
+            bukrs=body.bukrs, sap_transaction=body.sap_transaction, ref_doc_no=body.ref_doc_no,
+            header_txt=body.header_txt, sap_system=body.sap_system, vendor=body.vendor,
+            tax_code=body.tax_code, business_place=body.business_place,
+            gross_amount=body.gross_amount, status=body.status,
+            belnr=body.belnr, sap_msg=body.sap_msg,
+            lines_json=_json.dumps(body.lines, ensure_ascii=False),
+            created_by=body.created_by, created_at=now,
+        )
+        db.add(run); db.commit(); db.refresh(run)
+        return {"id": run.id, "status": run.status}
+
+@app.patch("/mgmt-invoice/{run_id}", tags=["Management Invoice"])
+def mi_update(run_id: int, body: MgmtInvoiceIn):
+    import json as _json
+    now = datetime.utcnow().isoformat()
+    with SessionLocal() as db:
+        run = db.get(MgmtInvoiceRun, run_id)
+        if not run:
+            raise HTTPException(status_code=404, detail="Run nicht gefunden")
+        for field in ("periode", "doc_date", "pstng_date", "bukrs", "sap_transaction",
+                      "ref_doc_no", "header_txt", "sap_system", "vendor", "tax_code",
+                      "business_place", "gross_amount", "status", "belnr", "sap_msg"):
+            val = getattr(body, field, None)
+            if val is not None and val != "":
+                setattr(run, field, val)
+        if body.lines:
+            run.lines_json = _json.dumps(body.lines, ensure_ascii=False)
+        if body.belnr and not run.booked_at:
+            run.booked_at = now
+        db.commit(); db.refresh(run)
+        return {"id": run.id, "status": run.status, "belnr": run.belnr, "sap_msg": run.sap_msg}
+
+@app.delete("/mgmt-invoice/{run_id}", tags=["Management Invoice"])
+def mi_delete(run_id: int):
+    with SessionLocal() as db:
+        run = db.get(MgmtInvoiceRun, run_id)
+        if not run:
+            raise HTTPException(status_code=404, detail="Run nicht gefunden")
+        db.delete(run); db.commit()
+        return {"deleted": run_id}
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# SALES REPORT – CO-PA / SD-Billing
+# ══════════════════════════════════════════════════════════════════════════
+
+class SalesRun(Base):
+    __tablename__ = "sales_runs"
+    id           : Mapped[int]   = mapped_column(Integer, primary_key=True, autoincrement=True)
+    label        : Mapped[str]   = mapped_column(String(128), default="")
+    date_from    : Mapped[str]   = mapped_column(String(10),  default="")
+    date_to      : Mapped[str]   = mapped_column(String(10),  default="")
+    comp_codes   : Mapped[str]   = mapped_column(String(256), default="")
+    source       : Mapped[str]   = mapped_column(String(16),  default="vbrk")
+    row_count    : Mapped[int]   = mapped_column(Integer,     default=0)
+    total_revenue: Mapped[float] = mapped_column(Float,       default=0.0)
+    currency     : Mapped[str]   = mapped_column(String(8),   default="EUR")
+    sap_system   : Mapped[str]   = mapped_column(String(16),  default="")
+    created_by   : Mapped[str]   = mapped_column(String(128), default="")
+    created_at   : Mapped[str]   = mapped_column(String(32),  default="")
+    rows_json    : Mapped[str]   = mapped_column(Text,        default="[]")
+    meta_json    : Mapped[str]   = mapped_column(Text,        default="{}")
+
+
+with engine.connect() as _conn:
+    _conn.execute(text(
+        "CREATE TABLE IF NOT EXISTS sales_runs ("
+        "id            INTEGER PRIMARY KEY AUTOINCREMENT,"
+        "label         TEXT NOT NULL DEFAULT '',"
+        "date_from     TEXT NOT NULL DEFAULT '',"
+        "date_to       TEXT NOT NULL DEFAULT '',"
+        "comp_codes    TEXT NOT NULL DEFAULT '',"
+        "source        TEXT NOT NULL DEFAULT 'vbrk',"
+        "row_count     INTEGER NOT NULL DEFAULT 0,"
+        "total_revenue REAL    NOT NULL DEFAULT 0.0,"
+        "currency      TEXT NOT NULL DEFAULT 'EUR',"
+        "sap_system    TEXT NOT NULL DEFAULT '',"
+        "created_by    TEXT NOT NULL DEFAULT '',"
+        "created_at    TEXT NOT NULL DEFAULT '',"
+        "rows_json     TEXT NOT NULL DEFAULT '[]',"
+        "meta_json     TEXT NOT NULL DEFAULT '{}'"
+        ")"
+    ))
+    _conn.commit()
+
+
+class SalesImportIn(BaseModel):
+    comp_codes        : str         = ""
+    date_from         : str         = ""
+    date_to           : str         = ""
+    source            : str         = "vbrk"
+    operating_concern : str         = "0001"
+    customer_filter   : str         = ""
+    material_filter   : str         = ""
+    maxrows           : int         = 5000
+    sap_auth          : dict | None = None
+
+
+class SalesSaveIn(BaseModel):
+    label      : str  = ""
+    date_from  : str  = ""
+    date_to    : str  = ""
+    comp_codes : str  = ""
+    source     : str  = "vbrk"
+    sap_system : str  = ""
+    created_by : str  = ""
+    currency   : str  = "EUR"
+    rows       : list = []
+    meta       : dict = {}
+
+
+@app.post("/sales/import", tags=["Sales"])
+def sales_import(body: SalesImportIn):
+    """Startet SAP-Import (VBRK/VBRP oder CO-PA CE4xxxx) via Bridge."""
+    payload = {
+        "comp_codes":        body.comp_codes,
+        "date_from":         body.date_from,
+        "date_to":           body.date_to,
+        "source":            body.source,
+        "operating_concern": body.operating_concern,
+        "customer_filter":   body.customer_filter,
+        "material_filter":   body.material_filter,
+        "maxrows":           body.maxrows,
+        "_sap_auth":         body.sap_auth,
+    }
+    result = _bridge_post("/sales/copa-import", payload, timeout=300)
+    if result.get("status") == "error":
+        raise HTTPException(502, f"SAP-Import fehlgeschlagen: {result.get('message','?')}")
+    return result
+
+
+@app.post("/sales/runs", tags=["Sales"])
+def sales_save(body: SalesSaveIn):
+    import json as _json
+    now   = datetime.utcnow().isoformat(timespec="seconds")
+    total = sum(float(r.get("revenue", 0) or 0) for r in body.rows)
+    with SessionLocal() as db:
+        run = SalesRun(
+            label         = body.label or f"Sales {body.date_from}–{body.date_to}",
+            date_from     = body.date_from,
+            date_to       = body.date_to,
+            comp_codes    = body.comp_codes,
+            source        = body.source,
+            row_count     = len(body.rows),
+            total_revenue = round(total, 2),
+            currency      = body.currency or "EUR",
+            sap_system    = body.sap_system,
+            created_by    = body.created_by,
+            created_at    = now,
+            rows_json     = _json.dumps(body.rows, ensure_ascii=False),
+            meta_json     = _json.dumps(body.meta, ensure_ascii=False),
+        )
+        db.add(run); db.commit(); db.refresh(run)
+        return {"id": run.id, "row_count": run.row_count,
+                "total_revenue": run.total_revenue, "created_at": now}
+
+
+@app.get("/sales/runs", tags=["Sales"])
+def sales_list():
+    with SessionLocal() as db:
+        rows = db.execute(text(
+            "SELECT id,label,date_from,date_to,comp_codes,source,"
+            "row_count,total_revenue,currency,sap_system,created_by,created_at "
+            "FROM sales_runs ORDER BY created_at DESC"
+        )).fetchall()
+        return [dict(r._mapping) for r in rows]
+
+
+@app.get("/sales/runs/{run_id}", tags=["Sales"])
+def sales_get(run_id: int):
+    import json as _json
+    with SessionLocal() as db:
+        row = db.execute(
+            text("SELECT * FROM sales_runs WHERE id=:id"), {"id": run_id}
+        ).fetchone()
+        if not row:
+            raise HTTPException(404, "Sales-Run nicht gefunden")
+        d = dict(row._mapping)
+        d["rows"] = _json.loads(d.pop("rows_json", "[]"))
+        d["meta"] = _json.loads(d.pop("meta_json", "{}"))
+        return d
+
+
+@app.get("/sales/runs/{run_id}/report", tags=["Sales"])
+def sales_report_filtered(
+    run_id: int,
+    bukrs:  str = "",
+    kunnr:  str = "",
+    matnr:  str = "",
+    period: str = "",
+):
+    import json as _json
+    with SessionLocal() as db:
+        row = db.execute(
+            text("SELECT rows_json,meta_json FROM sales_runs WHERE id=:id"),
+            {"id": run_id}
+        ).fetchone()
+        if not row:
+            raise HTTPException(404, "Sales-Run nicht gefunden")
+        rows = _json.loads(row.rows_json or "[]")
+        meta = _json.loads(row.meta_json or "{}")
+    if bukrs:
+        rows = [r for r in rows if r.get("bukrs","").startswith(bukrs)]
+    if kunnr:
+        rows = [r for r in rows if r.get("kunnr","").startswith(kunnr)]
+    if matnr:
+        rows = [r for r in rows if r.get("matnr","").startswith(matnr)]
+    if period:
+        rows = [r for r in rows if str(r.get("period",""))==period
+                                or str(r.get("gjahr",""))==period]
+    total_rev = sum(float(r.get("revenue",0) or 0) for r in rows)
+    return {"rows": rows, "meta": meta,
+            "filtered_count": len(rows), "filtered_total": round(total_rev,2)}
+
+
+@app.delete("/sales/runs/{run_id}", tags=["Sales"])
+def sales_delete(run_id: int):
+    with SessionLocal() as db:
+        result = db.execute(
+            text("DELETE FROM sales_runs WHERE id=:id"), {"id": run_id}
+        )
+        db.commit()
+        if result.rowcount == 0:
+            raise HTTPException(404, "Sales-Run nicht gefunden")
+        return {"deleted": run_id}
